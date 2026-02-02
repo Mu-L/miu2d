@@ -7,39 +7,12 @@ import { PathType } from "../core/pathFinder";
 import type { CharacterConfig, Vector2 } from "../core/types";
 import { ActionType, CharacterKind, CharacterState } from "../core/types";
 import { generateId, getDirectionFromVector, tileToPixel } from "../utils";
-import { getMagicAtLevel, loadMagic } from "../magic/magicLoader";
 import type { MagicManager } from "../magic";
-import { magicRenderer } from "../magic/magicRenderer";
 import type { MagicData } from "../magic/types";
-import { Character } from "./character";
+import { Character } from "../character";
+import { NpcMagicCache } from "./modules";
 import type { NpcManager } from "./npcManager";
-import { loadNpcConfig } from "./resFile";
-
-// Global AI state (matches C# Npc.IsAIDisabled static property)
-let _globalAIDisabled = false;
-
-/**
- * Disable AI for all NPCs (used in cutscenes)
- * C#: Npc.DisableAI()
- */
-export function disableGlobalAI(): void {
-  _globalAIDisabled = true;
-}
-
-/**
- * Enable AI for all NPCs
- * C#: Npc.EnableAI()
- */
-export function enableGlobalAI(): void {
-  _globalAIDisabled = false;
-}
-
-/**
- * Check if global AI is disabled
- */
-export function isGlobalAIDisabled(): boolean {
-  return _globalAIDisabled;
-}
+import { loadNpcConfig } from "../character/resFile";
 
 /** Npc 类 - 对应 C# Npc.cs */
 export class Npc extends Character {
@@ -60,17 +33,23 @@ export class Npc extends Character {
 
   // NpcManager 和 Player 现在通过 IEngineContext 获取
 
-  // Magic cache - 缓存已加载的 MagicData 对象
+  // Magic cache - 使用 NpcMagicCache 模块管理武功缓存
   // C#: Magic objects are cached when loaded from ini files
-  private _magicToUseWhenLifeLowData: MagicData | null = null;
-  private _magicToUseWhenBeAttackedData: MagicData | null = null;
-  private _magicToUseWhenDeathData: MagicData | null = null;
-  private _flyIniMagicCache: Map<string, MagicData> = new Map();
-  private _magicLoadingPromise: Promise<void> | null = null;
+  private _magicCache: NpcMagicCache | null = null;
 
   constructor(id?: string) {
     super();
     this._id = id || generateId();
+  }
+
+  /**
+   * 获取或创建武功缓存管理器
+   */
+  private get magicCache(): NpcMagicCache {
+    if (!this._magicCache) {
+      this._magicCache = new NpcMagicCache(this.attackLevel || 1);
+    }
+    return this._magicCache;
   }
 
   // === Manager 访问（通过 IEngineContext）===
@@ -93,7 +72,7 @@ export class Npc extends Character {
    * 获取 Player（通过 IEngineContext）
    */
   private get player(): Character {
-    return this.engine.player as Character;
+    return this.engine.player as unknown as Character;
   }
 
   // === Properties ===
@@ -195,14 +174,6 @@ export class Npc extends Character {
     this._destinationMapPosY = value;
   }
 
-  /**
-   * Set the loaded MagicData for MagicToUseWhenLifeLow
-   * Called by NpcManager or GameManager after loading magic
-   */
-  setMagicToUseWhenLifeLowData(data: MagicData | null): void {
-    this._magicToUseWhenLifeLowData = data;
-  }
-
   // aiType getter/setter - inherited from Character
 
   /**
@@ -232,122 +203,38 @@ export class Npc extends Character {
   // NpcManager 和 Player 现在通过 getter 从 IEngineContext 获取，无需 setAIReferences
 
   /**
-   * 预加载 NPC 的所有武功
+   * 预加载 NPC 的所有武功（唯一的异步入口）
    * C#: Magic objects are loaded when Character is constructed
-   * 异步加载所有配置的武功（FlyIni, FlyIni2, FlyInis, MagicToUseWhenLifeLow, etc.）
+   *
+   * 使用 NpcMagicCache 模块管理，参考 Player 的 MagicListManager.addMagic 模式
    */
   async loadAllMagics(): Promise<void> {
-    // 避免重复加载
-    if (this._magicLoadingPromise) {
-      return this._magicLoadingPromise;
-    }
-
-    this._magicLoadingPromise = this._loadMagicsInternal();
-    return this._magicLoadingPromise;
-  }
-
-  private async _loadMagicsInternal(): Promise<void> {
-    const loadPromises: Promise<void>[] = [];
-
-    // 加载 FlyIni
-    if (this.flyIni) {
-      loadPromises.push(this._loadAndCacheMagic(this.flyIni));
-    }
-
-    // 加载 FlyIni2
-    if (this.flyIni2) {
-      loadPromises.push(this._loadAndCacheMagic(this.flyIni2));
-    }
-
-    // 加载 FlyInis 中的所有武功
-    for (const info of this._flyIniInfos) {
-      if (info.magicIni) {
-        loadPromises.push(this._loadAndCacheMagic(info.magicIni));
-      }
-    }
-
-    // 加载特殊武功
-    if (this.magicToUseWhenLifeLow) {
-      loadPromises.push(
-        loadMagic(this.magicToUseWhenLifeLow).then(async (magic) => {
-          if (magic) {
-            this._magicToUseWhenLifeLowData = getMagicAtLevel(magic, this.attackLevel || 1);
-            await this._preloadMagicAsf(this._magicToUseWhenLifeLowData);
-          }
-        })
-      );
-    }
-
-    if (this.magicToUseWhenBeAttacked) {
-      loadPromises.push(
-        loadMagic(this.magicToUseWhenBeAttacked).then(async (magic) => {
-          if (magic) {
-            this._magicToUseWhenBeAttackedData = getMagicAtLevel(magic, this.attackLevel || 1);
-            await this._preloadMagicAsf(this._magicToUseWhenBeAttackedData);
-          }
-        })
-      );
-    }
-
-    if (this.magicToUseWhenDeath) {
-      loadPromises.push(
-        loadMagic(this.magicToUseWhenDeath).then(async (magic) => {
-          if (magic) {
-            this._magicToUseWhenDeathData = getMagicAtLevel(magic, this.attackLevel || 1);
-            await this._preloadMagicAsf(this._magicToUseWhenDeathData);
-          }
-        })
-      );
-    }
-
-    await Promise.all(loadPromises);
-    logger.log(`[NPC] ${this.name}: Loaded ${this._flyIniMagicCache.size} magics`);
+    return this.magicCache.loadAll(
+      this._flyIniInfos,
+      {
+        lifeLow: this.magicToUseWhenLifeLow,
+        beAttacked: this.magicToUseWhenBeAttacked,
+        death: this.magicToUseWhenDeath,
+      },
+      this.name
+    );
   }
 
   /**
-   * 加载并缓存单个武功
-   */
-  private async _loadAndCacheMagic(magicIni: string): Promise<void> {
-    if (this._flyIniMagicCache.has(magicIni)) {
-      return;
-    }
-
-    const magic = await loadMagic(magicIni);
-    if (magic) {
-      // C#: magic.GetLevel(AttackLevel)
-      const leveledMagic = getMagicAtLevel(magic, this.attackLevel || 1);
-      this._flyIniMagicCache.set(magicIni, leveledMagic);
-      // 预加载 ASF 资源
-      await this._preloadMagicAsf(leveledMagic);
-    }
-  }
-
-  /**
-   * 预加载武功的 ASF 资源
-   */
-  private async _preloadMagicAsf(magic: MagicData): Promise<void> {
-    const promises: Promise<unknown>[] = [];
-    if (magic.flyingImage) {
-      promises.push(magicRenderer.getAsf(magic.flyingImage));
-    }
-    if (magic.vanishImage) {
-      promises.push(magicRenderer.getAsf(magic.vanishImage));
-    }
-    // SuperMode 使用 superModeImage 作为主动画
-    if (magic.superModeImage) {
-      promises.push(magicRenderer.getAsf(magic.superModeImage));
-    }
-    if (promises.length > 0) {
-      await Promise.all(promises);
-    }
-  }
-
-  /**
-   * 获取已缓存的武功数据
+   * 获取已缓存的武功数据（同步）
    * 如果未缓存，返回 null（需要先调用 loadAllMagics）
    */
   getCachedMagic(magicIni: string): MagicData | null {
-    return this._flyIniMagicCache.get(magicIni) ?? null;
+    return this.magicCache.get(magicIni);
+  }
+
+  /**
+   * 设置 MagicToUseWhenLifeLow 的武功数据（已废弃，保留兼容）
+   * @deprecated 使用 loadAllMagics() 预加载所有武功
+   */
+  setMagicToUseWhenLifeLowData(_data: MagicData | null): void {
+    // 不再需要，武功数据现在由 NpcMagicCache 管理
+    logger.warn("[NPC] setMagicToUseWhenLifeLowData is deprecated, use loadAllMagics() instead");
   }
 
   // === Factory Methods ===
@@ -389,14 +276,20 @@ export class Npc extends Character {
   // === Death Handling ===
 
   /**
-   * Override onDeath to run death script
+   * Override death to run death script
    * C#: Character.Death() runs _currentRunDeathScript = ScriptManager.RunScript(DeathScript, this)
    */
-  protected override onDeath(killer: Character | null): void {
+  override death(killer: Character | null = null): void {
     if (this.isDeathInvoked) return;
 
     // Call base implementation first (sets state and flags)
-    super.onDeath(killer);
+    super.death(killer);
+
+    // 如果是召唤物，基类已经 return 了，后续代码不会执行
+    // 检查 isDeath 来判断是否是召唤物情况（召唤物在基类中设置 isDeath=true 并 return）
+    if (this.isDeath && !this.isInDeathing) {
+      return; // 召唤物在基类中已完全处理
+    }
 
     // C#: 使用死亡时的武功 (MagicToUseWhenDeath)
     this.useMagicWhenDeath(killer);
@@ -435,7 +328,8 @@ export class Npc extends Character {
    * }
    */
   private useMagicWhenDeath(killer: Character | null): void {
-    if (!this._magicToUseWhenDeathData || !this.magicManager) {
+    const magic = this.magicCache.getSpecial("death");
+    if (!magic || !this.magicManager) {
       return;
     }
 
@@ -483,7 +377,7 @@ export class Npc extends Character {
 
     this.magicManager.useMagic({
       userId: this._id,
-      magic: this._magicToUseWhenDeathData,
+      magic: magic,
       origin: this._positionInWorld,
       destination,
     });
@@ -496,7 +390,8 @@ export class Npc extends Character {
    * Main NPC update method with AI behavior
    */
   override update(deltaTime: number): void {
-    if (!this._isVisible) return;
+    // C#: if(!IsVisibleByVariable) { return; }
+    if (!this.isVisibleByVariable) return;
 
     // C#: Dead NPCs only update death animation, no AI
     // When IsDeathInvoked or IsDeath, skip all AI logic
@@ -538,7 +433,7 @@ export class Npc extends Character {
       !this.followTarget.isVisible ||
       (this.isEnemy && this.followTarget.isEnemy && this.followTarget.group === this.group) ||
       (this.isFighterFriend && (this.followTarget.isFighterFriend || this.followTarget.isPlayer)) ||
-      _globalAIDisabled ||
+      this.npcManager?.isGlobalAIDisabled ||
       this._isAIDisabled ||
       this._blindMilliseconds > 0
     ) {
@@ -606,7 +501,7 @@ export class Npc extends Character {
     // C#: if ((FollowTarget == null || !IsFollowTargetFound) && !(IsFighterKind && IsAIDisabled))
     if (
       (this.followTarget === null || !this.isFollowTargetFound) &&
-      !(this.isFighterKind && (_globalAIDisabled || this._isAIDisabled))
+      !(this.isFighterKind && (this.npcManager?.isGlobalAIDisabled || this._isAIDisabled))
     ) {
       const isFlyer = this.kind === CharacterKind.Flyer;
       const randWalkProbability = 400;
@@ -655,7 +550,7 @@ export class Npc extends Character {
    * C#: Find follow target based on NPC type and relation
    */
   private findFollowTarget(): void {
-    if (_globalAIDisabled || this._isAIDisabled || this._blindMilliseconds > 0) {
+    if (this.npcManager?.isGlobalAIDisabled || this._isAIDisabled || this._blindMilliseconds > 0) {
       this.followTarget = null;
       this.isFollowTargetFound = false;
       return;
@@ -670,7 +565,7 @@ export class Npc extends Character {
       ) {
         // First try to find other group enemy
         if (this.npcManager) {
-          this.followTarget = this.npcManager.getLiveClosestOtherGroupEnemy(
+          this.followTarget = this.npcManager.getLiveClosestOtherGropEnemy(
             this.group,
             this._positionInWorld
           );
@@ -696,7 +591,7 @@ export class Npc extends Character {
     } else if (this.isNoneFighter) {
       // C#: None-fighter NPCs target non-neutral fighters
       if (this.stopFindingTarget === 0) {
-        this.followTarget = this.getClosestNonNeutralFighter();
+        this.followTarget = this.getClosestNonneturalFighter();
       } else if (this.followTarget?.isDeathInvoked) {
         this.followTarget = null;
       }
@@ -753,8 +648,8 @@ export class Npc extends Character {
    * C#: FollowTargetFound(attackCanReach) - Called when target is in sight
    */
   protected followTargetFound(attackCanReach: boolean): void {
-    if (_globalAIDisabled || this._isAIDisabled || this._blindMilliseconds > 0) {
-      this.cancelAttackTarget();
+    if (this.npcManager?.isGlobalAIDisabled || this._isAIDisabled || this._blindMilliseconds > 0) {
+      this.cancleAttackTarget();
       return;
     }
 
@@ -783,7 +678,7 @@ export class Npc extends Character {
    * C#: FollowTargetLost() - Called when target is lost
    */
   protected followTargetLost(): void {
-    this.cancelAttackTarget();
+    this.cancleAttackTarget();
     if (this.isPartner) {
       this.moveToPlayer();
     }
@@ -965,15 +860,15 @@ export class Npc extends Character {
    * 武功发射已经在 useMagicWhenAttack() 中处理
    * 这里只做清理工作
    */
-  protected override onAttacking(): void {
+  protected override onAttacking(_attackDestinationPixelPosition: Vector2 | null): void {
     // 清理攻击目标位置
     this._destinationAttackTilePosition = null;
   }
 
   /**
-   * C#: CancelAttackTarget()
+   * C#: CancleAttackTarget()
    */
-  cancelAttackTarget(): void {
+  cancleAttackTarget(): void {
     this._destinationAttackTilePosition = null;
   }
 
@@ -982,7 +877,8 @@ export class Npc extends Character {
    * C#: PerformeAttack(PositionInWorld + Utils.GetDirection8(CurrentDirection), MagicToUseWhenLifeLow)
    */
   private useMagicWhenLifeLow(): void {
-    if (!this.magicManager || !this._magicToUseWhenLifeLowData) {
+    const magic = this.magicCache.getSpecial("lifeLow");
+    if (!this.magicManager || !magic) {
       return;
     }
 
@@ -1006,7 +902,7 @@ export class Npc extends Character {
 
     this.magicManager.useMagic({
       userId: this._id,
-      magic: this._magicToUseWhenLifeLowData,
+      magic: magic,
       origin: this._positionInWorld,
       destination,
     });
@@ -1186,9 +1082,10 @@ export class Npc extends Character {
 
   /**
    * Get closest non-neutral fighter
+   * C#: GetLiveClosestNonneturalFighter (typo preserved)
    */
-  private getClosestNonNeutralFighter(): Character | null {
-    return this.npcManager.getLiveClosestNonNeutralFighter(this._positionInWorld);
+  private getClosestNonneturalFighter(): Character | null {
+    return this.npcManager.getLiveClosestNonneturalFighter(this._positionInWorld);
   }
 
   // === Obstacle Check ===
@@ -1212,8 +1109,16 @@ export class Npc extends Character {
       return true;
     }
 
-    // TODO: Check ObjManager obstacle
-    // TODO: Check MagicManager obstacle
+    // Check ObjManager obstacle
+    const objManager = this.engine.getManager("obj");
+    if (objManager?.isObstacle(tilePosition.x, tilePosition.y)) {
+      return true;
+    }
+
+    // Check MagicManager obstacle
+    if (this.magicManager?.isObstacle(tilePosition)) {
+      return true;
+    }
 
     // Check player position
     if (this.player && this.player.mapX === tilePosition.x && this.player.mapY === tilePosition.y) {
