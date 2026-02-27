@@ -19,7 +19,7 @@ import { Logger } from "../utils/logger.js";
 const logger = new Logger("S3Storage");
 
 /**
- * S3 配置
+ * S3 内部配置（server-to-MinIO，用于实际数据传输）
  */
 const s3Config = {
   endpoint: process.env.S3_ENDPOINT || "http://localhost:9000",
@@ -37,23 +37,13 @@ const bucket = process.env.MINIO_BUCKET || "miu2d";
  * 公开访问的 S3 endpoint
  * 开发环境下使用 /s3 前缀，由 Vite 代理转发到 MinIO
  * 生产环境可设置为 CDN 或公网 MinIO 地址
+ *
+ * 注意：presigned URL 必须用此 endpoint 生成签名，否则 host 不匹配导致 403
  */
 const s3PublicEndpoint = process.env.S3_PUBLIC_ENDPOINT || "/s3";
 
 /**
- * 将 presigned URL 的内部 endpoint 替换为公开 endpoint
- * 这样前端通过代理访问 MinIO，避免直连 localhost:9000
- */
-function rewritePresignedUrl(url: string): string {
-  const internalEndpoint = s3Config.endpoint;
-  if (s3PublicEndpoint && url.startsWith(internalEndpoint)) {
-    return url.replace(internalEndpoint, s3PublicEndpoint);
-  }
-  return url;
-}
-
-/**
- * S3 客户端单例
+ * S3 客户端单例（内部使用，用于服务端直接上传/下载）
  */
 let s3Client: S3Client | null = null;
 
@@ -63,6 +53,29 @@ function getS3Client(): S3Client {
     logger.log(`S3 client initialized, endpoint: ${s3Config.endpoint}`);
   }
   return s3Client;
+}
+
+/**
+ * S3 客户端单例（用于生成 presigned URL，使用公开 endpoint）
+ *
+ * presigned URL 中的签名包含 host，必须与前端实际请求的 host 一致。
+ * 若用内部 endpoint 生成再做字符串替换，MinIO 校验 host 时会失败 → 403。
+ */
+let s3PublicClient: S3Client | null = null;
+
+function getS3PublicClient(): S3Client {
+  if (!s3PublicClient) {
+    // 开发模式下 s3PublicEndpoint 为 "/s3"（相对路径），不是合法 URL，
+    // 回退到内部 endpoint（Vite 代理会转发，host 校验不严格）
+    const isAbsoluteUrl = s3PublicEndpoint.startsWith("http://") || s3PublicEndpoint.startsWith("https://");
+    const endpoint = isAbsoluteUrl ? s3PublicEndpoint : s3Config.endpoint;
+    s3PublicClient = new S3Client({
+      ...s3Config,
+      endpoint,
+    });
+    logger.log(`S3 public client initialized, endpoint: ${endpoint}`);
+  }
+  return s3PublicClient;
 }
 
 /**
@@ -152,7 +165,7 @@ export async function getFileStream(storageKey: string): Promise<{
  * 获取文件的预签名下载 URL
  */
 export async function getDownloadUrl(storageKey: string, expiresIn = 3600): Promise<string> {
-  const client = getS3Client();
+  const client = getS3PublicClient();
 
   const url = await getSignedUrl(
     client,
@@ -163,7 +176,7 @@ export async function getDownloadUrl(storageKey: string, expiresIn = 3600): Prom
     { expiresIn }
   );
 
-  return rewritePresignedUrl(url);
+  return url;
 }
 
 /**
@@ -174,7 +187,7 @@ export async function getUploadUrl(
   mimeType?: string,
   expiresIn = 3600
 ): Promise<string> {
-  const client = getS3Client();
+  const client = getS3PublicClient();
 
   const url = await getSignedUrl(
     client,
@@ -186,7 +199,7 @@ export async function getUploadUrl(
     { expiresIn }
   );
 
-  return rewritePresignedUrl(url);
+  return url;
 }
 
 /**

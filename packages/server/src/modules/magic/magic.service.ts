@@ -25,7 +25,7 @@ import {
   MagicSpecialKindFromValue,
 } from "@miu2d/types";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "../../db/client";
 import { games, magics } from "../../db/schema";
 import type { Language } from "../../i18n";
@@ -270,48 +270,60 @@ export class MagicService {
     const success: BatchImportMagicResult["success"] = [];
     const failed: BatchImportMagicResult["failed"] = [];
 
+    // ── 解析阶段（纯内存，无 DB 调用）────────────────────────────────
+    type InsertRow = typeof magics.$inferInsert;
+    const rows: InsertRow[] = [];
+    const keyToMeta = new Map<string, { fileName: string; isFlyingMagic: boolean }>();
+
     for (const item of input.items) {
       try {
-        // 优先使用每个文件的 userType，否则使用全局 userType，最后默认为 npc
         const userType = item.userType ?? input.userType ?? "npc";
         const parsed = this.parseIni(item.iniContent, userType);
         const isFlyingMagic = !!item.attackFileContent;
 
-        // 如果有 AttackFile INI，解析并设置 attackFile 字段
         if (item.attackFileContent) {
           parsed.attackFile = this.parseAttackFileIni(item.attackFileContent);
         }
 
-        // 使用文件名作为 key
         const key = item.fileName;
-
-        const magic = await this.create(
-          {
-            gameId: input.gameId,
-            userType,
-            key,
-            name: parsed.name ?? item.fileName.replace(/\.ini$/i, "") ?? "未命名武功",
-            intro: parsed.intro,
-            moveKind: parsed.moveKind,
-            specialKind: parsed.specialKind,
-            belong: parsed.belong,
-            ...parsed,
-          },
-          userId,
-          language
-        );
-
-        success.push({
-          fileName: item.fileName,
-          id: magic.id,
-          name: magic.name,
-          isFlyingMagic,
-        });
+        const defaultMagic = createDefaultMagic(input.gameId, userType, key);
+        const fullMagic = {
+          ...defaultMagic,
+          ...parsed,
+          userType,
+          name: parsed.name ?? item.fileName.replace(/\.ini$/i, "") ?? "未命名武功",
+        };
+        const { gameId: _g, key: _k, userType: _ut, name, ...data } = fullMagic;
+        rows.push({ gameId: input.gameId, key, userType, name: name ?? "", data });
+        keyToMeta.set(key, { fileName: item.fileName, isFlyingMagic });
       } catch (error) {
         failed.push({
           fileName: item.fileName,
           error: error instanceof Error ? error.message : String(error),
         });
+      }
+    }
+
+    // ── 批量写入：一次 SQL 替代 N 次串行 INSERT ──────────────────────
+    if (rows.length > 0) {
+      const inserted = await db
+        .insert(magics)
+        .values(rows)
+        .onConflictDoUpdate({
+          target: [magics.gameId, magics.key],
+          set: {
+            userType: sql`excluded.user_type`,
+            name: sql`excluded.name`,
+            data: sql`excluded.data`,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+
+      for (const row of inserted) {
+        const m = this.toMagic(row);
+        const meta = keyToMeta.get(row.key)!;
+        success.push({ fileName: meta.fileName, id: m.id, name: m.name, isFlyingMagic: meta.isFlyingMagic });
       }
     }
 

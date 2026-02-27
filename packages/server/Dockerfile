@@ -32,6 +32,10 @@ COPY packages/server/src ./packages/server/src
 COPY packages/server/scripts ./packages/server/scripts
 COPY packages/server/drizzle ./packages/server/drizzle
 
+# 先构建 types（server 运行时依赖其编译产物）
+WORKDIR /app/packages/types
+RUN pnpm build
+
 # 构建应用
 WORKDIR /app/packages/server
 RUN pnpm build
@@ -68,6 +72,9 @@ RUN pnpm install --prod --frozen-lockfile --ignore-scripts
 
 # 安装后将 shared 的 exports 指向编译后的 JS（Node.js 无法执行 .ts）
 RUN node -e "const f='packages/shared/package.json';const p=JSON.parse(require('fs').readFileSync(f,'utf8'));p.exports={'./locales':'./dist/locales/index.js'};require('fs').writeFileSync(f,JSON.stringify(p,null,2))"
+
+# 将 types 的 exports 也指向编译后的 JS
+RUN node -e "const f='packages/types/package.json';const p=JSON.parse(require('fs').readFileSync(f,'utf8'));p.main='./dist/index.js';p.types='./dist/index.d.ts';p.exports={'.':'./dist/index.js','./*':'./dist/*'};require('fs').writeFileSync(f,JSON.stringify(p,null,2))"
 
 # 设置工作目录
 WORKDIR /app/packages/server
