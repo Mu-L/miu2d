@@ -3,6 +3,7 @@
  */
 
 import { trpc, useAuth } from "@miu2d/shared";
+import { getGameApiUrl } from "./utils/resourcePath";
 import { Avatar } from "@miu2d/ui";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -23,7 +24,7 @@ export function DashboardHeader() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   // logo URL 直接从 slug 构建，未上传时 404 会触发 onError 自动隐藏
-  const gameLogoUrl = currentGame?.slug ? `/game/${currentGame.slug}/api/logo` : null;
+  const gameLogoUrl = currentGame?.slug ? getGameApiUrl(currentGame.slug, "logo") : null;
 
   // 点击外部关闭菜单
   useEffect(() => {

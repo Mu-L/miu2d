@@ -8,7 +8,7 @@
  * 模式自动切换：INI 中配置了 [Title] BackgroundImage → 经典模式，否则 → 现代模式
  */
 
-import { getResourceRoot } from "@miu2d/engine/resource";
+import { getResourceRoot, getResourceUrl } from "@miu2d/engine/resource";
 import type { ButtonConfig, TitleGuiConfig } from "@miu2d/engine/gui/ui-settings";
 import type React from "react";
 import { useCallback, useEffect, useInsertionEffect, useMemo, useRef, useState } from "react";
@@ -70,8 +70,7 @@ const AsfButton: React.FC<{
   const handleMouseEnter = useCallback(() => {
     setHovered(true);
     if (config.sound && !audioRef.current) {
-      const root = getResourceRoot();
-      const audio = new Audio(`${root}/content/sound/${config.sound}`);
+      const audio = new Audio(getResourceUrl(`${getResourceRoot()}/content/sound/${config.sound}`));
       audio.volume = 0.6;
       audioRef.current = audio;
       audio.play().catch(() => {});
@@ -134,8 +133,7 @@ const ClassicTitle: React.FC<TitleGuiProps & { config: TitleGuiConfig }> = ({
 
   // 加载背景图（jpg/png 直接用 img 标签）
   useEffect(() => {
-    const root = getResourceRoot();
-    const url = `${root}/${config.backgroundImage}`;
+    const url = getResourceUrl(`${getResourceRoot()}/${config.backgroundImage}`);
     setBgUrl(url);
 
     // 预加载获取原始尺寸
