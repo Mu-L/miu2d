@@ -16,7 +16,7 @@ import { initNpcLevelConfig } from "@miu2d/engine/character/level";
 import { logger } from "@miu2d/engine/core/logger";
 import { getGameConfig, loadGameConfig, loadGameData } from "@miu2d/engine/data";
 import { setResourcePaths } from "@miu2d/engine/resource";
-import { getResourceUrl } from "@miu2d/engine/resource/resource-paths";
+import { getResourceDomain, getResourceUrl } from "@miu2d/engine/resource/resource-paths";
 import { setUiSettingsIniContent } from "@miu2d/engine/gui/ui-settings";
 import type { SaveData } from "@miu2d/engine/storage";
 import { trpc, useMobile } from "@miu2d/shared";
@@ -116,8 +116,9 @@ export default function GameScreen() {
   // ===== 全局资源路径设置 =====
   useEffect(() => {
     if (gameSlug) {
-      setResourcePaths({ root: `/game/${gameSlug}/resources` });
-      logger.info(`[GameScreen] Resource root set to /game/${gameSlug}/resources`);
+      const domain = getResourceDomain();
+      setResourcePaths({ root: `${domain}/game/${gameSlug}/resources` });
+      logger.info(`[GameScreen] Resource root set to ${domain}/game/${gameSlug}/resources`);
     }
   }, [gameSlug]);
 

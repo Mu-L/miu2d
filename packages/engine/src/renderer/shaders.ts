@@ -62,16 +62,19 @@ export const SPRITE_FRAGMENT_SHADER = `
         // Frozen (冰冻蓝) - 模拟 sepia(100%) saturate(300%) hue-rotate(180deg)
         float gray = dot(color.rgb, GRAYSCALE_WEIGHTS);
         // Sepia tone
-        vec3 sepia = vec3(gray * 1.2, gray * 1.0, gray * 0.8);
+        vec3 sepia = clamp(vec3(gray * 1.2, gray * 1.0, gray * 0.8), 0.0, 1.0);
         // Saturate × 3
         vec3 mid = vec3(0.5);
-        sepia = mid + (sepia - mid) * 3.0;
-        // Hue rotate 180deg (invert RG, boost B for ice blue look)
-        color.rgb = vec3(
-          clamp(1.0 - sepia.r, 0.0, 1.0),
-          clamp(1.0 - sepia.g + 0.2, 0.0, 1.0),
-          clamp(sepia.b + 0.3, 0.0, 1.0)
-        );
+        sepia = clamp(mid + (sepia - mid) * 3.0, 0.0, 1.0);
+        // Hue rotate 180deg - 标准色相旋转矩阵 (cos=-1, sin=0)
+        // R' = -1/3*R + 2/3*G + 2/3*B
+        // G' =  2/3*R - 1/3*G + 2/3*B
+        // B' =  2/3*R + 2/3*G - 1/3*B
+        color.rgb = clamp(vec3(
+          (-1.0/3.0)*sepia.r + (2.0/3.0)*sepia.g + (2.0/3.0)*sepia.b,
+          ( 2.0/3.0)*sepia.r + (-1.0/3.0)*sepia.g + (2.0/3.0)*sepia.b,
+          ( 2.0/3.0)*sepia.r + (2.0/3.0)*sepia.g + (-1.0/3.0)*sepia.b
+        ), 0.0, 1.0);
       } else {
         // Poison (中毒绿) - 模拟 sepia(100%) saturate(300%) hue-rotate(60deg)
         float gray = dot(color.rgb, GRAYSCALE_WEIGHTS);
