@@ -304,6 +304,11 @@ export class PlayerService {
     const failed: BatchImportPlayerResult["failed"] = [];
     const warnings: string[] = [];
 
+    // ── 解析阶段（纯内存，无 DB 调用）────────────────────────────────
+    type InsertRow = typeof players.$inferInsert;
+    const rows: InsertRow[] = [];
+    const keyToMeta = new Map<string, { fileName: string; index: number }>();
+
     for (const item of input.items) {
       try {
         if (!item.iniContent) {
@@ -316,53 +321,55 @@ export class PlayerService {
         const indexMatch = key.match(/Player(\d+)/i);
         const index = indexMatch ? parseInt(indexMatch[1], 10) : 0;
 
-        // 解析对应的武功 INI，并解析引用
         const rawMagics = item.magicIniContent
           ? this.parseMagicIni(item.magicIniContent)
           : [];
-        const initialMagics = this.resolveMagicRefs(
-          rawMagics,
-          magicLookup,
-          item.fileName,
-          warnings,
-        );
+        const initialMagics = this.resolveMagicRefs(rawMagics, magicLookup, item.fileName, warnings);
 
-        // 解析对应的物品 INI，并解析引用
         const rawGoods = item.goodsIniContent
           ? this.parseGoodsIni(item.goodsIniContent)
           : [];
-        const initialGoods = this.resolveGoodsRefs(
-          rawGoods,
-          goodsLookup,
-          item.fileName,
-          warnings,
-        );
+        const initialGoods = this.resolveGoodsRefs(rawGoods, goodsLookup, item.fileName, warnings);
 
-        const player = await this.create(
-          {
-            gameId: input.gameId,
-            key,
-            name: parsed.name ?? item.fileName.replace(/\.ini$/i, ""),
-            index,
-            ...parsed,
-            initialMagics,
-            initialGoods,
-          },
-          userId,
-          language
-        );
-
-        success.push({
-          fileName: item.fileName,
-          id: player.id,
-          name: player.name,
-          index: player.index,
-        });
+        const defaultPlayer = createDefaultPlayer(input.gameId, key);
+        const fullPlayer = {
+          ...defaultPlayer,
+          ...parsed,
+          name: parsed.name ?? item.fileName.replace(/\.ini$/i, ""),
+          initialMagics,
+          initialGoods,
+        };
+        const { gameId: _g, key: _k, name, index: _i, id: _id, createdAt: _c, updatedAt: _u, ...data } = fullPlayer;
+        rows.push({ gameId: input.gameId, key, name: name ?? "", index, data });
+        keyToMeta.set(key, { fileName: item.fileName, index });
       } catch (error) {
         failed.push({
           fileName: item.fileName,
           error: error instanceof Error ? error.message : String(error),
         });
+      }
+    }
+
+    // ── 批量写入：一次 SQL 替代 N 次串行 INSERT ──────────────────────
+    if (rows.length > 0) {
+      const inserted = await db
+        .insert(players)
+        .values(rows)
+        .onConflictDoUpdate({
+          target: [players.gameId, players.key],
+          set: {
+            name: sql`excluded.name`,
+            index: sql`excluded.index`,
+            data: sql`excluded.data`,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+
+      for (const row of inserted) {
+        const p = this.toPlayer(row);
+        const meta = keyToMeta.get(row.key)!;
+        success.push({ fileName: meta.fileName, id: p.id, name: p.name, index: p.index });
       }
     }
 

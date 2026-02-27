@@ -17,7 +17,7 @@ import type {
 } from "@miu2d/types";
 import { createDefaultShop } from "@miu2d/types";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "../../db/client";
 import { games, shops } from "../../db/schema";
 import type { Language } from "../../i18n";
@@ -249,37 +249,51 @@ export class ShopService {
     const success: BatchImportShopResult["success"] = [];
     const failed: BatchImportShopResult["failed"] = [];
 
+    // ── 解析阶段（纯内存，无 DB 调用）────────────────────────────────
+    type InsertRow = typeof shops.$inferInsert;
+    const rows: InsertRow[] = [];
+    const keyToFileName = new Map<string, string>();
+
     for (const item of input.items) {
       try {
         const parsed = this.parseIni(item.iniContent);
-        const key = item.fileName;
-        const name = item.fileName.replace(/\.ini$/i, "");
-
-        const result = await this.create(
-          {
-            gameId: input.gameId,
-            key,
-            name: parsed.name ?? name,
-            numberValid: parsed.numberValid,
-            buyPercent: parsed.buyPercent,
-            recyclePercent: parsed.recyclePercent,
-            items: parsed.items,
-          },
-          userId,
-          language
-        );
-
-        success.push({
-          fileName: item.fileName,
-          id: result.id,
-          name: result.name,
-          itemCount: result.items.length,
-        });
+        const key = item.fileName.toLowerCase();
+        const defaultShop = createDefaultShop(input.gameId, key);
+        const fullShop = {
+          ...defaultShop,
+          ...parsed,
+          name: parsed.name ?? item.fileName.replace(/\.ini$/i, ""),
+        };
+        const { gameId: _g, key: _k, name, ...data } = fullShop;
+        rows.push({ gameId: input.gameId, key, name: name ?? "", data });
+        keyToFileName.set(key, item.fileName);
       } catch (error) {
         failed.push({
           fileName: item.fileName,
           error: error instanceof Error ? error.message : String(error),
         });
+      }
+    }
+
+    // ── 批量写入：一次 SQL 替代 N 次串行 INSERT ──────────────────────
+    if (rows.length > 0) {
+      const inserted = await db
+        .insert(shops)
+        .values(rows)
+        .onConflictDoUpdate({
+          target: [shops.gameId, shops.key],
+          set: {
+            name: sql`excluded.name`,
+            data: sql`excluded.data`,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+
+      for (const row of inserted) {
+        const s = this.toShop(row);
+        const fileName = keyToFileName.get(row.key) ?? row.key;
+        success.push({ fileName, id: s.id, name: s.name, itemCount: s.items.length });
       }
     }
 
