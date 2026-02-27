@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="packages/web/public/favicon.svg" width="80" alt="Miu2D Logo" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="logo-dark.svg" />
+    <img src="logo.svg" width="300" alt="Miu2D Logo" />
+  </picture>
 </p>
-
-<h1 align="center">Miu2D Engine</h1>
 
 <p align="center">
   <b>从零构建的 2D RPG 引擎 — 原生 WebGL 渲染，零游戏框架依赖</b>
@@ -14,7 +15,7 @@
 
 ---
 
-Miu2D 是一个 **183,000 行**的 2D RPG 引擎，使用 TypeScript 和 Rust 编写，通过**原生 WebGL** 渲染——不依赖 Unity、Godot、Phaser、PixiJS 或任何其他游戏框架。所有子系统——精灵批量渲染、A* 寻路、二进制格式解码、脚本虚拟机、天气粒子、屏幕特效——全部从零实现。
+Miu2D 是一个 **160,000 行**的 2D RPG 引擎，使用 TypeScript 和 Rust 编写，通过**原生 WebGL** 渲染——不依赖 Unity、Godot、Phaser、PixiJS 或任何其他游戏框架。所有子系统——精灵批量渲染、A* 寻路、二进制格式解码、脚本虚拟机、天气粒子、屏幕特效——全部从零实现。
 
 作为引擎的验证项目，我们用 Miu2D 完整复刻了**《剑侠情缘外传：月影传说》**——西山居于 2001 年推出的经典武侠 RPG，让这款游戏可以在任何现代浏览器中运行。
 
@@ -59,10 +60,10 @@ Miu2D 是一个 **183,000 行**的 2D RPG 引擎，使用 TypeScript 和 Rust �
 ```
  ┌────────────────────────────────────────────────────────────────┐
  │  React 19 UI 层（3 套主题：经典 / 现代 / 移动端）               │
- │  29,070 行 · 29 经典 + 24 现代 + 7 移动端组件                   │
+ │  31,174 行 · 29 经典 + 20 现代 + 7 移动端组件                   │
  ├────────────────────────────────────────────────────────────────┤
  │  @miu2d/engine — 纯 TypeScript，不依赖 React                   │
- │  57,210 行 · 213 个源文件                                       │
+ │  59,342 行 · 213 个源文件 · 19 个子模块                         │
  │  ┌──────────┬────────────┬───────────┬──────────────────────┐ │
  │  │ 渲染器   │  脚本 VM   │ 角色系统  │ 武功（22 种轨迹）     │ │
  │  │ WebGL +  │  182 条指令│ 7 层继承  │ 飞弹、范围、追踪、   │ │
@@ -71,13 +72,13 @@ Miu2D 是一个 **183,000 行**的 2D RPG 引擎，使用 TypeScript 和 Rust �
  │  └──────────┴────────────┴───────────┴──────────────────────┘ │
  ├────────────────────────────────────────────────────────────────┤
  │  @miu2d/engine-wasm — Rust → WebAssembly（2,644 行）          │
- │  A* 寻路 · ASF/MPC/MSF 解码 · 空间哈希碰撞                    │
+ │  A* 寻路 · ASF/MPC/MSF 解码 · 空间哈希碰撞 · zstd 解压        │
  ├────────────────────────────────────────────────────────────────┤
- │  @miu2d/server — NestJS + tRPC + Drizzle ORM（12,863 行）     │
- │  22 张 PostgreSQL 表 · 19 条类型安全 API 路由                   │
+ │  @miu2d/server — Hono + tRPC + Drizzle ORM（13,700 行）       │
+ │  22 张 PostgreSQL 表 · 17 个类型安全 tRPC 路由                  │
  ├────────────────────────────────────────────────────────────────┤
- │  @miu2d/dashboard — 完整游戏数据编辑器（33,201 行）             │
- │  VS Code 风格布局 · 12+ 个编辑模块                              │
+ │  @miu2d/dashboard — 完整游戏数据编辑器（34,731 行）             │
+ │  VS Code 风格布局 · 13 个编辑模块                               │
  └────────────────────────────────────────────────────────────────┘
 ```
 
@@ -90,10 +91,37 @@ Miu2D 是一个 **183,000 行**的 2D RPG 引擎，使用 TypeScript 和 Rust �
 | 渲染 | 原生 WebGL API（Canvas 2D 回退） |
 | 音频 | Web Audio API (OGG Vorbis) |
 | 性能 | Rust → WebAssembly（wasm-bindgen，零拷贝） |
-| 后端 | NestJS (ESM) · tRPC · Drizzle ORM |
+| 后端 | Hono（轻量 HTTP 框架）· tRPC 11 · Drizzle ORM |
 | 数据库 | PostgreSQL 16 · MinIO / S3 |
+| 校验 | Zod 4（前后端共享 Schema） |
 | 代码质量 | Biome (lint + format) · TypeScript strict 模式 |
 | 项目管理 | pnpm workspaces（11 个包） |
+
+---
+
+## 引擎系统全览
+
+Miu2D 从零实现了 **17 个完整的 ARPG 子系统**：
+
+| 系统 | 模块 | 要点 |
+|------|------|------|
+| **渲染系统** | `renderer/` | 原生 WebGL 精灵批处理（约 4,800 瓦片 → 1–5 次绘制调用）、Canvas2D 回退、GLSL 颜色滤镜（中毒 / 冰冻 / 石化）、屏幕特效（淡入淡出、闪光、水波纹） |
+| **角色系统** | `character/` | 7 层继承链（Sprite → CharacterBase → Movement → Combat → Character → Player/NPC）；属性、状态标记、贝塞尔曲线移动 |
+| **战斗系统** | `character/` | 命中检测、伤害公式、击退、死亡与复活、阵营/敌我逻辑 |
+| **武功 / 技能系统** | `magic/` | 22 种 MoveKind 轨迹（直线、螺旋、追踪、范围、召唤、时间停止……）× 10 种 SpecialKind 状态；分等级配置、被动修炼系统 |
+| **NPC 与 AI 系统** | `npc/` | 行为状态机（待机 / 巡逻 / 追击 / 逃跑 / 死亡）、交互脚本、快速邻居查询的空间网格 |
+| **玩家系统** | `player/` | 控制器、背包（物品系统）、装备槽、武功槽、经验与升级 |
+| **地图系统** | `map/` | 多图层瓦片解析、障碍网格、陷阱区域、事件区域、分层排序渲染 |
+| **脚本 / 事件系统** | `script/` | 自研虚拟机：解析器 + 异步执行器，182 条指令涵盖 9 大类（对话、玩家、NPC、状态、音频、特效、物体、物品、杂项） |
+| **寻路系统** | `wasm/` | Rust WASM A* + 零拷贝共享内存；5 种策略（贪心 → 完整 A*）；单次约 0.2ms，比 TS 快约 10 倍 |
+| **碰撞系统** | `wasm/` | Rust/WASM 实现的空间哈希，O(1) 宽相实体查询 |
+| **音频系统** | `audio/` | Web Audio API 管理器：流式 BGM（OGG/MP3）、位置音效（WAV/OGG）、淡入淡出过渡 |
+| **天气 / 粒子系统** | `weather/` | 受风力影响的雨滴 + 落地溅射 + 闪电；摇曳雪花；屏幕水珠透镜效果 |
+| **场景物体系统** | `obj/` | 可交互场景物体（宝箱、门、屏障、陷阱），带脚本钩子和精灵动画 |
+| **GUI / HUD 系统** | `gui/` | 对话系统（分支选择、头像）、商店购买面板、小地图、状态条、与 React 的 UI 桥接 |
+| **背包 / 物品系统** | `player/` | 10 种物品类别、装备/卸载、使用效果、可配置掉落表 |
+| **存档 / 读档系统** | `storage/` | 多存档槽、完整游戏状态序列化至 IndexedDB + 服务端云存档 |
+| **资源加载系统** | `resource/` | 8 种二进制格式异步加载器（ASF、MPC、MAP、SHD、XNB、MSF、MMF、INI/OBJ）；GBK/UTF-8 解码 |
 
 ---
 
@@ -101,7 +129,7 @@ Miu2D 是一个 **183,000 行**的 2D RPG 引擎，使用 TypeScript 和 Rust �
 
 ### 渲染器 — 原生 WebGL + 自动批处理
 
-渲染器是 **674 行**直接操作 `WebGLRenderingContext` 的代码——没有任何封装库。
+渲染器是 **685 行**直接操作 `WebGLRenderingContext` 的代码——没有任何封装库。
 
 - **SpriteBatcher** — 累积顶点数据，按纹理切换时 flush；典型地图帧：约 4,800 张瓦片 → 1–5 次绘制调用
 - **RectBatcher** — 天气粒子和 UI 矩形合并为单次绘制调用
@@ -128,7 +156,7 @@ Miu2D 是一个 **183,000 行**的 2D RPG 引擎，使用 TypeScript 和 Rust �
 
 脚本驱动着整个游戏叙事——过场动画、分支对话、NPC 生成、地图切换、战斗触发、天气变化……
 
-### 武功系统 — 22 种轨迹 × 9 种特殊效果
+### 武功系统 — 22 种轨迹 × 10 种特殊效果
 
 每个武功攻击遵循 **22 种 MoveKind** 轨迹之一，各有独立的物理和渲染逻辑：
 
@@ -147,7 +175,7 @@ Miu2D 是一个 **183,000 行**的 2D RPG 引擎，使用 TypeScript 和 Rust �
 | VMove | V 字形分散发射 |
 | *……另有 11 种* | |
 
-搭配 **9 种 SpecialKind** 状态效果（冰冻、中毒、石化、隐身、治疗、变身……），可组合出数百种独特法术。系统包含 4 个专用精灵工厂、碰撞处理器和被动效果管理器。
+搭配 **10 种 SpecialKind** 状态效果（冰冻、中毒、石化、隐身、治疗、增益、变身、解除异常……），可组合出数百种独特法术。系统包含专用精灵工厂、碰撞处理器和被动效果管理器（修炼系统）。
 
 ### 寻路 — Rust WASM 零拷贝
 
@@ -176,7 +204,7 @@ A* 寻路器是 **1,144 行 Rust**，编译为 WebAssembly，通过共享线性�
 
 ### 天气系统 — 粒子驱动
 
-**1,491 行**粒子物理与渲染代码：
+**1,533 行**粒子物理与渲染代码：
 
 - **雨天** — 受风力影响的粒子，落地溅射，周期性闪电照亮场景
 - **屏幕水滴** — 模拟水珠沿镜头流淌的折射/透镜效果
@@ -200,7 +228,7 @@ Sprite (615 行)
 
 ## 游戏数据编辑器（Dashboard）
 
-项目内置 **33,201 行**的 VS Code 风格游戏编辑器，包含活动栏、侧边栏和内容面板：
+项目内置 **34,731 行**的 VS Code 风格游戏编辑器，包含活动栏、侧边栏和内容面板：
 
 | 编辑模块 | 编辑内容 |
 |----------|---------|
@@ -212,30 +240,56 @@ Sprite (615 行)
 | 对话编辑器 | 分支对话树 + 头像指定 |
 | 玩家编辑器 | 初始属性、装备、技能槽 |
 | 等级编辑器 | 经验曲线和属性成长 |
+| 全局配置 | 游戏全局设置（掉落、玩家默认值） |
 | 文件管理器 | 完整文件树 + 拖放上传 |
+| 资源浏览 | 资源浏览器与查看器集成 |
 | 数据统计 | 数据总览仪表盘 |
 
 ---
 
 ## 项目结构
 
-pnpm monorepo 中的 11 个包，总计约 **183,000 行**代码：
+pnpm monorepo 中的 11 个包，总计约 **160,000 行**代码：
 
 | 包名 | 代码量 | 职责 |
 |------|------:|------|
-| `@miu2d/engine` | 57,210 | 纯 TS 游戏引擎（不依赖 React） |
-| `@miu2d/dashboard` | 33,201 | VS Code 风格游戏数据编辑器 |
-| `@miu2d/game` | 29,070 | 游戏运行时 + 3 套 UI 主题（经典/现代/移动端） |
-| `@miu2d/server` | 12,863 | NestJS + tRPC 后端（22 表、19 路由） |
-| `@miu2d/types` | 5,990 | 共享 Zod Schema（18 个领域模块） |
-| `@miu2d/web` | 4,874 | 应用壳、路由、落地页 |
-| `@miu2d/converter` | 3,952 | Rust CLI：ASF/MPC → MSF、MAP → MMF 批量转换 |
-| `@miu2d/viewer` | 3,104 | 资源查看器（ASF/地图/MPC/音频） |
-| `@miu2d/engine-wasm` | 2,644 | Rust → WASM 性能模块 |
-| `@miu2d/ui` | 1,153 | 通用 UI 组件（无业务依赖） |
-| `@miu2d/shared` | 999 | i18n、tRPC 客户端、React Context |
+| `@miu2d/engine` | 59,342 | 纯 TS 游戏引擎 — 19 模块，不依赖 React |
+| `@miu2d/dashboard` | 34,731 | VS Code 风格游戏数据编辑器（13 模块） |
+| `@miu2d/game` | 31,174 | 游戏运行时 + 3 套 UI 主题（经典/现代/移动端） |
+| `@miu2d/server` | 13,700 | Hono + tRPC 后端（22 表、17 路由） |
+| `@miu2d/types` | 6,412 | 共享 Zod 4 Schema（18 个领域模块） |
+| `@miu2d/web` | 4,872 | 应用壳、路由、落地页 |
+| `@miu2d/converter` | 3,975 | Rust CLI：ASF/MPC → MSF、MAP → MMF 批量转换 |
+| `@miu2d/viewer` | 3,151 | 资源查看器（ASF/地图/MPC/音频） |
+| `@miu2d/engine-wasm` | 2,644 | Rust → WASM：寻路、解码器、空间哈希、zstd |
+| `@miu2d/ui` | 1,210 | 通用 UI 组件（无业务依赖） |
+| `@miu2d/shared` | 981 | i18n、tRPC 客户端、React Context |
 
-还包括：`resources/`（游戏资源）、`docs/`（格式规范文档）。
+### 引擎模块细分
+
+| 模块 | 代码量 | 职责 |
+|------|------:|------|
+| `magic/` | 8,702 | 22 种 MoveKind 轨迹、效果、被动、精灵工厂 |
+| `character/` | 6,415 | 7 层继承链、属性、战斗、移动 |
+| `runtime/` | 6,208 | GameEngine、GameManager、InputHandler、CameraController |
+| `script/` | 5,879 | 182 条指令脚本 VM（解析器 + 执行器 + 9 类指令） |
+| `player/` | 5,842 | 玩家控制器、背包、武功槽、装备 |
+| `gui/` | 3,921 | GUI 管理器、对话系统、购买界面、UI 桥接 |
+| `npc/` | 3,838 | NPC AI、交互脚本、空间网格、武功缓存 |
+| `resource/` | 2,950 | 资源加载器、8 种二进制格式解码器 |
+| `renderer/` | 2,838 | WebGL + Canvas2D 渲染器、精灵/矩形批处理、GLSL 着色器 |
+| `storage/` | 2,121 | 存档/读档系统、游戏状态持久化 |
+| `obj/` | 1,981 | 场景物体（宝箱、门、陷阱）、管理器 + 渲染器 |
+| `map/` | 1,638 | 地图解析、障碍网格、瓦片渲染、陷阱区域 |
+| `weather/` | 1,533 | 雨、雪、屏幕水滴、闪电 |
+| `wasm/` | 1,202 | WASM 桥接层（寻路、解码器、碰撞） |
+| `core/` | 1,110 | 引擎上下文、类型、日志器、游戏 API |
+| `utils/` | 989 | 方向、距离、碰撞、INI 解析器 |
+| `sprite/` | 873 | 精灵基类、边缘检测 |
+| `audio/` | 781 | Web Audio API 管理器（OGG/MP3/WAV） |
+| `data/` | 485 | 数据模型与配置定义 |
+
+还包括：`resources/`（游戏资源）、`docs/`（格式规范文档）、`JxqyHD/`（原版引擎 43,293 行 C# 参考代码）。
 
 ---
 
@@ -244,8 +298,8 @@ pnpm monorepo 中的 11 个包，总计约 **183,000 行**代码：
 **环境要求：** Node.js 18+、pnpm 9+、支持 WebGL 的现代浏览器
 
 ```bash
-git clone https://github.com/patchoulib/game-jxqy.git
-cd game-jxqy
+git clone https://github.com/nicologies/miu2d.git
+cd miu2d
 pnpm install
 pnpm dev            # → http://localhost:5173
 ```
@@ -263,9 +317,10 @@ make dev            # 同时启动 web + server + db studio
 |------|------|
 | `pnpm dev` | 前端开发服务器（端口 5173） |
 | `make dev` | 全栈开发（web + server + db） |
-| `pnpm tsc` | 全包类型检查 |
+| `make tsc` | 全包类型检查 |
 | `pnpm lint` | Biome 代码检查 |
-| `make convert` | 批量转换游戏资源 |
+| `make test` | 运行引擎测试（vitest） |
+| `make convert` | 批量转换游戏资源（Rust CLI） |
 | `make convert-verify` | 像素级转换验证 |
 
 ---
