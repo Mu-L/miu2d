@@ -378,15 +378,26 @@ async function parseResourcesFolder(
   }
 
   // ===== 6. 玩家 (save/game/PlayerX.ini + MagicX.ini + GoodsX.ini 或 ini/save/) =====
+  // 优先级：ini/save/ > save/game/
+  // ini/save/ 存储的是设计时初始数据（如 Level=3），save/game/ 是运行时存档状态（如 Level=20）
+  // 导入时应以设计时数据为准，save/game/ 仅作为回退
+  type PlayerSrc = "ini/save" | "save/game";
   const playerMap = new Map<
     number,
-    { player?: string; magic?: string; goods?: string; fileName?: string }
+    {
+      player?: string; playerSrc?: PlayerSrc;
+      magic?: string; magicSrc?: PlayerSrc;
+      goods?: string; goodsSrc?: PlayerSrc;
+      fileName?: string;
+    }
   >();
 
   for (const f of byNorm) {
     if (!f.file.name.toLowerCase().endsWith(".ini")) continue;
-    const inSaveGame = f.norm.startsWith("save/game/") || f.norm.startsWith("ini/save/");
-    if (!inSaveGame) continue;
+    const isIniSave = f.norm.startsWith("ini/save/");
+    const isSaveGame = f.norm.startsWith("save/game/");
+    if (!isIniSave && !isSaveGame) continue;
+    const src: PlayerSrc = isIniSave ? "ini/save" : "save/game";
 
     const fileName = f.file.name;
     const playerMatch = fileName.match(/^Player(\d+)\.ini$/i);
@@ -395,22 +406,32 @@ async function parseResourcesFolder(
 
     if (playerMatch) {
       const idx = parseInt(playerMatch[1], 10);
-      const content = await f.file.text();
       const existing = playerMap.get(idx) ?? {};
-      existing.player = content;
-      existing.fileName = fileName;
+      // 已有来自 ini/save 的数据，则不被 save/game 覆盖
+      if (!(existing.playerSrc === "ini/save" && src === "save/game")) {
+        const content = await f.file.text();
+        existing.player = content;
+        existing.fileName = fileName;
+        existing.playerSrc = src;
+      }
       playerMap.set(idx, existing);
     } else if (magicMatch) {
       const idx = parseInt(magicMatch[1], 10);
-      const content = await f.file.text();
       const existing = playerMap.get(idx) ?? {};
-      existing.magic = content;
+      if (!(existing.magicSrc === "ini/save" && src === "save/game")) {
+        const content = await f.file.text();
+        existing.magic = content;
+        existing.magicSrc = src;
+      }
       playerMap.set(idx, existing);
     } else if (goodsMatch) {
       const idx = parseInt(goodsMatch[1], 10);
-      const content = await f.file.text();
       const existing = playerMap.get(idx) ?? {};
-      existing.goods = content;
+      if (!(existing.goodsSrc === "ini/save" && src === "save/game")) {
+        const content = await f.file.text();
+        existing.goods = content;
+        existing.goodsSrc = src;
+      }
       playerMap.set(idx, existing);
     }
   }
@@ -443,8 +464,7 @@ async function parseResourcesFolder(
     if (f.file.name.toLowerCase().includes("magicexp")) continue;
 
     const content = await f.file.text();
-    const isNpc =
-      f.file.name.toLowerCase().includes("npc") || f.file.name.toLowerCase().includes("hard");
+    const isNpc = f.file.name.toLowerCase().includes("npc");
     data.level.push({
       fileName: f.file.name,
       userType: isNpc ? "npc" : "player",

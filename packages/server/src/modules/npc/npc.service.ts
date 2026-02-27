@@ -24,7 +24,7 @@ import {
   NpcRelationFromValue,
 } from "@miu2d/types";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "../../db/client";
 import { games, npcResources, npcs } from "../../db/schema";
 import type { Language } from "../../i18n";
@@ -332,96 +332,121 @@ export class NpcService {
     const success: BatchImportNpcResult["success"] = [];
     const failed: BatchImportNpcResult["failed"] = [];
 
+    // ── 解析阶段（纯内存，无 DB 调用）────────────────────────────────
+    type NpcResRow = typeof npcResources.$inferInsert;
+    type NpcRow = typeof npcs.$inferInsert;
+
+    const npcResRows: NpcResRow[] = [];
+    // key → { fileName, isResourceOnly }
+    const npcResKeyToMeta = new Map<string, { fileName: string; isResourceOnly: boolean }>();
+    const npcRows: NpcRow[] = [];
+    // npc key → { fileName, hasResources, npcResKey }
+    const npcKeyToMeta = new Map<string, { fileName: string; hasResources: boolean; npcResKey: string | null }>();
+
     for (const item of input.items) {
       try {
         const itemType = item.type ?? "npc";
 
         if (itemType === "resource") {
-          // 导入独立资源配置
-          if (!item.npcResContent) {
-            throw new Error("资源配置内容为空");
-          }
+          if (!item.npcResContent) throw new Error("资源配置内容为空");
 
           const resources = this.parseNpcResIni(item.npcResContent);
-          // key 保留 .ini 后缀，与 NPC 的 key 格式一致
-          const resourceKey = item.fileName;
+          const resourceKey = item.fileName.toLowerCase();
           const resourceName = item.fileName.replace(/\.ini$/i, "");
-
-          const npcRes = await npcResourceService.upsert(
-            input.gameId,
-            resourceKey,
-            resourceName,
-            resources,
-            userId,
-            language
-          );
-
-          success.push({
-            fileName: item.fileName,
-            id: npcRes.id,
-            name: npcRes.name,
-            type: "resource",
-            hasResources: true,
-          });
+          npcResRows.push({ gameId: input.gameId, key: resourceKey, name: resourceName, data: { resources } });
+          npcResKeyToMeta.set(resourceKey, { fileName: item.fileName, isResourceOnly: true });
         } else {
-          // 导入 NPC 配置
-          if (!item.iniContent) {
-            throw new Error("NPC 配置内容为空");
-          }
+          if (!item.iniContent) throw new Error("NPC 配置内容为空");
 
           const parsed = this.parseNpcIni(item.iniContent);
           const hasResources = !!item.npcResContent;
-          let resourceId: string | null = null;
+          let npcResKey: string | null = null;
 
-          // 如果有资源配置 INI，创建资源数据并关联
           if (item.npcResContent) {
             const resources = this.parseNpcResIni(item.npcResContent);
-            // 从 NPC INI 中解析 NpcIni 字段作为资源的 key
             const npcIniField = this.parseNpcIniField(item.iniContent);
-            const resourceKey = npcIniField || item.fileName;
+            const resourceKey = (npcIniField || item.fileName).toLowerCase();
             const resourceName = resourceKey.replace(/\.ini$/i, "");
-
-            const npcRes = await npcResourceService.upsert(
-              input.gameId,
-              resourceKey,
-              resourceName,
-              resources,
-              userId,
-              language
-            );
-            resourceId = npcRes.id;
+            npcResRows.push({ gameId: input.gameId, key: resourceKey, name: resourceName, data: { resources } });
+            npcResKeyToMeta.set(resourceKey, { fileName: item.fileName, isResourceOnly: false });
+            npcResKey = resourceKey;
           }
 
-          // 使用文件名作为 key
           const key = item.fileName;
-
-          const npc = await this.create(
-            {
-              gameId: input.gameId,
-              key,
-              name: parsed.name ?? item.fileName.replace(/\.ini$/i, ""),
-              kind: parsed.kind,
-              relation: parsed.relation,
-              resourceId,
-              ...parsed,
-            },
-            userId,
-            language
-          );
-
-          success.push({
-            fileName: item.fileName,
-            id: npc.id,
-            name: npc.name,
-            type: "npc",
-            hasResources,
-          });
+          const defaultNpc = createDefaultNpc(input.gameId, key);
+          const fullNpc = {
+            ...defaultNpc,
+            ...parsed,
+            name: parsed.name ?? item.fileName.replace(/\.ini$/i, ""),
+          };
+          const { gameId: _g, key: _k, name, kind, relation, resourceId: _ri, ...data } = fullNpc;
+          // resourceId will be filled after npcResources upsert
+          npcRows.push({ gameId: input.gameId, key, name: name ?? "", kind: kind ?? "Normal", relation: relation ?? "Friend", resourceId: null, data });
+          npcKeyToMeta.set(key, { fileName: item.fileName, hasResources, npcResKey });
         }
       } catch (error) {
         failed.push({
           fileName: item.fileName,
           error: error instanceof Error ? error.message : String(error),
         });
+      }
+    }
+
+    // ── 批量 upsert NPC 资源 ─────────────────────────────────────────
+    const npcResKeyToId = new Map<string, string>();
+    if (npcResRows.length > 0) {
+      const upserted = await db
+        .insert(npcResources)
+        .values(npcResRows)
+        .onConflictDoUpdate({
+          target: [npcResources.gameId, npcResources.key],
+          set: {
+            name: sql`excluded.name`,
+            data: sql`excluded.data`,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+
+      for (const row of upserted) {
+        npcResKeyToId.set(row.key, row.id);
+        const meta = npcResKeyToMeta.get(row.key);
+        if (meta?.isResourceOnly) {
+          success.push({ fileName: meta.fileName, id: row.id, name: row.name, type: "resource", hasResources: true });
+        }
+      }
+    }
+
+    // ── 将 resourceId 填入 npcRows ────────────────────────────────────
+    for (const row of npcRows) {
+      const meta = npcKeyToMeta.get(row.key as string)!;
+      if (meta.npcResKey) {
+        row.resourceId = npcResKeyToId.get(meta.npcResKey) ?? null;
+      }
+    }
+
+    // ── 批量写入 NPC：一次 SQL 替代 N 次串行 INSERT ───────────────────
+    if (npcRows.length > 0) {
+      const inserted = await db
+        .insert(npcs)
+        .values(npcRows)
+        .onConflictDoUpdate({
+          target: [npcs.gameId, npcs.key],
+          set: {
+            name: sql`excluded.name`,
+            kind: sql`excluded.kind`,
+            relation: sql`excluded.relation`,
+            resourceId: sql`excluded.resource_id`,
+            data: sql`excluded.data`,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+
+      for (const row of inserted) {
+        const n = this.toNpc(row);
+        const meta = npcKeyToMeta.get(row.key)!;
+        success.push({ fileName: meta.fileName, id: n.id, name: n.name, type: "npc", hasResources: meta.hasResources });
       }
     }
 

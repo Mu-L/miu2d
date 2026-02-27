@@ -17,7 +17,7 @@ import type {
 } from "@miu2d/types";
 import { createDefaultGood, GoodKindFromValue } from "@miu2d/types";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "../../db/client";
 import { games, goods } from "../../db/schema";
 import type { Language } from "../../i18n";
@@ -247,6 +247,7 @@ export class GoodsService {
 
   /**
    * 批量导入物品
+   * 优化：全量解析后一次批量 INSERT/upsert，避免 N 次串行 verifyGameAccess + INSERT
    */
   async batchImportFromIni(
     input: BatchImportGoodInput,
@@ -258,37 +259,47 @@ export class GoodsService {
     const success: BatchImportGoodResult["success"] = [];
     const failed: BatchImportGoodResult["failed"] = [];
 
+    // ── 解析阶段（纯内存，无 DB 调用）────────────────────────────────
+    type InsertRow = typeof goods.$inferInsert;
+    const rows: InsertRow[] = [];
+    const keyToFileName = new Map<string, string>();
+
     for (const item of input.items) {
       try {
         const parsed = this.parseIni(item.iniContent);
-
-        // 使用文件名作为 key
-        const key = item.fileName;
-
-        const result = await this.create(
-          {
-            gameId: input.gameId,
-            key,
-            kind: parsed.kind ?? "Drug",
-            name: parsed.name ?? item.fileName.replace(/\.ini$/i, "") ?? "未命名物品",
-            intro: parsed.intro,
-            ...parsed,
-          },
-          userId,
-          language
-        );
-
-        success.push({
-          fileName: item.fileName,
-          id: result.id,
-          name: result.name,
-          kind: result.kind,
-        });
+        const key = item.fileName.toLowerCase();
+        const defaultGoods = createDefaultGood(input.gameId, parsed.kind ?? "Drug", key);
+        const fullGoods = { ...defaultGoods, ...parsed };
+        const { gameId: _g, key: _k, kind, ...data } = fullGoods;
+        rows.push({ gameId: input.gameId, key, kind: kind ?? "Drug", data });
+        keyToFileName.set(key, item.fileName);
       } catch (error) {
         failed.push({
           fileName: item.fileName,
           error: error instanceof Error ? error.message : String(error),
         });
+      }
+    }
+
+    // ── 批量写入：一次 SQL 替代 N 次串行 INSERT ──────────────────────
+    if (rows.length > 0) {
+      const inserted = await db
+        .insert(goods)
+        .values(rows)
+        .onConflictDoUpdate({
+          target: [goods.gameId, goods.key],
+          set: {
+            kind: sql`excluded.kind`,
+            data: sql`excluded.data`,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+
+      for (const row of inserted) {
+        const g = this.toGoods(row);
+        const fileName = keyToFileName.get(row.key) ?? row.key;
+        success.push({ fileName, id: g.id, name: g.name, kind: g.kind });
       }
     }
 

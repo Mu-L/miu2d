@@ -18,7 +18,7 @@ import type {
 } from "@miu2d/types";
 import { createDefaultObj, createDefaultObjResource, ObjKindFromValue } from "@miu2d/types";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { db } from "../../db/client";
 import { games, objResources, objs } from "../../db/schema";
 import type { Language } from "../../i18n";
@@ -292,7 +292,7 @@ export class ObjService {
   }
 
   /**
-   * 批量导入 Object 和资源
+   * 批量导入 Object 和资源（优化版：bulk upsert resources + bulk INSERT objs，一次完成）
    * 支持两种类型：
    * - type="obj": 导入 Object 配置（obj/*.ini），可选关联 objres
    * - type="resource": 导入独立资源配置（objres/*.ini）
@@ -307,95 +307,128 @@ export class ObjService {
     const success: BatchImportObjResult["success"] = [];
     const failed: BatchImportObjResult["failed"] = [];
 
+    // ── 解析阶段（纯内存，无 DB 调用）────────────────────────────────
+    type ResInsertRow = typeof objResources.$inferInsert;
+    type ObjDbRow = typeof objs.$inferInsert;
+
+    const resourceRows: ResInsertRow[] = [];
+    const resourceKeySet = new Set<string>();
+    const resourceOnlyMeta: { fileName: string; resourceKey: string }[] = [];
+
+    const objDbRows: ObjDbRow[] = [];
+    const objMeta: { fileName: string; hasResources: boolean; resourceKey: string | null; objKey: string }[] = [];
+
     for (const item of input.items) {
       try {
         const itemType = item.type ?? "obj";
 
         if (itemType === "resource") {
-          // 导入独立资源配置
-          if (!item.objResContent) {
-            throw new Error("资源配置内容为空");
-          }
-
+          if (!item.objResContent) throw new Error("资源配置内容为空");
           const resources = this.parseObjResIni(item.objResContent);
-          // key 保留 .ini 后缀，与 Obj 的 key 格式一致
-          const resourceKey = item.fileName;
+          const resourceKey = item.fileName.toLowerCase();
           const resourceName = item.fileName.replace(/\.ini$/i, "");
-
-          const objRes = await objResourceService.upsert(
-            input.gameId,
-            resourceKey,
-            resourceName,
-            resources,
-            userId,
-            language
-          );
-
-          success.push({
-            fileName: item.fileName,
-            id: objRes.id,
-            name: objRes.name,
-            type: "resource",
-            hasResources: true,
-          });
-        } else {
-          // 导入 Object 配置
-          if (!item.iniContent) {
-            throw new Error("Object 配置内容为空");
+          if (!resourceKeySet.has(resourceKey)) {
+            resourceRows.push({ gameId: input.gameId, key: resourceKey, name: resourceName, data: { resources } });
+            resourceKeySet.add(resourceKey);
           }
-
+          resourceOnlyMeta.push({ fileName: item.fileName, resourceKey });
+        } else {
+          if (!item.iniContent) throw new Error("Object 配置内容为空");
           const parsed = this.parseObjIni(item.iniContent);
           const hasResources = !!item.objResContent;
-          let resourceId: string | null = null;
+          let resourceKey: string | null = null;
 
-          // 如果有资源配置 INI，创建资源数据并关联
           if (item.objResContent) {
             const resources = this.parseObjResIni(item.objResContent);
-            // 从 Obj INI 中解析 ObjFile 字段作为资源的 key
             const objFileField = this.parseObjFileField(item.iniContent);
-            const resourceKey = objFileField || item.fileName;
+            resourceKey = (objFileField || item.fileName).toLowerCase();
             const resourceName = resourceKey.replace(/\.ini$/i, "");
-
-            const objRes = await objResourceService.upsert(
-              input.gameId,
-              resourceKey,
-              resourceName,
-              resources,
-              userId,
-              language
-            );
-            resourceId = objRes.id;
+            if (!resourceKeySet.has(resourceKey)) {
+              resourceRows.push({ gameId: input.gameId, key: resourceKey, name: resourceName, data: { resources } });
+              resourceKeySet.add(resourceKey);
+            }
           }
 
-          // 使用文件名作为 key
-          const key = item.fileName;
+          const objKey = item.fileName;
+          const defaultObj = createDefaultObj(input.gameId, objKey);
+          const fullObj = { ...defaultObj, ...parsed };
+          const { gameId: _g, key: _k, name, kind, resourceId: _r, ...data } = fullObj;
 
-          const obj = await this.create(
-            {
-              gameId: input.gameId,
-              key,
-              name: parsed.name ?? item.fileName.replace(/\.ini$/i, ""),
-              kind: parsed.kind,
-              resourceId,
-              ...parsed,
-            },
-            userId,
-            language
-          );
-
-          success.push({
-            fileName: item.fileName,
-            id: obj.id,
-            name: obj.name,
-            type: "obj",
-            hasResources,
+          objDbRows.push({
+            gameId: input.gameId,
+            key: objKey,
+            name: name ?? objKey.replace(/\.ini$/i, ""),
+            kind: kind ?? "Static",
+            resourceId: null, // 先占位，稍后替换为真实 ID
+            data,
           });
+          objMeta.push({ fileName: item.fileName, hasResources, resourceKey, objKey });
         }
       } catch (error) {
         failed.push({
           fileName: item.fileName,
           error: error instanceof Error ? error.message : String(error),
         });
+      }
+    }
+
+    // ── 批量 upsert objResources（单条 SQL）──────────────────────────
+    const keyToResourceId = new Map<string, string>();
+    if (resourceRows.length > 0) {
+      const insertedResources = await db
+        .insert(objResources)
+        .values(resourceRows)
+        .onConflictDoUpdate({
+          target: [objResources.gameId, objResources.key],
+          set: {
+            name: sql`excluded.name`,
+            data: sql`excluded.data`,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+      for (const row of insertedResources) {
+        keyToResourceId.set(row.key, row.id);
+      }
+    }
+
+    // resource-only 成功项
+    for (const { fileName, resourceKey } of resourceOnlyMeta) {
+      const id = keyToResourceId.get(resourceKey);
+      if (id) {
+        success.push({ fileName, id, name: resourceKey.replace(/\.ini$/i, ""), type: "resource", hasResources: true });
+      }
+    }
+
+    // ── 批量 INSERT objs（单条 SQL）──────────────────────────────────
+    if (objDbRows.length > 0) {
+      const insertValues = objDbRows.map((row, i) => ({
+        ...row,
+        resourceId: objMeta[i].resourceKey ? (keyToResourceId.get(objMeta[i].resourceKey!) ?? null) : null,
+      }));
+
+      const insertedObjs = await db
+        .insert(objs)
+        .values(insertValues)
+        .onConflictDoUpdate({
+          target: [objs.gameId, objs.key],
+          set: {
+            name: sql`excluded.name`,
+            kind: sql`excluded.kind`,
+            resourceId: sql`excluded.resource_id`,
+            data: sql`excluded.data`,
+            updatedAt: new Date(),
+          },
+        })
+        .returning();
+
+      const keyToObjRow = new Map(insertedObjs.map((r) => [r.key, r]));
+      for (const meta of objMeta) {
+        const row = keyToObjRow.get(meta.objKey);
+        if (row) {
+          const obj = this.toObj(row);
+          success.push({ fileName: meta.fileName, id: obj.id, name: obj.name, type: "obj", hasResources: meta.hasResources });
+        }
       }
     }
 

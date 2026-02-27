@@ -651,12 +651,13 @@ export class FileService {
 
       const existingByName = new Map(existingFiles.map((f) => [f.name, f]));
 
+      // 处理已存在的文件
+      const newItems: typeof items = [];
       for (const item of items) {
         const existing = existingByName.get(item.name);
 
         if (existing) {
           if (skipExisting) {
-            // 跳过已存在的文件
             results.push({
               clientId: item.clientId,
               fileId: existing.id,
@@ -671,30 +672,48 @@ export class FileService {
             message: getMessage(language, "errors.file.nameConflict"),
           });
         }
+        newItems.push(item);
+      }
 
-        // 创建文件记录
-        const [file] = await db
-          .insert(files)
-          .values({
+      if (newItems.length === 0) continue;
+
+      // 预先生成 UUID 和 storageKey，避免 INSERT 后再 UPDATE
+      const newFileRows = newItems.map((item) => {
+        const id = crypto.randomUUID();
+        const storageKey = s3.generateStorageKey(gameId, id);
+        return {
+          id,
+          storageKey,
+          clientId: item.clientId,
+          mimeType: item.mimeType,
+          row: {
+            id,
             gameId,
             parentId: parentId,
             name: item.name,
-            type: "file",
+            type: "file" as const,
             size: item.size.toString(),
             mimeType: item.mimeType ?? "application/octet-stream",
-          })
-          .returning();
+            storageKey,
+          },
+        };
+      });
 
-        const storageKey = s3.generateStorageKey(gameId, file.id);
-        await db.update(files).set({ storageKey }).where(eq(files.id, file.id));
+      // 一次批量 INSERT
+      await db.insert(files).values(newFileRows.map((f) => f.row));
 
-        const uploadUrl = await s3.getUploadUrl(storageKey, item.mimeType);
+      // 并行获取所有 presigned URL
+      const uploadUrls = await Promise.all(
+        newFileRows.map((f) => s3.getUploadUrl(f.storageKey, f.mimeType))
+      );
 
+      for (let i = 0; i < newFileRows.length; i++) {
+        const f = newFileRows[i];
         results.push({
-          clientId: item.clientId,
-          fileId: file.id,
-          uploadUrl,
-          storageKey,
+          clientId: f.clientId,
+          fileId: f.id,
+          uploadUrl: uploadUrls[i],
+          storageKey: f.storageKey,
           skipped: false,
         });
       }
