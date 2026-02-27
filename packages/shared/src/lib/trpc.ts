@@ -11,8 +11,9 @@ import { createTRPCReact } from "@trpc/react-query";
 export const trpc = createTRPCReact<AppRouter>();
 
 const getBaseUrl = () => {
-  if (import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
+  // 优先级与 getResourceDomain() 保持一致
+  if (import.meta.env.VITE_DEMO_RESOURCES_DOMAIN) {
+    return import.meta.env.VITE_DEMO_RESOURCES_DOMAIN.replace(/\/+$/, "");
   }
   if (typeof window !== "undefined") {
     // 浏览器环境：使用当前 origin，走 Vite 代理
