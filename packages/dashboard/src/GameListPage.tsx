@@ -7,6 +7,7 @@ import { trpc, useAuth } from "@miu2d/shared";
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { DashboardIcons } from "./icons";
+import { getGameApiUrl } from "./utils/resourcePath";
 
 export function GameListPage() {
   const navigate = useNavigate();
@@ -102,7 +103,7 @@ export function GameListPage() {
               <div className="w-12 h-12 relative bg-[#0e639c] rounded-lg flex items-center justify-center text-white text-xl flex-shrink-0 overflow-hidden">
                 {DashboardIcons.game}
                 <img
-                  src={`/game/${game.slug}/api/logo`}
+                  src={getGameApiUrl(game.slug, "logo")}
                   alt=""
                   className="absolute inset-0 w-full h-full object-contain"
                   onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
