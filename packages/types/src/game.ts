@@ -8,7 +8,6 @@ export const GameSchema = z.object({
   slug: z.string(),
   name: z.string(),
   description: z.string().nullable(),
-  ownerId: z.string().nullable().optional(),
   createdAt: z.string().optional(), // ISO 8601 string
 });
 
@@ -43,7 +42,15 @@ export const DeleteGameInputSchema = z.object({
   id: z.string(),
 });
 
+export const TransferOwnerInputSchema = z.object({
+  /** 游戏 ID */
+  id: z.string(),
+  /** 新所有者的用户 ID */
+  newOwnerId: z.string().uuid(),
+});
+
 export type Game = z.infer<typeof GameSchema>;
 export type CreateGameInput = z.infer<typeof CreateGameInputSchema>;
 export type UpdateGameInput = z.infer<typeof UpdateGameInputSchema>;
 export type DeleteGameInput = z.infer<typeof DeleteGameInputSchema>;
+export type TransferOwnerInput = z.infer<typeof TransferOwnerInputSchema>;

@@ -68,6 +68,8 @@ export const en: TranslationSchema = {
         onlyOwnerCanUpdate: "Only the owner can update",
         onlyOwnerCanDelete: "Only the owner can delete",
         slugExists: "Slug already exists",
+        onlyOwnerCanTransfer: "Only the owner can transfer ownership",
+        newOwnerNotFound: "Target user not found",
       },
       file: {
         notFound: "File or folder not found",

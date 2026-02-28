@@ -2,6 +2,7 @@ import {
   CreateGameInputSchema,
   DeleteGameInputSchema,
   GameSchema,
+  TransferOwnerInputSchema,
   UpdateGameInputSchema,
 } from "@miu2d/types";
 import { z } from "zod";
@@ -73,5 +74,17 @@ export class GameRouter {
   @Mutation({ input: DeleteGameInputSchema, output: z.object({ id: z.string() }) })
   async delete(input: z.infer<typeof DeleteGameInputSchema>, @Ctx() ctx: Context) {
     return gameService.delete(input.id, ctx.userId!, ctx.language);
+  }
+
+  @UseMiddlewares(requireUser)
+  @Mutation({ input: TransferOwnerInputSchema, output: GameSchema })
+  async transferOwner(input: z.infer<typeof TransferOwnerInputSchema>, @Ctx() ctx: Context) {
+    const updated = await gameService.transferOwner(
+      input.id,
+      input.newOwnerId,
+      ctx.userId!,
+      ctx.language
+    );
+    return toGameOutput(updated);
   }
 }

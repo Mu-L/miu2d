@@ -94,12 +94,14 @@ export type {
   CreateGameInput,
   DeleteGameInput,
   Game,
+  TransferOwnerInput,
   UpdateGameInput,
 } from "./game.js";
 export {
   CreateGameInputSchema,
   DeleteGameInputSchema,
   GameSchema,
+  TransferOwnerInputSchema,
   UpdateGameInputSchema,
 } from "./game.js";
 export type {

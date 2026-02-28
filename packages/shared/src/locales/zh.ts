@@ -66,6 +66,8 @@ export const zh = {
         onlyOwnerCanUpdate: "仅创建者可修改",
         onlyOwnerCanDelete: "仅创建者可删除",
         slugExists: "Slug 已存在",
+        onlyOwnerCanTransfer: "仅创建者可转让所有权",
+        newOwnerNotFound: "目标用户不存在",
       },
       file: {
         notFound: "文件或目录不存在",

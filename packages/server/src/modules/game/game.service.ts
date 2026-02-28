@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "../../db/client";
-import { gameMembers, games } from "../../db/schema";
+import { gameMembers, games, users } from "../../db/schema";
 import { getMessage, type Language } from "../../i18n";
 
 export const toGameOutput = (dbGame: typeof games.$inferSelect) => ({
@@ -9,7 +9,6 @@ export const toGameOutput = (dbGame: typeof games.$inferSelect) => ({
   slug: dbGame.slug,
   name: dbGame.name,
   description: dbGame.description,
-  ownerId: dbGame.ownerId,
   createdAt: dbGame.createdAt?.toISOString(),
 });
 
@@ -22,16 +21,13 @@ const slugify = (value: string) =>
 
 export class GameService {
   private async isOwner(gameId: string, userId: string): Promise<boolean> {
-    // Check direct ownerId or gameMembers role
     const [member] = await db
-      .select({ role: gameMembers.role, ownerId: games.ownerId })
+      .select({ role: gameMembers.role })
       .from(gameMembers)
-      .innerJoin(games, eq(gameMembers.gameId, games.id))
       .where(and(eq(gameMembers.gameId, gameId), eq(gameMembers.userId, userId)))
       .limit(1);
 
-    if (!member) return false;
-    return member.role === "owner" || member.ownerId === userId || member.ownerId === null;
+    return member?.role === "owner";
   }
 
   async listByUser(userId: string) {
@@ -103,7 +99,6 @@ export class GameService {
           name: input.name,
           slug,
           description: input.description ?? null,
-          ownerId: userId,
         })
         .returning();
 
@@ -193,6 +188,75 @@ export class GameService {
     });
 
     return { id };
+  }
+
+  /**
+   * 转让游戏所有权（只操作 game_members，无冗余字段）
+   */
+  async transferOwner(
+    id: string,
+    newOwnerId: string,
+    currentUserId: string,
+    language: Language
+  ) {
+    const game = await this.getById(id);
+    if (!game) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: getMessage(language, "errors.game.notFound"),
+      });
+    }
+
+    if (!(await this.isOwner(id, currentUserId))) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: getMessage(language, "errors.game.onlyOwnerCanTransfer"),
+      });
+    }
+
+    // 验证新所有者存在
+    const [targetUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.id, newOwnerId))
+      .limit(1);
+
+    if (!targetUser) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: getMessage(language, "errors.game.newOwnerNotFound"),
+      });
+    }
+
+    return db.transaction(async (tx) => {
+      // 1. 把当前所有者降为 member
+      await tx
+        .update(gameMembers)
+        .set({ role: "member" })
+        .where(and(eq(gameMembers.gameId, id), eq(gameMembers.userId, currentUserId)));
+
+      // 2. 新所有者：已是成员则升级，否则插入
+      const [existingMember] = await tx
+        .select({ id: gameMembers.id })
+        .from(gameMembers)
+        .where(and(eq(gameMembers.gameId, id), eq(gameMembers.userId, newOwnerId)))
+        .limit(1);
+
+      if (existingMember) {
+        await tx
+          .update(gameMembers)
+          .set({ role: "owner" })
+          .where(and(eq(gameMembers.gameId, id), eq(gameMembers.userId, newOwnerId)));
+      } else {
+        await tx.insert(gameMembers).values({
+          gameId: id,
+          userId: newOwnerId,
+          role: "owner",
+        });
+      }
+
+      return game;
+    });
   }
 }
 

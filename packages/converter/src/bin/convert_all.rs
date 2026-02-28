@@ -713,7 +713,8 @@ mod mpc_msf {
             if po + 4 > mpc_data.len() {
                 break;
             }
-            // File stores BGRA, convert to RGBA. The 4th byte is real alpha (semi-transparent magic effects).
+            // File stores BGRA, convert to RGBA. The 4th byte is always ignored by the
+            // original C# engine (hard-coded to 255); it is not meaningful palette alpha.
             palette.push([
                 mpc_data[po + 2],
                 mpc_data[po + 1],
@@ -1315,8 +1316,16 @@ fn convert_mpc_files(resources_dir: &Path) -> (usize, usize) {
         let shd_bytes = std::fs::read(&shd_path).ok();
         let shd_data = shd_bytes.as_deref();
 
-        let path_str = mpc_path.to_string_lossy();
-        let use_palette_alpha = path_str.contains("/magic/") || path_str.contains("/effect/");
+        // The original C# engine (TextureBase.LoadPalette) always skips the 4th
+        // palette byte and hard-codes A = 0xFF for every MPC entry:
+        //   Palette[i].B = buf[offset++];
+        //   Palette[i].G = buf[offset++];
+        //   Palette[i].R = buf[offset++];
+        //   Palette[i].A = 0xFF;
+        //   offset++;   ← 4th byte discarded
+        // MPC transparency comes only from the RLE stream (byte > 0x80 = skip).
+        // Palette alpha is never meaningful for MPC files.
+        let use_palette_alpha = false;
         match std::fs::read(mpc_path) {
             Ok(mpc_data) => {
                 match mpc_msf::convert_mpc_to_msf(&mpc_data, shd_data, use_palette_alpha) {
