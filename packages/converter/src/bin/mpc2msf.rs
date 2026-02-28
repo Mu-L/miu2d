@@ -4,7 +4,8 @@
 //!   mpc2msf <input_dir> <output_dir>
 //!
 //! Recursively converts all .mpc files to MSF v2 format.
-//! MSF v2: Indexed8 (1bpp) + zstd compression, no row filters.
+//! MSF v2: Rgba8 (4bpp) + zstd compression.
+//! Transparency is decoded from the MPC RLE stream directly (no palette index trick).
 
 use rayon::prelude::*;
 use std::path::PathBuf;
@@ -52,18 +53,138 @@ mod msf {
         ])
     }
 
-    /// Decode MPC RLE to Indexed8 (1bpp).
-    /// transparent_idx is used for skipped (transparent) pixels.
-    fn decode_mpc_rle_to_indexed(
+    /// Decode SHD RLE into per-frame shadow canvases (RGBA).
+    ///
+    /// SHD format (Shd.cs):
+    /// - No palette; non-skip pixels are Color.Black * 0.6f = [0,0,0,153]
+    /// - Skip (byte > 0x80) = N transparent pixels
+    /// - Color run (byte <= 0x80) = N shadow pixels — just the count byte, no palette bytes
+    /// - Frame offset table starts at byte 128 (same header layout as MPC, no palette)
+    fn decode_shd_frames(shd_data: &[u8], frame_count: usize) -> Vec<Vec<u8>> {
+        const SHADOW_COLOR: [u8; 4] = [0, 0, 0, 153];
+        let mut result: Vec<Vec<u8>> = Vec::with_capacity(frame_count);
+        if shd_data.len() < 132 {
+            return result;
+        }
+        let sig = match std::str::from_utf8(&shd_data[0..12]) {
+            Ok(s) => s,
+            Err(_) => return result,
+        };
+        if !sig.starts_with("SHD File Ver") {
+            return result;
+        }
+        let offsets_start = 128usize;
+        let mut shd_offsets: Vec<usize> = Vec::with_capacity(frame_count);
+        for i in 0..frame_count {
+            let o = offsets_start + i * 4;
+            if o + 4 > shd_data.len() {
+                break;
+            }
+            shd_offsets.push(u32::from_le_bytes([
+                shd_data[o],
+                shd_data[o + 1],
+                shd_data[o + 2],
+                shd_data[o + 3],
+            ]) as usize);
+        }
+        let frame_data_start = offsets_start + frame_count * 4;
+        for j in 0..frame_count {
+            if j >= shd_offsets.len() {
+                result.push(Vec::new());
+                continue;
+            }
+            let ds = frame_data_start + shd_offsets[j];
+            if ds + 20 > shd_data.len() {
+                result.push(Vec::new());
+                continue;
+            }
+            let data_len = u32::from_le_bytes([
+                shd_data[ds],
+                shd_data[ds + 1],
+                shd_data[ds + 2],
+                shd_data[ds + 3],
+            ]) as usize;
+            let width = u32::from_le_bytes([
+                shd_data[ds + 4],
+                shd_data[ds + 5],
+                shd_data[ds + 6],
+                shd_data[ds + 7],
+            ]) as usize;
+            let height = u32::from_le_bytes([
+                shd_data[ds + 8],
+                shd_data[ds + 9],
+                shd_data[ds + 10],
+                shd_data[ds + 11],
+            ]) as usize;
+            if width == 0 || height == 0 || width > 2048 || height > 2048 {
+                result.push(Vec::new());
+                continue;
+            }
+            let rle_start = ds + 20;
+            let rle_end = if ds + data_len <= shd_data.len() {
+                ds + data_len
+            } else {
+                shd_data.len()
+            };
+            let total = width * height;
+            let mut buf = vec![0u8; total * 4];
+            let mut rle_off = rle_start;
+            let mut pixel_idx = 0usize;
+            while rle_off < rle_end && pixel_idx < total {
+                let byte = shd_data[rle_off];
+                rle_off += 1;
+                if byte > 0x80 {
+                    pixel_idx += (byte - 0x80) as usize;
+                } else {
+                    let count = byte as usize;
+                    for _ in 0..count {
+                        if pixel_idx >= total {
+                            break;
+                        }
+                        let dst = pixel_idx * 4;
+                        buf[dst] = SHADOW_COLOR[0];
+                        buf[dst + 1] = SHADOW_COLOR[1];
+                        buf[dst + 2] = SHADOW_COLOR[2];
+                        buf[dst + 3] = SHADOW_COLOR[3];
+                        pixel_idx += 1;
+                    }
+                }
+            }
+            result.push(buf);
+        }
+        result
+    }
+
+    /// Decode MPC RLE directly to RGBA pixels.
+    ///
+    /// MPC transparency is encoded in the RLE stream itself (byte > 0x80 = skip N pixels).
+    /// Skipped pixels are transparent (RGBA = [0,0,0,0]).
+    /// Color pixels look up the palette (BGRA stored, converted to RGBA, alpha = 255).
+    ///
+    /// This avoids all palette-index ambiguity and works correctly even when all 256
+    /// palette entries are in use (which happens for ~1879 files in resources-sword2).
+    fn decode_mpc_rle_to_rgba(
         data: &[u8],
         rle_start: usize,
         rle_end: usize,
         width: usize,
         height: usize,
-        transparent_idx: u8,
+        palette: &[[u8; 4]],
+        shadow: Option<&[u8]>,
+        use_palette_alpha: bool,
     ) -> Vec<u8> {
         let total = width * height;
-        let mut buf = vec![transparent_idx; total]; // fill with transparent
+        let mut buf = if let Some(s) = shadow {
+            if s.len() >= total * 4 {
+                s[..total * 4].to_vec()
+            } else {
+                let mut b = vec![0u8; total * 4];
+                b[..s.len()].copy_from_slice(s);
+                b
+            }
+        } else {
+            vec![0u8; total * 4]
+        };
         let mut data_offset = rle_start;
         let mut pixel_idx = 0usize;
 
@@ -72,17 +193,28 @@ mod msf {
             data_offset += 1;
 
             if byte > 0x80 {
-                // Skip (transparent) — already filled with transparent_idx
-                let count = (byte - 0x80) as usize;
-                pixel_idx += count;
+                // RLE skip: transparent pixels — keep whatever is in buf (shadow or transparent)
+                pixel_idx += (byte - 0x80) as usize;
             } else {
                 let count = byte as usize;
                 for _ in 0..count {
                     if pixel_idx >= total || data_offset >= data.len() {
                         break;
                     }
-                    buf[pixel_idx] = data[data_offset];
+                    let idx = data[data_offset] as usize;
                     data_offset += 1;
+                    let dst = pixel_idx * 4;
+                    if idx < palette.len() {
+                        buf[dst] = palette[idx][0];
+                        buf[dst + 1] = palette[idx][1];
+                        buf[dst + 2] = palette[idx][2];
+                        buf[dst + 3] = if use_palette_alpha {
+                            palette[idx][3]
+                        } else {
+                            255
+                        };
+                    }
+                    // idx out of palette range → leave as-is (shadow or transparent)
                     pixel_idx += 1;
                 }
             }
@@ -90,62 +222,12 @@ mod msf {
         buf
     }
 
-    /// Scan MPC frames to find which palette indices are used by opaque pixels.
-    fn find_transparent_index_mpc(
+    /// Convert a single MPC file to MSF v2 (Rgba8 + zstd)
+    pub fn convert_mpc_to_msf(
         mpc_data: &[u8],
-        frame_data_start: usize,
-        data_offsets: &[usize],
-    ) -> u8 {
-        let mut used = [false; 256];
-
-        for &off in data_offsets {
-            let ds = frame_data_start + off;
-            if ds + 12 > mpc_data.len() {
-                continue;
-            }
-            let data_len = get_u32_le(mpc_data, ds) as usize;
-            let width = get_u32_le(mpc_data, ds + 4) as usize;
-            let height = get_u32_le(mpc_data, ds + 8) as usize;
-            if width == 0 || height == 0 || width > 2048 || height > 2048 {
-                continue;
-            }
-
-            let rle_start = ds + 20;
-            let rle_end = ds + data_len;
-            let total = width * height;
-            let mut data_offset = rle_start;
-            let mut pixel_idx = 0usize;
-
-            while data_offset < rle_end && data_offset < mpc_data.len() && pixel_idx < total {
-                let byte = mpc_data[data_offset];
-                data_offset += 1;
-
-                if byte > 0x80 {
-                    pixel_idx += (byte - 0x80) as usize;
-                } else {
-                    let count = byte as usize;
-                    for _ in 0..count {
-                        if pixel_idx >= total || data_offset >= mpc_data.len() {
-                            break;
-                        }
-                        used[mpc_data[data_offset] as usize] = true;
-                        data_offset += 1;
-                        pixel_idx += 1;
-                    }
-                }
-            }
-        }
-
-        for i in 0..256u16 {
-            if !used[i as usize] {
-                return i as u8;
-            }
-        }
-        0 // fallback
-    }
-
-    /// Convert a single MPC file to MSF v2 (Indexed8 1bpp + zstd)
-    pub fn convert_mpc_to_msf(mpc_data: &[u8]) -> Option<Vec<u8>> {
+        shd_data: Option<&[u8]>,
+        use_palette_alpha: bool,
+    ) -> Option<Vec<u8>> {
         if mpc_data.len() < 160 {
             return None;
         }
@@ -156,7 +238,6 @@ mod msf {
         }
 
         let off = 64;
-        let _frames_data_length_sum = get_u32_le(mpc_data, off);
         let global_width = get_u32_le(mpc_data, off + 4) as u16;
         let global_height = get_u32_le(mpc_data, off + 8) as u16;
         let frame_count = get_u32_le(mpc_data, off + 12) as u16;
@@ -178,7 +259,7 @@ mod msf {
             15
         };
 
-        // Read palette (BGRA → RGBA)
+        // Build RGBA palette from BGRA stored in file
         let palette_start = 128;
         let mut palette: Vec<[u8; 4]> = Vec::with_capacity(color_count);
         for i in 0..color_count {
@@ -189,7 +270,8 @@ mod msf {
             let b = mpc_data[po];
             let g = mpc_data[po + 1];
             let r = mpc_data[po + 2];
-            palette.push([r, g, b, 255]);
+            let a = mpc_data[po + 3]; // Real alpha, not hardcoded 255
+            palette.push([r, g, b, a]);
         }
 
         // Read frame data offsets
@@ -205,18 +287,12 @@ mod msf {
 
         let frame_data_start = offsets_start + frame_count as usize * 4;
 
-        // Find transparent index
-        let transparent_idx = find_transparent_index_mpc(mpc_data, frame_data_start, &data_offsets);
-        if (transparent_idx as usize) < palette.len() {
-            palette[transparent_idx as usize][3] = 0;
-        } else {
-            while palette.len() <= transparent_idx as usize {
-                palette.push([0, 0, 0, 255]);
-            }
-            palette[transparent_idx as usize] = [0, 0, 0, 0];
-        }
+        // Decode SHD shadow frames if provided
+        let shd_frames = shd_data
+            .map(|sd| decode_shd_frames(sd, frame_count as usize))
+            .unwrap_or_default();
 
-        // Process frames
+        // Process frames: decode to RGBA directly
         let mut frame_entries: Vec<FrameEntry> = Vec::with_capacity(frame_count as usize);
         let mut raw_frame_data: Vec<Vec<u8>> = Vec::with_capacity(frame_count as usize);
 
@@ -267,13 +343,19 @@ mod msf {
 
             let rle_start = ds + 20;
             let rle_end = ds + data_len;
-            let indexed = decode_mpc_rle_to_indexed(
+            let shadow = shd_frames
+                .get(i)
+                .filter(|s| !s.is_empty())
+                .map(|s| s.as_slice());
+            let rgba = decode_mpc_rle_to_rgba(
                 mpc_data,
                 rle_start,
                 rle_end,
                 width as usize,
                 height as usize,
-                transparent_idx,
+                &palette,
+                shadow,
+                use_palette_alpha,
             );
 
             frame_entries.push(FrameEntry {
@@ -284,7 +366,7 @@ mod msf {
                 data_offset: 0,
                 data_length: 0,
             });
-            raw_frame_data.push(indexed);
+            raw_frame_data.push(rgba);
         }
 
         // Concatenate frame data
@@ -298,16 +380,9 @@ mod msf {
         let flags: u16 = 1; // zstd
         let compressed_blob = zstd::bulk::compress(&concat_raw, 3).ok()?;
 
-        let palette_bytes = palette.len() * 4;
+        // PixelFormat=0 (Rgba8), no palette in MSF header
         let frame_table_bytes = frame_count as usize * FRAME_ENTRY_SIZE;
-        let end_chunk_bytes = 8;
-        let total = 8
-            + 16
-            + 4
-            + palette_bytes
-            + frame_table_bytes
-            + end_chunk_bytes
-            + compressed_blob.len();
+        let total = 8 + 16 + 4 + frame_table_bytes + 8 + compressed_blob.len();
         let mut out = Vec::with_capacity(total);
 
         // Preamble
@@ -325,15 +400,12 @@ mod msf {
         out.extend_from_slice(&bottom.to_le_bytes());
         out.extend_from_slice(&[0u8; 4]);
 
-        // Pixel format: Indexed8 (1)
-        out.push(1);
-        out.extend_from_slice(&(palette.len() as u16).to_le_bytes());
+        // Pixel format: Rgba8 (0), palette_size=0, reserved=0
+        out.push(0);
+        out.extend_from_slice(&0u16.to_le_bytes());
         out.push(0);
 
-        // Palette
-        for entry in &palette {
-            out.extend_from_slice(entry);
-        }
+        // No palette entries
 
         // Frame table
         for entry in &frame_entries {
@@ -384,7 +456,10 @@ fn main() {
         .collect();
 
     let total = mpc_files.len();
-    println!("Found {} MPC files (MSF v2: Indexed8 + zstd)", total);
+    println!(
+        "Found {} MPC files (MSF v2: Rgba8 + zstd, with SHD shadow merge)",
+        total
+    );
 
     let converted = AtomicUsize::new(0);
     let failed = AtomicUsize::new(0);
@@ -401,10 +476,17 @@ fn main() {
             let _ = std::fs::create_dir_all(parent);
         }
 
+        // Check for adjacent .shd file (same stem, same directory)
+        let shd_path = mpc_path.with_extension("shd");
+        let shd_bytes = std::fs::read(&shd_path).ok();
+        let shd_data = shd_bytes.as_deref();
+
+        let path_str = mpc_path.to_string_lossy();
+        let use_palette_alpha = path_str.contains("/magic/") || path_str.contains("/effect/");
         match std::fs::read(mpc_path) {
             Ok(mpc_data) => {
                 let mpc_size = mpc_data.len();
-                match msf::convert_mpc_to_msf(&mpc_data) {
+                match msf::convert_mpc_to_msf(&mpc_data, shd_data, use_palette_alpha) {
                     Some(msf_data) => {
                         let msf_size = msf_data.len();
                         if std::fs::write(&msf_path, &msf_data).is_ok() {

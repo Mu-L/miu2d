@@ -228,7 +228,7 @@ export function useGameUILogic({ engine }: UseGameUILogicOptions) {
     const bottomMagics = engine.getBottomMagics();
     const storeMagics = engine.getStoreMagics();
     const gameManager = engine.getGameManager();
-    const xiuLianMagic = gameManager.magicInventory.getItemInfo(49) ?? null;
+    const xiuLianMagic = gameManager.magicInventory.getXiuLianMagicForDisplay();
 
     return { storeMagics, bottomMagics, xiuLianMagic };
   }, [engine, updateTrigger]);
@@ -705,6 +705,10 @@ export function useGameUILogic({ engine }: UseGameUILogicOptions) {
           magicIndex: magicDragData.storeIndex,
           bottomSlot: targetBottomSlot,
         });
+        // 修炼栏拖到快捷栏：修炼和快捷栏互斥，需清除修炼栏引用
+        if (magicDragData.storeIndex === MAGIC_LIST_CONFIG.xiuLianIndex) {
+          dispatch({ type: "SET_XIULIAN_MAGIC", magicIndex: 0 });
+        }
       } else if (bottomMagicDragData) {
         // 快捷栏之间拖拽：交换两槽位引用
         dispatch({
@@ -724,17 +728,26 @@ export function useGameUILogic({ engine }: UseGameUILogicOptions) {
       const xiuLianIndex = MAGIC_LIST_CONFIG.xiuLianIndex;
 
       if (magicDragData && magicDragData.storeIndex > 0) {
-        dispatch({
-          type: "SWAP_MAGIC",
-          fromIndex: magicDragData.storeIndex,
-          toIndex: xiuLianIndex,
-        });
+        const fromIndex = magicDragData.storeIndex;
+        // 若此武功在快捷栏有引用，先记录槽位（SWAP_MAGIC 执行后引用会被同步到 xiuLianIndex）
+        let occupiedBottomSlot = -1;
+        if (engine && fromIndex !== xiuLianIndex) {
+          const slots = engine.getGameManager().magicInventory.getBottomSlots();
+          occupiedBottomSlot = slots.findIndex((idx) => idx === fromIndex);
+        }
+        dispatch({ type: "SWAP_MAGIC", fromIndex, toIndex: xiuLianIndex });
+        // SWAP 后清除该快捷栏槽位，保证武功只在修炼栏
+        if (occupiedBottomSlot >= 0) {
+          dispatch({ type: "CLEAR_BOTTOM_SLOT", bottomSlot: occupiedBottomSlot });
+        }
       } else if (bottomMagicDragData) {
         dispatch({
           type: "SWAP_MAGIC",
           fromIndex: bottomMagicDragData.listIndex,
           toIndex: xiuLianIndex,
         });
+        // SWAP_MAGIC 会同步更新快捷栏引用（listIndex → xiuLianIndex），必须额外清除快捷栏槽位
+        dispatch({ type: "CLEAR_BOTTOM_SLOT", bottomSlot: bottomMagicDragData.bottomSlot });
       } else if (sourceIndex > 0 && sourceIndex !== xiuLianIndex) {
         dispatch({ type: "SWAP_MAGIC", fromIndex: sourceIndex, toIndex: xiuLianIndex });
       }
@@ -742,7 +755,7 @@ export function useGameUILogic({ engine }: UseGameUILogicOptions) {
       setMagicDragData(null);
       setBottomMagicDragData(null);
     },
-    [dispatch, magicDragData, bottomMagicDragData]
+    [dispatch, engine, magicDragData, bottomMagicDragData]
   );
 
   const handleXiuLianDragStart = useCallback((data: MagicDragData) => {

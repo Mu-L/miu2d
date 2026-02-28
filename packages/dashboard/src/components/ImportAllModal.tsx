@@ -33,7 +33,8 @@ type ImportModuleKey =
   | "level"
   | "talk"
   | "talkPortrait"
-  | "scene";
+  | "scene"
+  | "gameConfig";
 
 interface ImportModuleMeta {
   key: ImportModuleKey;
@@ -58,6 +59,7 @@ const ALL_MODULES: ImportModuleMeta[] = [
     description: "ini/ui/dialog/HeadFile.ini 头像映射",
   },
   { key: "scene", label: "场景", icon: "🗺️", description: "map/*.mmf + script/ + save/ 场景数据" },
+  { key: "gameConfig", label: "UI配置", icon: "🎨", description: "content/ui/ui_settings.ini 界面配置" },
 ];
 
 /** 每个模块解析出的文件数据 */
@@ -71,6 +73,7 @@ interface ParsedModuleData {
   level: { fileName: string; userType: "player" | "npc"; iniContent: string }[];
   talk: string | null;
   talkPortrait: string | null;
+  uiSettingsIni: string | null;
   scene: ParsedScene[];
 }
 
@@ -236,6 +239,7 @@ async function parseResourcesFolder(
     level: [],
     talk: null,
     talkPortrait: null,
+    uiSettingsIni: null,
     scene: [],
   };
 
@@ -400,12 +404,13 @@ async function parseResourcesFolder(
     const src: PlayerSrc = isIniSave ? "ini/save" : "save/game";
 
     const fileName = f.file.name;
-    const playerMatch = fileName.match(/^Player(\d+)\.ini$/i);
-    const magicMatch = fileName.match(/^Magic(\d+)\.ini$/i);
-    const goodsMatch = fileName.match(/^Goods(\d+)\.ini$/i);
+    // \d* — number is optional: supports both Player.ini (sword2) and Player1.ini (xin)
+    const playerMatch = fileName.match(/^Player(\d*)\.ini$/i);
+    const magicMatch = fileName.match(/^Magic(\d*)\.ini$/i);
+    const goodsMatch = fileName.match(/^Goods(\d*)\.ini$/i);
 
     if (playerMatch) {
-      const idx = parseInt(playerMatch[1], 10);
+      const idx = playerMatch[1] ? parseInt(playerMatch[1], 10) : 1;
       const existing = playerMap.get(idx) ?? {};
       // 已有来自 ini/save 的数据，则不被 save/game 覆盖
       if (!(existing.playerSrc === "ini/save" && src === "save/game")) {
@@ -416,7 +421,7 @@ async function parseResourcesFolder(
       }
       playerMap.set(idx, existing);
     } else if (magicMatch) {
-      const idx = parseInt(magicMatch[1], 10);
+      const idx = magicMatch[1] ? parseInt(magicMatch[1], 10) : 1;
       const existing = playerMap.get(idx) ?? {};
       if (!(existing.magicSrc === "ini/save" && src === "save/game")) {
         const content = await f.file.text();
@@ -425,7 +430,7 @@ async function parseResourcesFolder(
       }
       playerMap.set(idx, existing);
     } else if (goodsMatch) {
-      const idx = parseInt(goodsMatch[1], 10);
+      const idx = goodsMatch[1] ? parseInt(goodsMatch[1], 10) : 1;
       const existing = playerMap.get(idx) ?? {};
       if (!(existing.goodsSrc === "ini/save" && src === "save/game")) {
         const content = await f.file.text();
@@ -496,6 +501,15 @@ async function parseResourcesFolder(
     }
   }
 
+  // ===== 9b. UI 配置 content/ui/ui_settings.ini =====
+  for (const f of byNorm) {
+    if (f.norm === "content/ui/ui_settings.ini") {
+      data.uiSettingsIni = await f.file.text();
+      onProgress("找到 UI 配置 ui_settings.ini");
+      break;
+    }
+  }
+
   // ===== 10. 场景 (map/*.mmf + script/map/ + save/game/*.npc/*.obj + Traps.ini) =====
   // 先读取 Traps.ini
   let allTraps = new Map<string, Map<number, string>>();
@@ -548,8 +562,16 @@ async function parseResourcesFolder(
     const scene = sceneMap.get(sceneKey);
     if (!scene) continue;
     const content = await sf.file.text();
-    const kind = classifyScriptFile(fileName);
-    if (kind === "trap") {
+    // A file is a trap if its name matches Trap\d+ OR if it appears as a value
+    // in this scene's trapOverrides (i.e., referenced by Traps.ini for this map).
+    // Sword2 trap scripts often have arbitrary names like "地图切换.txt".
+    const isTrapFile =
+      classifyScriptFile(fileName) === "trap" ||
+      (scene.trapOverrides != null &&
+        Object.values(scene.trapOverrides).some(
+          (v) => v.toLowerCase() === fileName.toLowerCase()
+        ));
+    if (isTrapFile) {
       if (!scene.data.traps) scene.data.traps = {};
       scene.data.traps[fileName] = content;
     } else {
@@ -596,11 +618,13 @@ async function parseResourcesFolder(
     if (fileName.toLowerCase().endsWith(".npc")) {
       const entries = parseNpcEntries(sections);
       if (!scene.data.npc) scene.data.npc = {};
-      scene.data.npc[fileName] = { key: fileName, entries };
+      const npcKey = fileName.toLowerCase();
+      scene.data.npc[npcKey] = { key: npcKey, entries };
     } else if (fileName.toLowerCase().endsWith(".obj")) {
       const entries = parseObjEntries(sections);
       if (!scene.data.obj) scene.data.obj = {};
-      scene.data.obj[fileName] = { key: fileName, entries };
+      const objKey = fileName.toLowerCase();
+      scene.data.obj[objKey] = { key: objKey, entries };
     }
   }
 
@@ -664,6 +688,7 @@ export function ImportAllModal({
   const importTalk = trpc.talk.importFromTxt.useMutation();
   const importPortrait = trpc.talkPortrait.importFromIni.useMutation();
   const importScene = trpc.scene.importScene.useMutation();
+  const setUiSettingsIni = trpc.gameConfig.setUiSettingsIni.useMutation();
 
   const toggleModule = useCallback((key: ImportModuleKey) => {
     setSelectedModules((prev) => {
@@ -695,6 +720,7 @@ export function ImportAllModal({
       talk: parsedData.talk ? 1 : 0,
       talkPortrait: parsedData.talkPortrait ? 1 : 0,
       scene: parsedData.scene.length,
+      gameConfig: parsedData.uiSettingsIni ? 1 : 0,
     } as Record<ImportModuleKey, number>;
   }, [parsedData]);
 
@@ -833,6 +859,9 @@ export function ImportAllModal({
             break;
           case "scene":
             await clearScene.mutateAsync({ gameId });
+            break;
+          case "gameConfig":
+            // gameConfig 无需清空，patchUiSettingsIni 直接覆盖字段
             break;
         }
       } catch (e) {
@@ -1035,6 +1064,25 @@ export function ImportAllModal({
             allResults.push({ module: key, success, failed: errors.length, errors });
             break;
           }
+          case "gameConfig": {
+            setImportStep("导入 UI 配置...");
+            if (parsedData.uiSettingsIni) {
+              await setUiSettingsIni.mutateAsync({ gameId, content: parsedData.uiSettingsIni });
+              currentStep++;
+              setImportProgress(currentStep);
+              allResults.push({ module: key, success: 1, failed: 0, errors: [] });
+            } else {
+              currentStep++;
+              setImportProgress(currentStep);
+              allResults.push({
+                module: key,
+                success: 0,
+                failed: 1,
+                errors: ["未找到 content/ui/ui_settings.ini"],
+              });
+            }
+            break;
+          }
         }
       } catch (e) {
         allResults.push({
@@ -1075,6 +1123,7 @@ export function ImportAllModal({
     importTalk,
     importPortrait,
     importScene,
+    setUiSettingsIni,
     onSuccess,
   ]);
 

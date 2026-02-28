@@ -331,7 +331,12 @@ export class SceneService {
 
     if (!row) return null;
     const data = row.data as SceneData | null;
-    const npcData = data?.npc?.[npcKey];
+    const npcData =
+      data?.npc?.[npcKey] ??
+      data?.npc?.[npcKey.toLowerCase()] ??
+      Object.entries(data?.npc ?? {}).find(
+        ([k]) => k.toLowerCase() === npcKey.toLowerCase()
+      )?.[1];
     if (npcData?.entries) {
       return npcData.entries;
     }
@@ -360,7 +365,12 @@ export class SceneService {
 
     if (!row) return null;
     const data = row.data as SceneData | null;
-    const objData = data?.obj?.[objKey];
+    const objData =
+      data?.obj?.[objKey] ??
+      data?.obj?.[objKey.toLowerCase()] ??
+      Object.entries(data?.obj ?? {}).find(
+        ([k]) => k.toLowerCase() === objKey.toLowerCase()
+      )?.[1];
     if (objData?.entries) {
       return objData.entries;
     }

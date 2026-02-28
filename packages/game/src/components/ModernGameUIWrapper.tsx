@@ -350,6 +350,10 @@ export const ModernGameUIWrapper: React.FC<ModernGameUIWrapperProps> = ({
           }
           setDragData(null);
         }}
+        onDragEnd={() => {
+          handleMagicDragEnd();
+          setDragData(null);
+        }}
         onGoodsHover={(goodData, x, y) => {
           if (goodData?.good) {
             logic.setTooltip({

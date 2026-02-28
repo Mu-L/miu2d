@@ -357,7 +357,7 @@ export const DialogUI: React.FC<DialogUIProps> = ({
               margin: 0,
               fontFamily: KAITI_FONT,
               fontSize: 14,
-              fontWeight: 500,
+              fontWeight: "bold",
               lineHeight: 1.6,
               letterSpacing: config.text.charSpace,
               color: config.text.color,

@@ -60,20 +60,33 @@ fileRoutes.get(":gameSlug/resources/*", async (c) => {
       return c.json({ error: "Path is not a file" }, 400);
     }
 
-    // 3. 从 S3 获取文件流（流式传输，不加载到内存）
+    // 3. 从 S3 获取文件流（流式传输，不加载到内存），支持 ETag 条件请求
+    const ifNoneMatch = c.req.header("if-none-match");
     const {
       stream: fileStream,
       contentType,
       contentLength,
-    } = await s3.getFileStream(file.storageKey);
+      etag,
+      notModified,
+    } = await s3.getFileStream(file.storageKey, ifNoneMatch);
+
+    // 304 Not Modified — 文件内容未变化，不需要重新传输
+    if (notModified) {
+      c.header("Cache-Control", "no-cache");
+      c.header("Access-Control-Allow-Origin", "*");
+      if (etag) c.header("ETag", etag);
+      return c.body(null, 304);
+    }
 
     // 4. 设置响应头
     c.header("Content-Type", file.mimeType || contentType || "application/octet-stream");
     if (contentLength !== undefined) {
       c.header("Content-Length", String(contentLength));
     }
-    c.header("Cache-Control", "public, max-age=3600");
+    // no-cache: 允许缓存，但每次必须向服务器验证 (ETag)，文件未变时返回 304
+    c.header("Cache-Control", "no-cache");
     c.header("Access-Control-Allow-Origin", "*");
+    if (etag) c.header("ETag", etag);
 
     // 5. 流式传输文件内容
     return stream(c, async (s) => {

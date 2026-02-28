@@ -114,6 +114,13 @@ export const AsfAnimatedSprite: React.FC<AsfAnimatedSpriteProps> = memo(
         return;
       }
 
+      // 路径变更：立即重置，触发重新渲染（确保 initial-draw 和动画循环 effect 重新执行）
+      setIsLoaded(false);
+      setDimensions({ width: 0, height: 0 });
+      cachedDataRef.current = null;
+      currentPathRef.current = null;
+      needsInitialDrawRef.current = false;
+
       let cancelled = false;
 
       loadAndCacheAsf(fullPath).then((data) => {

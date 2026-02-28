@@ -226,6 +226,12 @@ export function useColumnView(
     const visibleHeight = Math.floor(frame.height * Math.max(0, Math.min(1, percent)));
     const startY = frame.height - visibleHeight;
 
+    // Draw semi-transparent white background for the depleted (top) area
+    if (startY > 0) {
+      ctx.fillStyle = "rgba(255, 255, 255, 0.25)";
+      ctx.fillRect(0, 0, canvas.width, startY);
+    }
+
     if (visibleHeight > 0) {
       // Draw only the bottom portion
       ctx.drawImage(

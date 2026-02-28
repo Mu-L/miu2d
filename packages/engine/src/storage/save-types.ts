@@ -53,6 +53,10 @@ export interface GameOptionData {
   saveDisabled: boolean;
   /** 是否禁用击败敌人掉落物品 */
   isDropGoodWhenDefeatEnemyDisabled: boolean;
+  /** 场景亮度 (SetMainLum), 0-32, 默认 32 = 全亮 */
+  mainLum?: number;
+  /** 淡入淡出目标亮度 (SetFadeLum), 0-32, 默认 0 */
+  fadeLum?: number;
 }
 
 /**

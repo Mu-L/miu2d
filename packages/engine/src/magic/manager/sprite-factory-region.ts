@@ -81,7 +81,20 @@ export class RegionSpriteFactory {
     };
 
     for (let i = 0; i < count; i++) {
-      addFixedWallAtPosition(this.callbacks, userId, magic, pos, offsetColumn, count, destroyOnEnd);
+      // C++ ref: Magic::addSquareEffect — if (i % 3 != 1 || j % 3 != 1) noLum = true
+      const rowIdx = i;
+      const noLumFn = (colIdx: number): boolean => rowIdx % 3 !== 1 || colIdx % 3 !== 1;
+      addFixedWallAtPosition(
+        this.callbacks,
+        userId,
+        magic,
+        pos,
+        offsetColumn,
+        count,
+        destroyOnEnd,
+        undefined,
+        noLumFn
+      );
       pos = {
         x: pos.x + offsetRow.x,
         y: pos.y + offsetRow.y,
@@ -113,7 +126,7 @@ export class RegionSpriteFactory {
     }
   }
 
-  /** 矩形区域 */
+  /** 矩形区域（C++ addWaveEffect → mrWave = 3） */
   private addRectangle(
     userId: string,
     magic: MagicData,
@@ -126,6 +139,10 @@ export class RegionSpriteFactory {
     const columnCount = 5;
     const count = getRegionCount(magic.effectLevel);
     const magicDelayMs = 60;
+
+    // C++ ref: Magic::addWaveEffect — if (i % 2 == 0 || j % 2 == 0) noLum = true
+    const makeNoLumFn = (rowIdx: number) => (colIdx: number): boolean =>
+      rowIdx % 2 === 0 || colIdx % 2 === 0;
 
     switch (directionIndex) {
       case 1:
@@ -168,7 +185,8 @@ export class RegionSpriteFactory {
             offsetColumn,
             columnCount,
             destroyOnEnd,
-            i * magicDelayMs
+            i * magicDelayMs,
+            makeNoLumFn(i)
           );
         }
         break;
@@ -190,7 +208,8 @@ export class RegionSpriteFactory {
             beginPosition,
             columnCount,
             destroyOnEnd,
-            i * magicDelayMs
+            i * magicDelayMs,
+            makeNoLumFn(i)
           );
         }
         break;
@@ -213,7 +232,8 @@ export class RegionSpriteFactory {
             offsetColumn,
             columnCount,
             destroyOnEnd,
-            i * magicDelayMs
+            i * magicDelayMs,
+            makeNoLumFn(i)
           );
         }
         break;
@@ -236,7 +256,8 @@ export class RegionSpriteFactory {
             offsetColumn,
             columnCount,
             destroyOnEnd,
-            i * magicDelayMs
+            i * magicDelayMs,
+            makeNoLumFn(i)
           );
         }
         break;
@@ -364,7 +385,11 @@ function getRegionCount(effectLevel: number): number {
   return count;
 }
 
-/** 在指定位置添加固定墙（支持可选延迟） */
+/** 在指定位置添加固定墙（支持可选延迟和 noLum 判断）
+ *
+ * @param noLumFn 可选。接收列索引 (0-based)，返回 true 表示该精灵应设置 noLum
+ * C++ ref: Magic::addSquareEffect / addWaveEffect 中对子弹 noLum 的稀疏采样
+ */
 function addFixedWallAtPosition(
   callbacks: RegionSpriteCallbacks,
   userId: string,
@@ -373,22 +398,35 @@ function addFixedWallAtPosition(
   offset: Vector2,
   count: number,
   destroyOnEnd: boolean,
-  delay?: number
+  delay?: number,
+  noLumFn?: (colIndex: number) => boolean
 ): void {
   const add = (s: MagicSprite) =>
     delay != null ? callbacks.addWorkItem(delay, s) : callbacks.addMagicSprite(s);
   const halfCount = Math.floor((count - 1) / 2);
-  add(MagicSprite.createFixed(userId, magic, center, destroyOnEnd));
+
+  const centerSprite = MagicSprite.createFixed(userId, magic, center, destroyOnEnd);
+  if (noLumFn?.(halfCount)) centerSprite.noLum = true;
+  add(centerSprite);
 
   for (let i = 1; i <= halfCount; i++) {
     const pos1 = { x: center.x + offset.x * i, y: center.y + offset.y * i };
     const pos2 = { x: center.x - offset.x * i, y: center.y - offset.y * i };
-    add(MagicSprite.createFixed(userId, magic, pos1, destroyOnEnd));
-    add(MagicSprite.createFixed(userId, magic, pos2, destroyOnEnd));
+
+    const sprite1 = MagicSprite.createFixed(userId, magic, pos1, destroyOnEnd);
+    if (noLumFn?.(halfCount + i)) sprite1.noLum = true;
+    add(sprite1);
+
+    const sprite2 = MagicSprite.createFixed(userId, magic, pos2, destroyOnEnd);
+    if (noLumFn?.(halfCount - i)) sprite2.noLum = true;
+    add(sprite2);
   }
 }
 
-/** 水平固定墙武功 */
+/** 水平固定墙武功
+ *
+ * @param noLumFn 可选。接收列索引 (0-based)，返回 true 表示该精灵应设置 noLum
+ */
 function addHorizontalFixedWall(
   callbacks: RegionSpriteCallbacks,
   userId: string,
@@ -396,16 +434,20 @@ function addHorizontalFixedWall(
   wallMiddle: Vector2,
   count: number,
   destroyOnEnd: boolean,
-  delay: number
+  delay: number,
+  noLumFn?: (colIndex: number) => boolean
 ): void {
-  count = Math.floor(count / 2);
+  const halfCount = Math.floor(count / 2);
   const position = { ...wallMiddle };
-  callbacks.addWorkItem(delay, MagicSprite.createFixed(userId, magic, position, destroyOnEnd));
+
+  const centerSprite = MagicSprite.createFixed(userId, magic, position, destroyOnEnd);
+  if (noLumFn?.(halfCount)) centerSprite.noLum = true;
+  callbacks.addWorkItem(delay, centerSprite);
 
   let newPositionLeft = { ...position };
   let newPositionRight = { ...position };
 
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < halfCount; i++) {
     if (i % 2 === 0) {
       newPositionLeft = { x: newPositionLeft.x - 32, y: newPositionLeft.y - 16 };
       newPositionRight = { x: newPositionRight.x + 32, y: newPositionRight.y - 16 };
@@ -413,13 +455,13 @@ function addHorizontalFixedWall(
       newPositionLeft = { x: newPositionLeft.x - 32, y: newPositionLeft.y + 16 };
       newPositionRight = { x: newPositionRight.x + 32, y: newPositionRight.y + 16 };
     }
-    callbacks.addWorkItem(
-      delay,
-      MagicSprite.createFixed(userId, magic, newPositionLeft, destroyOnEnd)
-    );
-    callbacks.addWorkItem(
-      delay,
-      MagicSprite.createFixed(userId, magic, newPositionRight, destroyOnEnd)
-    );
+
+    const leftSprite = MagicSprite.createFixed(userId, magic, newPositionLeft, destroyOnEnd);
+    if (noLumFn?.(halfCount - i - 1)) leftSprite.noLum = true;
+    callbacks.addWorkItem(delay, leftSprite);
+
+    const rightSprite = MagicSprite.createFixed(userId, magic, newPositionRight, destroyOnEnd);
+    if (noLumFn?.(halfCount + i + 1)) rightSprite.noLum = true;
+    callbacks.addWorkItem(delay, rightSprite);
   }
 }

@@ -100,7 +100,7 @@ const MagicSlot: React.FC<MagicSlotProps> = ({
 }) => {
   // 优先使用magicInfo
   const displayMagic = magicInfo?.magic;
-  const iconPath = displayMagic?.image ?? magic?.iconPath ?? null;
+  const iconPath = displayMagic?.icon ?? displayMagic?.image ?? magic?.iconPath ?? null;
   const name = displayMagic?.name ?? magic?.name ?? "";
   const level = magicInfo?.level ?? magic?.level ?? 0;
   const hasMagic = !!(displayMagic || magic);
@@ -204,6 +204,8 @@ const MagicSlot: React.FC<MagicSlotProps> = ({
         height: config.height,
         cursor: hasMagic ? "pointer" : "default",
         opacity: isDragging ? 0.5 : 1,
+        overflow: "hidden",
+        boxShadow: "inset 0 0 0 1px rgba(100,80,30,0.4)",
         touchAction: isMobile ? "none" : undefined,
       }}
       // PC 端拖放事件
@@ -348,6 +350,8 @@ export const MagicGui: React.FC<MagicGuiProps> = ({
 
   // 加载面板背景
   const panelImage = useAsfImage(config?.panel.image || "asf/ui/common/panel2.asf");
+  // 装饰性叠加图（如 sword2 的 goods/dragbox.msf 武功格子边框）
+  const overlayImage = useAsfImage(config?.panel.overlayImage ?? "");
 
   // 计算面板位置 - Globals.WindowWidth / 2f + leftAdjust
   const panelStyle = useMemo(() => {
@@ -454,6 +458,24 @@ export const MagicGui: React.FC<MagicGuiProps> = ({
             height: panelImage.height,
             imageRendering: "pixelated",
             pointerEvents: "none",
+          }}
+        />
+      )}
+
+      {/* 装饰性叠加图（武功格子边框 dragbox） */}
+      {overlayImage.dataUrl && (
+        <img
+          src={overlayImage.dataUrl}
+          alt=""
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            width: overlayImage.width,
+            height: overlayImage.height,
+            imageRendering: "pixelated",
+            pointerEvents: "none",
+
           }}
         />
       )}

@@ -1,10 +1,9 @@
 /**
  * Modern MessageBox - 消息提示框
- * 位置与经典UI一致
  */
 import type React from "react";
-import { useEffect, useMemo, useState } from "react";
-import { borderRadius, glassEffect, modernColors, spacing, transitions, typography } from "./theme";
+import { useEffect, useState } from "react";
+import { borderRadius, glassEffect, modernColors, spacing, typography } from "./theme";
 
 interface MessageBoxProps {
   isVisible: boolean;
@@ -13,64 +12,102 @@ interface MessageBoxProps {
   screenHeight: number;
 }
 
-export const MessageBox: React.FC<MessageBoxProps> = ({
-  isVisible,
-  message,
-  screenWidth,
-  screenHeight,
-}) => {
-  const [opacity, setOpacity] = useState(0);
+export const MessageBox: React.FC<MessageBoxProps> = ({ isVisible, message, screenWidth }) => {
+  const [phase, setPhase] = useState<"hidden" | "in" | "visible" | "out">("hidden");
 
-  // 淡入淡出效果 - 2秒显示，与经典UI一致
   useEffect(() => {
-    if (isVisible) {
-      setOpacity(1);
-      const fadeOutTimer = setTimeout(() => {
-        setOpacity(0);
-      }, 1700);
-      return () => {
-        clearTimeout(fadeOutTimer);
-      };
-    } else {
-      setOpacity(0);
+    if (!isVisible || !message) {
+      setPhase("hidden");
+      return;
     }
-  }, [isVisible]);
+    // 入场
+    setPhase("in");
+    const visTimer = setTimeout(() => setPhase("visible"), 20);
+    // 淡出 (1.5s 后)
+    const outTimer = setTimeout(() => setPhase("out"), 1500);
+    // 隐藏 (动画完成后)
+    const hideTimer = setTimeout(() => setPhase("hidden"), 1800);
+    return () => {
+      clearTimeout(visTimer);
+      clearTimeout(outTimer);
+      clearTimeout(hideTimer);
+    };
+  }, [isVisible, message]);
 
-  const panelStyle: React.CSSProperties = useMemo(
-    () => ({
-      position: "absolute",
-      left: "50%",
-      bottom: 180, // 往上移：screenHeight - 80 -> bottom: 180
-      transform: "translateX(-50%)",
-      maxWidth: Math.min(400, screenWidth - 40),
-      padding: `${spacing.md}px ${spacing.xl}px`,
-      ...glassEffect.glow,
-      borderRadius: borderRadius.lg,
-      pointerEvents: "none",
-      opacity,
-      transition: `opacity ${transitions.normal}`,
-      display: "flex",
-      alignItems: "center",
-      gap: spacing.md,
-      zIndex: 2000,
-    }),
-    [screenWidth, opacity]
-  );
+  if (phase === "hidden" || !message) return null;
 
-  if (!isVisible || !message) return null;
+  const isEntering = phase === "in";
+  const isLeaving = phase === "out";
 
   return (
-    <div style={panelStyle}>
-      <span style={{ fontSize: 24 }}>ℹ️</span>
-      <span
+    <div
+      style={{
+        position: "absolute",
+        left: "50%",
+        bottom: 180,
+        transform: `translateX(-50%) translateY(${isEntering ? 12 : isLeaving ? -4 : 0}px)`,
+        maxWidth: Math.min(420, screenWidth - 40),
+        minWidth: 180,
+        pointerEvents: "none",
+        opacity: isEntering || isLeaving ? 0 : 1,
+        transition: "opacity 0.25s ease, transform 0.25s ease",
+        zIndex: 2000,
+        // 外发光
+        filter: "drop-shadow(0 4px 20px rgba(0,0,0,0.5))",
+      }}
+    >
+      {/* 背景卡片 */}
+      <div
         style={{
-          fontSize: typography.fontSize.md,
-          color: modernColors.text.primary,
-          textAlign: "center",
+          background: "rgba(12, 16, 28, 0.88)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          borderRadius: borderRadius.lg,
+          border: "1px solid rgba(255,255,255,0.1)",
+          overflow: "hidden",
+          display: "flex",
         }}
       >
-        {message}
-      </span>
+        {/* 左侧金色强调条 */}
+        <div
+          style={{
+            width: 3,
+            background: "linear-gradient(180deg, #ffd700, #b8860b)",
+            flexShrink: 0,
+          }}
+        />
+        {/* 文字区域 */}
+        <div
+          style={{
+            padding: `${spacing.sm + 2}px ${spacing.lg}px`,
+            display: "flex",
+            alignItems: "center",
+            gap: spacing.sm,
+          }}
+        >
+          {/* 金色菱形装饰点 */}
+          <div
+            style={{
+              width: 6,
+              height: 6,
+              background: "#D4AF37",
+              transform: "rotate(45deg)",
+              flexShrink: 0,
+              boxShadow: "0 0 6px rgba(212,175,55,0.8)",
+            }}
+          />
+          <span
+            style={{
+              fontSize: typography.fontSize.sm,
+              color: modernColors.text.primary,
+              letterSpacing: "0.03em",
+              lineHeight: 1.5,
+            }}
+          >
+            {message}
+          </span>
+        </div>
+      </div>
     </div>
   );
 };

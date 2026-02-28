@@ -207,7 +207,7 @@ export class DebugManager {
    * 获取修炼武功信息
    */
   getXiuLianMagic(): MagicItemInfo | null {
-    return this.magicInventory.getItemInfo(49);
+    return this.magicInventory.getXiuLianMagic();
   }
 
   /**
@@ -495,7 +495,7 @@ export class DebugManager {
       return;
     }
 
-    const xiuLian = this.magicInventory.getItemInfo(49);
+    const xiuLian = this.magicInventory.getXiuLianMagic();
     if (xiuLian?.magic) {
       // 没有等级数据的武功不能升级
       if (!xiuLian.magic.levels || xiuLian.magic.levels.size === 0) {
@@ -524,7 +524,7 @@ export class DebugManager {
       return;
     }
 
-    const xiuLian = this.magicInventory.getItemInfo(49);
+    const xiuLian = this.magicInventory.getXiuLianMagic();
     if (xiuLian?.magic) {
       // 没有等级数据的武功不能调整等级
       if (!xiuLian.magic.levels || xiuLian.magic.levels.size === 0) {

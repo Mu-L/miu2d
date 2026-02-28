@@ -23,16 +23,23 @@ const memoCommand: CommandHandler = (params, _result, helpers) => {
 };
 
 /**
- * AddToMemo - Add memo from TalkTextList by ID
+ * AddToMemo - Add memo from TalkTextList by ID, or directly as text if param is not numeric
  */
 const addToMemoCommand: CommandHandler = async (params, _result, helpers) => {
-  const memoId = helpers.resolveNumber(params[0] || "0");
-  const talkTextList = helpers.api.dialog.talkTextList;
-  const detail = talkTextList.getTextDetail(memoId);
-  if (detail) {
-    logger.log(`[ScriptExecutor] AddToMemo ${memoId}: ${detail.text}`);
+  const param = params[0] || "";
+  if (/^[0-9]+$/.test(param.trim())) {
+    const memoId = parseInt(param, 10);
+    const talkTextList = helpers.api.dialog.talkTextList;
+    const detail = talkTextList.getTextDetail(memoId);
+    if (detail) {
+      logger.log(`[ScriptExecutor] AddToMemo ${memoId}: ${detail.text}`);
+    }
+    await helpers.api.memo.addById(memoId);
+  } else {
+    const memoText = helpers.resolveString(param);
+    logger.log(`[ScriptExecutor] AddToMemo (text): "${memoText}"`);
+    helpers.api.memo.add(memoText);
   }
-  await helpers.api.memo.addById(memoId);
   return true;
 };
 

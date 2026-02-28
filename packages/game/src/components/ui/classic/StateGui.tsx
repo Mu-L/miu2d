@@ -40,20 +40,23 @@ interface StateGuiProps {
 
 /**
  * 根据角色索引获取面板图像路径
- * Index property
- * fileName = "panel5" + (char)('a' + value) + ".asf"
- * index 0: panel5.asf
- * index 1: panel5b.asf (因为 'a' + 1 = 'b')
- * index 2: panel5c.asf (因为 'a' + 2 = 'c')
- * ...
+ * 如果 config 提供了自定义面板图片（如 sword2 的 state/image.msf），直接使用。
+ * 否则使用 xin 的 panel5 + 角色后缀命名规则:
+ * index 0: panel5.asf, index 1: panel5b.asf, index 2: panel5c.asf, ...
  */
-function getPanelImagePath(playerIndex: number): string {
+function getPanelImagePath(configImage: string | undefined, playerIndex: number): string {
+  // 如果 config 提供了自定义图片且不是默认的 panel5，直接使用
+  if (configImage && !configImage.includes("panel5")) {
+    return configImage;
+  }
+  const base = configImage || "asf/ui/common/panel5.asf";
   if (playerIndex <= 0) {
-    return "asf/ui/common/panel5.asf";
+    return base;
   }
   // (char)('a' + value) -> 'a' + playerIndex
   const suffix = String.fromCharCode("a".charCodeAt(0) + playerIndex);
-  return `asf/ui/common/panel5${suffix}.asf`;
+  // panel5.asf → panel5b.asf / panel5.msf → panel5b.msf
+  return base.replace(/panel5(\.[^.]+)$/, `panel5${suffix}$1`);
 }
 
 export const StateGui: React.FC<StateGuiProps> = ({
@@ -66,9 +69,16 @@ export const StateGui: React.FC<StateGuiProps> = ({
   const config = useStateGuiConfig();
 
   // 根据角色索引动态加载面板背景
-  // Index setter changes BaseTexture based on player index
-  const panelPath = useMemo(() => getPanelImagePath(playerIndex), [playerIndex]);
+  // 优先使用 config.panel.image，支持 sword2 等自定义面板
+  const panelPath = useMemo(
+    () => getPanelImagePath(config?.panel.image, playerIndex),
+    [config?.panel.image, playerIndex],
+  );
   const panelImage = useAsfImage(panelPath);
+
+  // 如果 INI 提供了 OverlayImage（装饰性叠加图），额外加载
+  const overlayPath = config?.panel.overlayImage ?? "";
+  const overlayImage = useAsfImage(overlayPath);
 
   // 计算面板位置 - Globals.WindowWidth / 2f - Width + leftAdjust
   const panelStyle = useMemo(() => {
@@ -140,6 +150,23 @@ export const StateGui: React.FC<StateGuiProps> = ({
             top: 0,
             width: panelImage.width,
             height: panelImage.height,
+            imageRendering: "pixelated",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+
+      {/* 装饰性叠加图（如 sword2 的 state/image.msf） */}
+      {overlayImage.dataUrl && (
+        <img
+          src={overlayImage.dataUrl}
+          alt=""
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            width: overlayImage.width,
+            height: overlayImage.height,
             imageRendering: "pixelated",
             pointerEvents: "none",
           }}

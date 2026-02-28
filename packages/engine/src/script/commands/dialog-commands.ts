@@ -123,16 +123,25 @@ const displayMessageCommand: CommandHandler = (params, _result, helpers) => {
 /**
  * ShowMessage command - Show message from TalkTextList by ID
  * Reference: TalkTextList.GetTextDetail(int.Parse(parameters[0])).Text
+ * Fallback: if the argument is not a valid number, treat it as a direct string
  */
 const showMessageCommand: CommandHandler = (params, _result, helpers) => {
-  const textId = helpers.resolveNumber(params[0] || "0");
-  const talkTextList = helpers.api.dialog.talkTextList;
-  const detail = talkTextList.getTextDetail(textId);
+  const raw = helpers.resolveString(params[0] || "0");
+  const textId = Number(raw);
 
-  if (detail) {
-    helpers.api.dialog.showMessage(detail.text);
+  if (!Number.isNaN(textId) && Number.isFinite(textId)) {
+    // Numeric ID → lookup from TalkTextList
+    const talkTextList = helpers.api.dialog.talkTextList;
+    const detail = talkTextList.getTextDetail(textId);
+
+    if (detail) {
+      helpers.api.dialog.showMessage(detail.text);
+    } else {
+      logger.warn(`[ScriptExecutor] ShowMessage: no text found for ID ${textId}`);
+    }
   } else {
-    logger.warn(`[ScriptExecutor] ShowMessage: no text found for ID ${textId}`);
+    // Non-numeric → treat as direct string (like DisplayMessage)
+    helpers.api.dialog.showMessage(raw);
   }
   return true;
 };

@@ -476,6 +476,7 @@ export default function GameScreen() {
             gameSlug={gameSlug!}
             isEmbed={isEmbed}
             isDataReady={isDataReady}
+            gameName={gameName || undefined}
             initialSaveData={initialSaveData}
             uiTheme={uiTheme}
             setUITheme={setUITheme}

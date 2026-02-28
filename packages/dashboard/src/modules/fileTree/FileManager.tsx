@@ -179,8 +179,9 @@ function FileManagerInner() {
       await deleteNode(selectedNode);
     } finally {
       closeDialog();
+      clearSelection();
     }
-  }, [selectedNode, deleteNode, closeDialog]);
+  }, [selectedNode, deleteNode, closeDialog, clearSelection]);
 
   const handleRename = useCallback(
     async (node: FlatFileTreeNode, newName: string) => {
