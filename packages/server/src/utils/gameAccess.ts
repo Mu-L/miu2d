@@ -7,7 +7,7 @@
 import { TRPCError } from "@trpc/server";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/client";
-import { gameMembers, users } from "../db/schema";
+import { gameMembers } from "../db/schema";
 import type { Language } from "../i18n";
 import { getMessage } from "../i18n";
 
@@ -34,20 +34,23 @@ export async function verifyGameAccess(
 }
 
 /**
- * 验证用户是否有权访问游戏（管理员可跳过成员检查）
+ * 验证用户是否为游戏创始人（gameMembers.role === "owner"）
  */
-export async function verifyGameOrAdminAccess(
+export async function verifyGameOwnerAccess(
   gameId: string,
   userId: string,
   language: Language = "zh"
 ): Promise<void> {
-  const [user] = await db
-    .select({ role: users.role })
-    .from(users)
-    .where(eq(users.id, userId))
+  const [member] = await db
+    .select({ role: gameMembers.role })
+    .from(gameMembers)
+    .where(and(eq(gameMembers.gameId, gameId), eq(gameMembers.userId, userId)))
     .limit(1);
 
-  if (user?.role === "admin") return;
-
-  await verifyGameAccess(gameId, userId, language);
+  if (!member || member.role !== "owner") {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: getMessage(language, "errors.file.noAccess"),
+    });
+  }
 }
