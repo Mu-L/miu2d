@@ -20,7 +20,7 @@ import {
 import { z } from "zod";
 import type { AuthenticatedContext } from "../../trpc/context";
 import { Ctx, Mutation, Query, Router, UseMiddlewares } from "../../trpc/decorators";
-import { requireAdmin, requireUser } from "../../trpc/middlewares";
+import { requireUser } from "../../trpc/middlewares";
 import { Logger } from "../../utils/logger.js";
 import { saveService } from "./save.service";
 
@@ -91,18 +91,18 @@ export class SaveRouter {
   // ============= 管理员接口 =============
 
   /**
-   * 管理员列出所有存档
+   * 游戏创始人列出所有存档
    */
-  @UseMiddlewares(requireAdmin)
+  @UseMiddlewares(requireUser)
   @Query({ input: AdminListSavesInputSchema, output: AdminListSavesOutputSchema })
   async adminList(input: z.infer<typeof AdminListSavesInputSchema>, @Ctx() ctx: AuthenticatedContext) {
     return saveService.adminList(input, ctx.userId);
   }
 
   /**
-   * 管理员获取完整存档数据
+   * 游戏创始人获取完整存档数据
    */
-  @UseMiddlewares(requireAdmin)
+  @UseMiddlewares(requireUser)
   @Query({
     input: GetSaveInputSchema,
     output: SaveDataResponseSchema.extend({ userName: z.string().optional() }),
@@ -112,36 +112,36 @@ export class SaveRouter {
   }
 
   /**
-   * 管理员设置存档分享状态
+   * 游戏创始人设置存档分享状态
    */
-  @UseMiddlewares(requireAdmin)
+  @UseMiddlewares(requireUser)
   @Mutation({ input: ShareSaveInputSchema, output: SaveSlotSchema })
   async adminShare(input: z.infer<typeof ShareSaveInputSchema>, @Ctx() ctx: AuthenticatedContext) {
     return saveService.adminSetShared(input.saveId, input.isShared, ctx.userId);
   }
 
   /**
-   * 管理员创建存档
+   * 游戏创始人创建存档
    */
-  @UseMiddlewares(requireAdmin)
+  @UseMiddlewares(requireUser)
   @Mutation({ input: AdminCreateSaveInputSchema, output: SaveSlotSchema })
   async adminCreate(input: z.infer<typeof AdminCreateSaveInputSchema>, @Ctx() ctx: AuthenticatedContext) {
     return saveService.adminCreate(input, ctx.userId);
   }
 
   /**
-   * 管理员更新存档数据
+   * 游戏创始人更新存档数据
    */
-  @UseMiddlewares(requireAdmin)
+  @UseMiddlewares(requireUser)
   @Mutation({ input: AdminUpdateSaveInputSchema, output: SaveSlotSchema })
   async adminUpdate(input: z.infer<typeof AdminUpdateSaveInputSchema>, @Ctx() ctx: AuthenticatedContext) {
     return saveService.adminUpdate(input, ctx.userId);
   }
 
   /**
-   * 管理员删除存档
+   * 游戏创始人删除存档
    */
-  @UseMiddlewares(requireAdmin)
+  @UseMiddlewares(requireUser)
   @Mutation({ input: AdminDeleteSaveInputSchema, output: z.object({ id: z.string() }) })
   async adminDelete(input: z.infer<typeof AdminDeleteSaveInputSchema>, @Ctx() ctx: AuthenticatedContext) {
     return saveService.adminDelete(input.saveId, ctx.userId);
