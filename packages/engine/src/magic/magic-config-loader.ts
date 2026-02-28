@@ -361,7 +361,7 @@ function convertApiMagicToMagicData(
   // 升级/等级
   magic.levelupExp = api.levelupExp || 0;
   magic.effectLevel = api.effectLevel || 0;
-  magic.maxLevel = api.maxLevel || 0;
+  magic.maxLevel = api.maxLevel || 10;
   magic.count = api.count || 0;
   magic.maxCount = api.maxCount || 0;
 
@@ -434,6 +434,11 @@ function convertApiMagicToMagicData(
       levels.set(lvl.level, levelData);
     }
     magic.levels = levels;
+
+    // 从 levels map 推导 maxLevel（取最大 key）
+    if (!api.maxLevel && levels.size > 0) {
+      magic.maxLevel = Math.max(...levels.keys());
+    }
 
     // 从第一级获取默认值
     const level1 = api.levels.find((l) => l.level === 1);
@@ -531,12 +536,17 @@ export function getMagicAtLevel(baseMagic: MagicData, level: number): MagicData 
   }
 
   let effectiveLevel = level;
+  let clampedToMax = false;
+  // 先计算 levels Map 中最大的 key
+  let maxLevelInMap = 0;
+  for (const key of baseMagic.levels.keys()) {
+    if (key > maxLevelInMap) maxLevelInMap = key;
+  }
+
   if (!baseMagic.levels.has(level)) {
-    let maxLevel = 0;
-    for (const key of baseMagic.levels.keys()) {
-      if (key > maxLevel) maxLevel = key;
-    }
-    effectiveLevel = maxLevel > 0 ? maxLevel : 1;
+    effectiveLevel = maxLevelInMap > 0 ? maxLevelInMap : 1;
+    // 请求的 level 超过 levels Map 中存在的最大 key，说明已是满级
+    clampedToMax = level > effectiveLevel;
   }
 
   const levelData = baseMagic.levels.get(effectiveLevel);
@@ -554,6 +564,12 @@ export function getMagicAtLevel(baseMagic: MagicData, level: number): MagicData 
     effectLevel: effectiveLevel,
     levels: baseMagic.levels,
   };
+
+  // 处于最高级时，强制 levelupExp = 0（满级判断依赖 levelupExp == 0）
+  // 两种情况：请求 level 被钳制到最大值，或当前就是 levels Map 的最大 key
+  if (clampedToMax || effectiveLevel === maxLevelInMap) {
+    merged.levelupExp = 0;
+  }
 
   return merged;
 }

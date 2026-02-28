@@ -192,6 +192,8 @@ const EquipSlot: React.FC<EquipSlotProps> = ({
         height: config.height,
         cursor: item ? "grab" : "default",
         borderRadius: 2,
+        overflow: "hidden",
+        boxShadow: "inset 0 0 0 1px rgba(100,80,30,0.4)",
         touchAction: isMobile ? "none" : undefined,
       }}
       title={item?.good?.name || slotNames[slot]}
@@ -272,6 +274,8 @@ export const EquipGui: React.FC<EquipGuiProps> = ({
 
   // Load panel background
   const panelImage = useAsfImage(config?.panel.image || "asf/ui/common/panel7.asf");
+  // 装饰性叠加图（如 sword2 的 equip/image.msf 装备格子边框）
+  const overlayImage = useAsfImage(config?.panel.overlayImage ?? "");
 
   // Calculate panel position - Globals.WindowWidth / 2f - Width + leftAdjust
   const panelStyle = useMemo(() => {
@@ -379,6 +383,23 @@ export const EquipGui: React.FC<EquipGuiProps> = ({
             top: 0,
             width: panelImage.width,
             height: panelImage.height,
+            imageRendering: "pixelated",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+
+      {/* 装饰性叠加图（装备格子边框）*/}
+      {overlayImage.dataUrl && (
+        <img
+          src={overlayImage.dataUrl}
+          alt=""
+          style={{
+            position: "absolute",
+            left: config.panel.overlayLeft ?? 0,
+            top: config.panel.overlayTop ?? 0,
+            width: overlayImage.width,
+            height: overlayImage.height,
             imageRendering: "pixelated",
             pointerEvents: "none",
           }}

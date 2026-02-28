@@ -19,6 +19,7 @@ import { useTouchDragSource, useTouchDropTarget } from "../../../hooks";
 import { AsfAnimatedSprite } from "./AsfAnimatedSprite";
 import type { GoodItemData } from "./GoodsGui";
 import { useAsfImage } from "./hooks";
+import { BUTTON_IDS, BUTTON_TITLES, TopButton } from "./TopGui";
 import { useBottomGuiConfig } from "./useUISettings";
 
 // 快捷键 : Z,X,C 物品, A,S,D,F,G 武功
@@ -55,6 +56,14 @@ interface BottomGuiProps {
   // 物品 Tooltip 回调
   onGoodsHover?: (goodData: GoodItemData | null, x: number, y: number) => void;
   onGoodsLeave?: () => void;
+  // 功能按钮 - 打开各面板（当按钮渲染在底部栏时使用）
+  onStateClick?: () => void;
+  onEquipClick?: () => void;
+  onXiuLianClick?: () => void;
+  onGoodsClick?: () => void;
+  onMagicClick?: () => void;
+  onMemoClick?: () => void;
+  onSystemClick?: () => void;
 }
 
 /**
@@ -382,6 +391,13 @@ export const BottomGui: React.FC<BottomGuiProps> = ({
   onMagicLeave,
   onGoodsHover,
   onGoodsLeave,
+  onStateClick,
+  onEquipClick,
+  onXiuLianClick,
+  onGoodsClick,
+  onMagicClick,
+  onMemoClick,
+  onSystemClick,
 }) => {
   const [hoveredSlot, setHoveredSlot] = useState<number | null>(null);
   const [localDragIndex, setLocalDragIndex] = useState<number | null>(null);
@@ -530,6 +546,33 @@ export const BottomGui: React.FC<BottomGuiProps> = ({
             onDrop={() => handleSlotDrop(index)}
             isDragging={localDragIndex === index}
             onTouchDrop={(data) => onTouchDrop?.(index, data)}
+          />
+        );
+      })}
+
+      {/* 功能按钮 (state/equip/xiulian/goods/magic/memo/system) */}
+      {config?.buttons.map((btn, i) => {
+        const btnHandlers: Record<string, (() => void) | undefined> = {
+          state: onStateClick,
+          equip: onEquipClick,
+          xiulian: onXiuLianClick,
+          goods: onGoodsClick,
+          magic: onMagicClick,
+          memo: onMemoClick,
+          system: onSystemClick,
+        };
+        const handler = btnHandlers[BUTTON_IDS[i]];
+        if (!handler) return null;
+        return (
+          <TopButton
+            key={BUTTON_IDS[i]}
+            imagePath={btn.image}
+            left={btn.left}
+            top={btn.top}
+            width={btn.width}
+            height={btn.height}
+            title={BUTTON_TITLES[i]}
+            onClick={handler}
           />
         );
       })}

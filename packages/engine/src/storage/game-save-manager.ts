@@ -644,6 +644,14 @@ export class Loader {
         } else {
           screenEffects.setSpriteColor(255, 255, 255);
         }
+
+        // 恢复亮度设置
+        if (data.option.mainLum !== undefined) {
+          screenEffects.setMainLum(data.option.mainLum);
+        }
+        if (data.option.fadeLum !== undefined) {
+          screenEffects.setFadeLum(data.option.fadeLum);
+        }
       }
 
       // 恢复计时器状态
@@ -772,6 +780,8 @@ export class Loader {
         asfStyle: colorToHex(spriteColor),
         saveDisabled: !isSaveEnabled(),
         isDropGoodWhenDefeatEnemyDisabled: !isDropEnabled(),
+        mainLum: screenEffects.getMainLum(),
+        fadeLum: screenEffects.getFadeLum(),
       },
 
       // 计时器 - 参考Saver.cs [Timer] section

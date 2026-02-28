@@ -48,10 +48,10 @@ export function clearAsfCache(): void {
 }
 
 /**
- * 将 .asf 扩展名重写为 .msf（兼容旧路径引用）
+ * 将 .asf / .mpc 扩展名重写为 .msf（兼容旧路径引用）
  */
 function rewriteAsfToMsf(url: string): string {
-  return url.replace(/\.asf$/i, ".msf");
+  return url.replace(/\.(asf|mpc)$/i, ".msf");
 }
 
 /**

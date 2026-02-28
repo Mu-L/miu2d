@@ -135,30 +135,59 @@ export async function downloadFile(storageKey: string): Promise<Buffer> {
 /**
  * 流式下载文件（不加载到内存）
  * 返回可读流和元数据，用于直接管道传输到 HTTP 响应
+ *
+ * @param storageKey - S3 对象 key
+ * @param ifNoneMatch - 可选 ETag，用于条件请求（304 Not Modified）
  */
-export async function getFileStream(storageKey: string): Promise<{
+export async function getFileStream(
+  storageKey: string,
+  ifNoneMatch?: string
+): Promise<{
   stream: AsyncIterable<Uint8Array>;
   contentType: string | undefined;
   contentLength: number | undefined;
+  etag: string | undefined;
+  notModified?: boolean;
 }> {
   const client = getS3Client();
 
-  const response = await client.send(
-    new GetObjectCommand({
-      Bucket: bucket,
-      Key: storageKey,
-    })
-  );
+  try {
+    const response = await client.send(
+      new GetObjectCommand({
+        Bucket: bucket,
+        Key: storageKey,
+        IfNoneMatch: ifNoneMatch,
+      })
+    );
 
-  if (!response.Body) {
-    throw new Error(`Empty response body for key: ${storageKey}`);
+    if (!response.Body) {
+      throw new Error(`Empty response body for key: ${storageKey}`);
+    }
+
+    return {
+      stream: response.Body as AsyncIterable<Uint8Array>,
+      contentType: response.ContentType,
+      contentLength: response.ContentLength,
+      etag: response.ETag,
+    };
+  } catch (err: unknown) {
+    // S3 returns 304 Not Modified when ETag matches IfNoneMatch
+    if (
+      err &&
+      typeof err === "object" &&
+      "$metadata" in err &&
+      (err as { $metadata: { httpStatusCode?: number } }).$metadata?.httpStatusCode === 304
+    ) {
+      return {
+        stream: (async function* () {})(),
+        contentType: undefined,
+        contentLength: 0,
+        etag: ifNoneMatch,
+        notModified: true,
+      };
+    }
+    throw err;
   }
-
-  return {
-    stream: response.Body as AsyncIterable<Uint8Array>,
-    contentType: response.ContentType,
-    contentLength: response.ContentLength,
-  };
 }
 
 /**

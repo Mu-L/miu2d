@@ -101,6 +101,11 @@ export class SpriteFactory {
         destroyOnEnd,
         speedRatio
       );
+      // C++ ref: Magic::addMoveLineEffect() — 每 3 个只留 1 个发光
+      // if (i % 3 != 1) e->noLum = true;
+      if (i % 3 !== 1) {
+        sprite.noLum = true;
+      }
       this.callbacks.addWorkItem(magicDelayMs * i, sprite);
     }
   }

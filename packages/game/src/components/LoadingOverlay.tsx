@@ -10,6 +10,8 @@ interface LoadingOverlayProps {
   text?: string;
   /** 加载错误信息 */
   error?: string | null;
+  /** 游戏名称，不传时不渲染标题行 */
+  gameName?: string;
 }
 
 /**
@@ -21,6 +23,7 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
   progress,
   text = "加载中...",
   error,
+  gameName,
 }) => {
   // 有错误时也需要显示
   if (!isLoading && !error) return null;
@@ -60,17 +63,19 @@ export const LoadingOverlay: React.FC<LoadingOverlayProps> = ({
   return (
     <div style={overlayStyle}>
       {/* 标题 */}
-      <div
-        style={{
-          fontSize: 14,
-          letterSpacing: 2,
-          color: "#666",
-          marginBottom: 24,
-          textTransform: "uppercase" as const,
-        }}
-      >
-        月影传说
-      </div>
+      {gameName && (
+        <div
+          style={{
+            fontSize: 14,
+            letterSpacing: 2,
+            color: "#666",
+            marginBottom: 24,
+            textTransform: "uppercase" as const,
+          }}
+        >
+          {gameName}
+        </div>
+      )}
 
       {/* 进度条容器 */}
       <div style={barContainerStyle}>

@@ -281,7 +281,7 @@ export const GoodsPanel: React.FC<GoodsPanelProps> = ({
     () => ({
       position: "absolute",
       left: screenWidth / 2 + 20,
-      top: 30,
+      top: 46,
       width: panelWidth,
       display: "flex",
       flexDirection: "column",

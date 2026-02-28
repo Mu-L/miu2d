@@ -276,7 +276,7 @@ export const EquipPanel: React.FC<EquipPanelProps> = ({
     () => ({
       position: "absolute",
       left: screenWidth / 2 - panelWidth - 20,
-      top: 30,
+      top: 46,
       width: panelWidth,
       display: "flex",
       flexDirection: "column",

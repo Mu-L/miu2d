@@ -21,6 +21,7 @@ import type { NpcManager } from "../npc/npc-manager";
 import type { ObjManager } from "../obj";
 import type { ObjRenderer } from "../obj/obj-renderer";
 import type { Player } from "../player/player";
+import { drawElementLum } from "../renderer/lum-mask";
 import type { Renderer } from "../renderer/renderer";
 import type { WeatherManager } from "../weather";
 import type { GameManager } from "./game-manager";
@@ -261,22 +262,6 @@ export function renderFrame(renderer: Renderer, ctx: FrameRenderContext): void {
     renderer.restore();
   }
 
-  // === 高亮边缘（在 grayscale restore 之后，不受灰度影响） ===
-  {
-    const interactionManager = gameManager.interactionManager;
-    const hoverTarget = interactionManager.getHoverTarget();
-    const edgeColor = interactionManager.getEdgeColor();
-    if (hoverTarget.type === "npc") {
-      const npc = hoverTarget.npc;
-      if (npc.isSpritesLoaded() && npc.isVisible) {
-        npc.drawHighlight(renderer, mapR.camera.x, mapR.camera.y, edgeColor);
-      }
-    } else if (hoverTarget.type === "obj") {
-      const obj = hoverTarget.obj;
-      objR.drawObjHighlight(renderer, obj, mapR.camera.x, mapR.camera.y, edgeColor);
-    }
-  }
-
   // 应用地图颜色叠加（非黑色的 ChangeMapColor 效果）
   if (screenEffects.isMapTinted()) {
     const tint = screenEffects.getMapTintColor();
@@ -295,8 +280,40 @@ export function renderFrame(renderer: Renderer, ctx: FrameRenderContext): void {
   // 渲染天气效果（雨、雪）
   weatherManager.draw(renderer, mapR.camera.x, mapR.camera.y);
 
-  // 渲染屏幕特效（淡入淡出、闪烁）
-  gameManager.drawScreenEffects(renderer, width, height);
+  // 渲染屏幕特效：暗色遮罩 → 局部光照 → 淡入淡出 → 闪烁
+  const screenEffects2 = gameManager.screenEffects;
+  screenEffects2.drawDarkOverlay(renderer, width, height);
+
+  // 局部光照：发光物体/NPC/武功精灵在暗处产生光晕
+  drawElementLum(
+    renderer,
+    screenEffects2.getMainLum(),
+    mapR.camera.x,
+    mapR.camera.y,
+    gameManager.objManager.objsInView,
+    gameManager.npcManager.npcsInView,
+    gameManager.magicSpriteManager.getMagicSprites(),
+    gameManager.magicSpriteManager.getEffectSprites(),
+  );
+
+  // === 高亮边缘（在暗色遮罩和局部光照之后，确保在暗场景中可见且不闪烁） ===
+  {
+    const interactionManager = gameManager.interactionManager;
+    const hoverTarget = interactionManager.getHoverTarget();
+    const edgeColor = interactionManager.getEdgeColor();
+    if (hoverTarget.type === "npc") {
+      const npc = hoverTarget.npc;
+      if (npc.isSpritesLoaded() && npc.isVisible) {
+        npc.drawHighlight(renderer, mapR.camera.x, mapR.camera.y, edgeColor);
+      }
+    } else if (hoverTarget.type === "obj") {
+      const obj = hoverTarget.obj;
+      objR.drawObjHighlight(renderer, obj, mapR.camera.x, mapR.camera.y, edgeColor);
+    }
+  }
+
+  screenEffects2.drawFade(renderer, width, height);
+  screenEffects2.drawFlash(renderer, width, height);
 
   renderer.endFrame();
 }

@@ -36,6 +36,7 @@ export interface GamePlayingProps {
   gameSlug: string;
   isEmbed: boolean;
   isDataReady: boolean;
+  gameName?: string;
   initialSaveData?: SaveData;
   uiTheme: UITheme;
   setUITheme: (theme: UITheme) => void;
@@ -54,6 +55,7 @@ export function GamePlaying({
   gameSlug,
   isEmbed,
   isDataReady,
+  gameName,
   initialSaveData,
   uiTheme,
   setUITheme,
@@ -440,6 +442,7 @@ export function GamePlaying({
                   onReturnToTitle={handleReturnToTitle}
                   uiTheme={uiTheme}
                   onOpenMenu={handleOpenMenu}
+                  gameName={gameName}
                 />
               ) : (
                 <div className="flex items-center justify-center w-full h-full text-gray-400">

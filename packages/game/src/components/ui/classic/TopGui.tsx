@@ -11,8 +11,8 @@ import { useAsfImage } from "./hooks";
 import { useTopGuiConfig } from "./useUISettings";
 
 // Button IDs in order matching C#: State, Equip, XiuLian, Goods, Magic, Memo, System
-const BUTTON_IDS = ["state", "equip", "xiulian", "goods", "magic", "memo", "system"] as const;
-const BUTTON_TITLES = [
+export const BUTTON_IDS = ["state", "equip", "xiulian", "goods", "magic", "memo", "system"] as const;
+export const BUTTON_TITLES = [
   "状态 (F1/T)",
   "装备 (F2/E)",
   "修炼 (F3)",
@@ -35,8 +35,9 @@ interface TopGuiProps {
 
 /**
  * 单个按钮组件 - 支持 ASF 动画帧（帧0=普通，帧1=按下）
+ * Exported for reuse in BottomGui when buttons are part of the bottom panel.
  */
-interface TopButtonProps {
+export interface TopButtonProps {
   imagePath: string;
   left: number;
   top: number;
@@ -46,7 +47,7 @@ interface TopButtonProps {
   onClick: () => void;
 }
 
-const TopButton: React.FC<TopButtonProps> = ({
+export const TopButton: React.FC<TopButtonProps> = ({
   imagePath,
   left,
   top,
@@ -98,6 +99,7 @@ const TopButton: React.FC<TopButtonProps> = ({
         cursor: "pointer",
         opacity: isHovered ? 1 : 0.9,
         filter: isHovered && !isPressed ? "brightness(1.2)" : "none",
+        pointerEvents: "auto",
       }}
       title={title}
       onMouseDown={handleMouseDown}
@@ -181,9 +183,7 @@ export const TopGui: React.FC<TopGuiProps> = ({
         : { top: topAdjust }),
       width: panelWidth,
       height: panelHeight,
-      overflow: "hidden" as const,
-      pointerEvents: "auto" as const,
-      zIndex: 1000,
+      pointerEvents: "none" as const,
     };
   }, [screenWidth, panelImage.width, panelImage.height, config]);
 
@@ -195,6 +195,7 @@ export const TopGui: React.FC<TopGuiProps> = ({
           ...panelStyle,
           background: "rgba(40, 60, 90, 0.9)",
           borderRadius: "0 0 4px 4px",
+          pointerEvents: "none",
         }}
       />
     );

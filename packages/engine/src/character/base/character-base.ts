@@ -86,7 +86,14 @@ export abstract class CharacterBase extends Sprite implements CharacterInstance 
   // =============================================
   // === Movement ===
   // =============================================
-  walkSpeed: number = 1;
+  private _walkSpeed: number = 1;
+  /** WalkSpeed - 最小值为 1，与 C# 一致 (value < 1 ? 1 : value) */
+  get walkSpeed(): number {
+    return this._walkSpeed;
+  }
+  set walkSpeed(value: number) {
+    this._walkSpeed = value < 1 ? 1 : value;
+  }
   addMoveSpeedPercent: number = 0;
   visionRadius: number = 0;
   attackRadius: number = 0;

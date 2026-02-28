@@ -41,6 +41,8 @@ export interface GameProps {
   uiTheme?: "classic" | "modern";
   /** 打开菜单面板回调（拦截引擎的系统菜单和存档面板） */
   onOpenMenu?: (tab: "save" | "settings") => void;
+  /** 游戏名称，显示在 loading overlay */
+  gameName?: string;
 }
 
 /**
@@ -55,6 +57,7 @@ export const Game = forwardRef<GameHandle, GameProps>(
       onReturnToTitle,
       uiTheme = "classic",
       onOpenMenu,
+      gameName,
     },
     ref
   ) => {
@@ -183,6 +186,7 @@ export const Game = forwardRef<GameHandle, GameProps>(
           progress={loadProgress}
           text={loadingText}
           error={error}
+          gameName={gameName}
         />
 
         {/* Game UI Components */}

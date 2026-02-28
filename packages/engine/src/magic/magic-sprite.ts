@@ -92,6 +92,18 @@ export class MagicSprite extends Sprite {
   /** 粘附的角色（Sticky > 0 时使用） */
   private _stickedCharacterId: string | null = null;
 
+  /**
+   * 是否禁止发光（不产生 lum mask）
+   *
+   * C++ ref: Effect::noLum (Effect.h:79)
+   * 在 LineMove、Square Region、Wave/Rectangle Region 中，
+   * 大部分子弹禁用发光以避免密集的 lum mask 叠加导致过亮。
+   * - LineMove: 每 3 个只留 1 个 (i % 3 == 1)
+   * - Square:  每 9 个只留 1 个 (i % 3 == 1 && j % 3 == 1)
+   * - Wave:    每 4 个只留 1 个 (i % 2 != 0 && j % 2 != 0)
+   */
+  noLum: boolean = false;
+
   /** 寄生的角色（Parasitic > 0 时使用） */
   private _parasitiferCharacterId: string | null = null;
   /** 寄生伤害计时器 */
@@ -339,6 +351,28 @@ export class MagicSprite extends Sprite {
   }
   set isInDestroy(value: boolean) {
     this._isInDestroy = value;
+  }
+
+  /**
+   * 获取当前武功精灵的发光等级
+   * C++ ref: Effect::getLum()
+   * - noLum 为 true 时直接返回 0（不产生局部照明）
+   * - 飞行阶段使用 flyingLum
+   * - 爆炸阶段：MoveKind==Self 时用 flyingLum，否则用 vanishLum
+   * @returns 发光等级 (0 = 不发光)
+   */
+  getLum(): number {
+    if (this._isDestroyed) return 0;
+    if (this.noLum) return 0;
+    if (!this._isInDestroy) {
+      // 飞行阶段
+      return this._magic.flyingLum;
+    }
+    // 爆炸/消失阶段
+    if (this._magic.moveKind === MagicMoveKind.FixedPosition) {
+      return this._magic.flyingLum;
+    }
+    return this._magic.vanishLum;
   }
 
   get waitMilliseconds(): number {

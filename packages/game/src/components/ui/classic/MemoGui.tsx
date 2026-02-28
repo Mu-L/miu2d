@@ -28,6 +28,8 @@ export const MemoGui: React.FC<MemoGuiProps> = ({ isVisible, memos, screenWidth 
 
   // 加载面板背景
   const panelImage = useAsfImage(config?.panel.image || "asf/ui/common/panel4.asf");
+  // 装饰性叠加图（如 sword2 的 common/memo.msf 任务记录内容背景）
+  const overlayImage = useAsfImage(config?.panel.overlayImage ?? "");
 
   // 测量内容实际高度
   useEffect(() => {
@@ -88,6 +90,23 @@ export const MemoGui: React.FC<MemoGuiProps> = ({ isVisible, memos, screenWidth 
             top: 0,
             width: panelImage.width,
             height: panelImage.height,
+            imageRendering: "pixelated",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+
+      {/* 装饰性叠加图（任务记录内容背景） */}
+      {overlayImage.dataUrl && (
+        <img
+          src={overlayImage.dataUrl}
+          alt=""
+          style={{
+            position: "absolute",
+            left: config.panel.overlayLeft ?? 0,
+            top: config.panel.overlayTop ?? 0,
+            width: overlayImage.width,
+            height: overlayImage.height,
             imageRendering: "pixelated",
             pointerEvents: "none",
           }}

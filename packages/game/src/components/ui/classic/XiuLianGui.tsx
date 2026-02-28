@@ -5,11 +5,12 @@
  * shows magic info, level, exp, and introduction
  * Resources loaded from UI_Settings.ini
  *
- * 修炼武功存储在 PlayerMagicInventory 的 xiuLianIndex (索引 49)
+ * 修炼武功存储在 PlayerMagicInventory 的 xiuLianIndex (索引 61)
  * 支持从武功面板(MagicGui)和快捷栏(BottomGui)拖放武功到此处进行修炼
  */
 
 import type { MagicItemInfo } from "@miu2d/engine/magic";
+import { MAGIC_LIST_CONFIG } from "@miu2d/engine/player/magic/magic-list-config";
 import { useDevice } from "@miu2d/shared";
 import type React from "react";
 import { useCallback, useMemo } from "react";
@@ -85,11 +86,13 @@ export const XiuLianGui: React.FC<XiuLianGuiProps> = ({
   const displayLevelUpExp = displayMagic?.levelupExp ?? magic?.levelUpExp ?? 0;
   const displayName = displayMagic?.name ?? magic?.name ?? "";
   const displayIntro = displayMagic?.intro ?? magic?.intro ?? "";
-  const iconPath = displayMagic?.image ?? magic?.iconPath ?? null;
+  const iconPath = displayMagic?.icon ?? displayMagic?.image ?? magic?.iconPath ?? null;
   const hasMagic = !!(displayMagic || magic);
 
   // 加载面板背景
   const panelImage = useAsfImage(config?.panel.image || "asf/ui/common/panel6.asf");
+  // 装饰性叠加图（如 sword2 的 xiulian/image.msf 技能格子边框）
+  const overlayImage = useAsfImage(config?.panel.overlayImage ?? "");
   // 加载武功图标 - 使用动态动画播放
   const magicIcon = useAsfAnimation(iconPath, true, true);
 
@@ -125,8 +128,8 @@ export const XiuLianGui: React.FC<XiuLianGuiProps> = ({
         if (img) {
           e.dataTransfer.setDragImage(img, img.width / 2, img.height / 2);
         }
-        // 修炼槽的 storeIndex 使用 xiuLianIndex (49)
-        onDragStart?.({ type: "magic", storeIndex: 49 });
+        // 修炼槽的 storeIndex 使用 xiuLianIndex
+        onDragStart?.({ type: "magic", storeIndex: MAGIC_LIST_CONFIG.xiuLianIndex });
       }
     },
     [hasMagic, onDragStart]
@@ -140,7 +143,7 @@ export const XiuLianGui: React.FC<XiuLianGuiProps> = ({
       hasMagic && magicInfo
         ? {
             type: "magic",
-            storeIndex: 49,
+            storeIndex: MAGIC_LIST_CONFIG.xiuLianIndex,
             source: "xiuLianGui",
             magicInfo,
             displayName: displayName,
@@ -196,6 +199,23 @@ export const XiuLianGui: React.FC<XiuLianGuiProps> = ({
         />
       )}
 
+      {/* 装饰性叠加图（技能格子边框） */}
+      {overlayImage.dataUrl && (
+        <img
+          src={overlayImage.dataUrl}
+          alt=""
+          style={{
+            position: "absolute",
+            left: config.panel.overlayLeft ?? 0,
+            top: config.panel.overlayTop ?? 0,
+            width: overlayImage.width,
+            height: overlayImage.height,
+            imageRendering: "pixelated",
+            pointerEvents: "none",
+          }}
+        />
+      )}
+
       {/* 武功图标槽 - 支持拖放 */}
       <div
         ref={dropRef}
@@ -206,6 +226,8 @@ export const XiuLianGui: React.FC<XiuLianGuiProps> = ({
           width: config.magicImage.width,
           height: config.magicImage.height,
           cursor: hasMagic ? "pointer" : "default",
+          overflow: "hidden",
+          boxShadow: "inset 0 0 0 1px rgba(100,80,30,0.4)",
           touchAction: isMobile ? "none" : undefined,
         }}
         // PC 端拖放事件

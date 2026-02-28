@@ -306,26 +306,23 @@ export class Npc extends Character {
   override death(killer: Character | null = null): void {
     if (this.isDeathInvoked) return;
 
-    // Call base implementation first (sets state and flags)
-    super.death(killer);
-
-    // 如果是召唤物，基类已经 return 了，后续代码不会执行
-    // 检查 isDeath 来判断是否是召唤物情况（召唤物在基类中设置 isDeath=true 并 return）
-    if (this.isDeath && !this.isInDeathing) {
-      return; // 召唤物在基类中已完全处理
-    }
-
-    // 使用死亡时的武功 (MagicToUseWhenDeath)
-    this.useMagicWhenDeath(killer);
+    // C# 原版 Character.Death() 中，AddDead、死亡脚本、死亡武功都在召唤物检查之前执行
+    // 即所有 NPC（包括召唤物、无死亡动画的 NPC）都会执行这些逻辑
 
     // NpcManager.AddDead(this)
     this.npcManager.addDead(this);
+
+    // 使用死亡时的武功 (MagicToUseWhenDeath)
+    this.useMagicWhenDeath(killer);
 
     // Run death script
     if (this.deathScript) {
       logger.log(`[NPC] ${this.name} running death script: ${this.deathScript}`);
       this.npcManager.runDeathScript(this.deathScript, this);
     }
+
+    // Call base implementation (sets state, handles summoned NPCs, plays death animation)
+    super.death(killer);
   }
 
   /**

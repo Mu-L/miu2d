@@ -64,6 +64,7 @@ interface SlotItemProps {
   onMouseEnter: (e: React.MouseEvent) => void;
   onMouseLeave: () => void;
   onDragStart?: () => void;
+  onDragEnd?: () => void;
   onDrop?: () => void;
 }
 
@@ -78,6 +79,7 @@ const BottomSlot: React.FC<SlotItemProps> = ({
   onMouseEnter,
   onMouseLeave,
   onDragStart,
+  onDragEnd,
   onDrop,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -139,13 +141,6 @@ const BottomSlot: React.FC<SlotItemProps> = ({
       onClick={onClick}
       onContextMenu={handleContextMenu}
       onMouseEnter={(e) => {
-        console.log("[BottomSlot] onMouseEnter", {
-          index,
-          isItemSlot,
-          hasContent,
-          goodsData,
-          magicData,
-        });
         setIsHovered(true);
         onMouseEnter(e);
       }}
@@ -164,6 +159,7 @@ const BottomSlot: React.FC<SlotItemProps> = ({
           onDragStart();
         }
       }}
+      onDragEnd={() => onDragEnd?.()}
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = "move";
@@ -338,13 +334,13 @@ export const BottomBar: React.FC<BottomBarProps> = ({
   // 动态计算宽度: 血蓝体力 + 8个槽位 + 间距 + 分隔线 + padding
   const slotWidth = 44;
   const slotGap = 8;
-  const statusWidth = 140; // 血蓝体力区域
+  const statusWidth = 156; // 血蓝体力区域（加宽以适应新设计）
   const goodsSlotsWidth = 3 * slotWidth + 2 * slotGap; // 3个物品槽
   const magicSlotsWidth = 5 * slotWidth + 4 * slotGap; // 5个武功槽
   const dividerWidth = 24; // 分隔线区域
   const padding = 32; // 左右 padding
   const panelWidth = statusWidth + goodsSlotsWidth + magicSlotsWidth + dividerWidth * 2 + padding;
-  const panelHeight = 60; // 调整为适应方形槽位
+  const panelHeight = 64; // 调整高度适应新设计
 
   // 计算百分比
   const lifePercent = lifeMax > 0 ? Math.min(100, (life / lifeMax) * 100) : 0;
@@ -374,89 +370,72 @@ export const BottomBar: React.FC<BottomBarProps> = ({
 
   return (
     <div style={panelStyle}>
-      {/* 血蓝体力条 */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, width: statusWidth }}>
-        {/* 生命 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ fontSize: 10, color: modernColors.stats.life, width: 24 }}>生命</span>
-          <div
-            style={{
-              flex: 1,
-              height: 12,
-              background: "rgba(0,0,0,0.4)",
-              borderRadius: 6,
-              overflow: "hidden",
-            }}
-          >
+      {/* 属性条区域：极简毛玻璃风格 */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+          width: statusWidth,
+          padding: "2px 0",
+        }}
+      >
+        {([
+          { label: "气",  percent: lifePercent,  cur: life,  max: lifeMax,  fill: "rgba(220,80,80,0.75)",   dim: "rgba(220,80,80,0.4)" },
+          { label: "力",   percent: manaPercent,  cur: mana,  max: manaMax,  fill: "rgba(80,140,220,0.75)",  dim: "rgba(80,140,220,0.4)" },
+          { label: "体",   percent: thewPercent,  cur: thew,  max: thewMax,  fill: "rgba(80,200,120,0.75)", dim: "rgba(80,200,120,0.4)" },
+        ] as const).map(({ label, percent, cur, max, fill, dim }) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+            {/* 属性简称 */}
+            <span
+              style={{
+                fontSize: 9,
+                color: dim,
+                width: 10,
+                flexShrink: 0,
+                letterSpacing: "-0.03em",
+              }}
+            >
+              {label}
+            </span>
+            {/* 进度轨道 */}
             <div
               style={{
-                width: `${lifePercent}%`,
-                height: "100%",
-                background: modernColors.stats.life,
-                transition: "width 0.3s",
+                flex: 1,
+                height: 5,
+                background: "rgba(255,255,255,0.07)",
+                borderRadius: 3,
+                overflow: "hidden",
+                position: "relative",
               }}
-            />
-          </div>
-          <span
-            style={{ fontSize: 9, color: modernColors.text.muted, width: 50, textAlign: "right" }}
-          >
-            {life}/{lifeMax}
-          </span>
-        </div>
-        {/* 内力 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ fontSize: 10, color: modernColors.stats.mana, width: 24 }}>内力</span>
-          <div
-            style={{
-              flex: 1,
-              height: 12,
-              background: "rgba(0,0,0,0.4)",
-              borderRadius: 6,
-              overflow: "hidden",
-            }}
-          >
-            <div
+            >
+                <div
+                style={{
+                  width: `${percent}%`,
+                  height: "100%",
+                  background: fill,
+                  borderRadius: 3,
+                  transition: "width 0.4s ease",
+                }}
+              />
+            </div>
+            {/* 数值 */}
+            <span
               style={{
-                width: `${manaPercent}%`,
-                height: "100%",
-                background: modernColors.stats.mana,
-                transition: "width 0.3s",
+                fontSize: 9,
+                color: "rgba(255,255,255,0.92)",
+                textShadow: `0 0 6px ${fill}`,
+                width: 44,
+                textAlign: "right",
+                fontFamily: "monospace",
+                flexShrink: 0,
+                letterSpacing: "-0.02em",
               }}
-            />
+            >
+              {cur}/{max}
+            </span>
           </div>
-          <span
-            style={{ fontSize: 9, color: modernColors.text.muted, width: 50, textAlign: "right" }}
-          >
-            {mana}/{manaMax}
-          </span>
-        </div>
-        {/* 体力 */}
-        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ fontSize: 10, color: modernColors.stats.thew, width: 24 }}>体力</span>
-          <div
-            style={{
-              flex: 1,
-              height: 12,
-              background: "rgba(0,0,0,0.4)",
-              borderRadius: 6,
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                width: `${thewPercent}%`,
-                height: "100%",
-                background: modernColors.stats.thew,
-                transition: "width 0.3s",
-              }}
-            />
-          </div>
-          <span
-            style={{ fontSize: 9, color: modernColors.text.muted, width: 50, textAlign: "right" }}
-          >
-            {thew}/{thewMax}
-          </span>
-        </div>
+        ))}
       </div>
 
       {/* 分隔线 */}
@@ -491,6 +470,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
                   onDragStart?.({ type: "goods", slotIndex: i, listIndex: 221 + i });
                 }
               }}
+              onDragEnd={() => onDragEnd?.()}
               onDrop={() => onDrop?.(i)}
             />
           );
@@ -522,13 +502,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
               onClick={() => onItemClick(3 + i)}
               onRightClick={() => onMagicRightClick?.(i)}
               onMouseEnter={(e) => {
-                // 武功槽触发武功tooltip - 1:1 参考经典 UI
-                console.log("[BottomBar] magic onMouseEnter callback", {
-                  magicData,
-                  onMagicHover: !!onMagicHover,
-                });
                 if (magicData?.magic) {
-                  console.log("[BottomBar] calling onMagicHover");
                   onMagicHover?.(magicData, e.clientX, e.clientY);
                 }
               }}
@@ -540,6 +514,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({
                   onDragStart?.({ type: "magic", slotIndex: 3 + i, listIndex: 40 + i });
                 }
               }}
+              onDragEnd={() => onDragEnd?.()}
               onDrop={() => onDrop?.(3 + i)}
             />
           );

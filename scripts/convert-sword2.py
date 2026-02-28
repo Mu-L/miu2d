@@ -4,22 +4,41 @@ convert-sword2.py — 将 resources-sword2 转换为 resources-xin 兼容格式
 
 用法:
     python3 scripts/convert-sword2.py [--dry-run] [--steps STEP1,STEP2,...] [--src DIR] [--dst DIR]
+    python3 scripts/convert-sword2.py --no-rust         # 只运行 Python 步骤，跳过 Rust 转换器
+    python3 scripts/convert-sword2.py --delete-originals  # 转换后删除原始二进制文件
 
 步骤概览:
     1. copy        — 复制 resources-sword2 → resources-sword2-new
     2. lowercase   — 目录名统一小写 (Mpc/ → mpc/)
-    3. encoding    — GBK → UTF-8 (.ini, .txt, .npc, .obj)
-    4. npc_fields  — NPC INI 字段重命名 (Defend→Defend保留, Duck→Evade)
+    3. encoding    — GBK → UTF-8 (.ini, .txt, .npc, .obj)  [Rust 转换器也会做，这里提前处理]
+    4. npc_fields  — NPC INI 字段重命名 (Duck→Evade)
     5. portraits   — 生成 HeadFile.ini + 头像重命名映射
     6. talk        — talk.txt → TalkIndex.txt + 脚本 Talk("x") → Talk(start,end)
     7. npcres      — npcres 格式调整 (.mpc→.asf 引用, 移除 Shade)
     8. goods       — goods 格式调整 (.mpc→.asf 引用)
     9. magic       — magic 格式调整 (.mpc→.asf 引用)
    10. save        — 存档格式适配 (Game.ini [Option] → option.ini)
-   11. misc        — 杂项 (MapName.ini 生成, 目录结构整理)
+   11. misc        — 杂项:
+                     • MapName.ini / Rain.ini 生成
+                     • font/ music/ sound/ video/ → Content/ 子目录 (对照 xin 结构)
+                     • snap/ net/ 删除 (xin 格式不需要)
+                     • asf/ 目录结构递归创建 (镜像 mpc/)
+                     • map/bmp/ 目录创建
+                     • ini/save/ ini/level/ 补全
+                     • ini/ui/ ini/未找到的/ 中 .mpc → .msf 替换
+                     • Content/ui/ui_settings.ini 从 ini/ui/ 真实文件动态生成 (全路径小写)
+   12. map_tiles   — 为每张地图创建 msf/map/{mapName}/ 目录并复制对应 MSF tile (post-Rust)
+   13. cleanup_mpc — 删除所有剩余 .mpc 原始文件 (最后一步)
 
-注意: 二进制格式转换 (ASF→MSF, MPC→MSF, MAP→MMF) 由 Rust 转换器处理，不在此脚本范围内。
-      运行本脚本后，再运行 `cargo run --bin convert-all -- resources-sword2-new` 完成二进制转换。
+完成后自动调用 Rust 转换器处理二进制格式:
+    ASF → MSF v2  (精灵动画)
+    MPC → MSF v2  (地图/UI 纹理)
+    MAP → MMF     (地图数据)
+    WMV → WebM    (过场动画, 需要 ffmpeg)
+    WMA → OGG     (背景音乐, 需要 ffmpeg)
+    GBK → UTF-8   (文本编码, Rust 二次确认)
+
+使用 --no-rust 跳过 Rust 转换器。
 """
 
 import argparse
@@ -27,6 +46,7 @@ import glob
 import os
 import re
 import shutil
+import subprocess
 import sys
 from collections import OrderedDict
 from pathlib import Path
@@ -38,10 +58,764 @@ from pathlib import Path
 DEFAULT_SRC = "resources-sword2"
 DEFAULT_DST = "resources-sword2-new"
 
+# ============================================================
+# UI Settings — 从 ini/ui/ 真实文件动态生成
+# ============================================================
+
+
+def build_sword2_ui_settings(root: str) -> str:
+    """读取 root/ini/ui/{section}/*.ini，生成合并格式的 ui_settings.ini。
+
+    所有路径输出全部小写，MPC 路径转为 asf/…/xxx.msf。
+    Section 名称严格匹配 engine ui-settings.ts 中的解析器。
+    """
+    ui_base = os.path.join(root, "ini", "ui")
+
+    def _rini(section: str, filename: str) -> dict:
+        """解析 [Init] section，返回 key→value dict（key 全小写）。
+        额外支持 [Items] section，存入 result["_items"]。
+        """
+        sec_dir = os.path.join(ui_base, section)
+        if not os.path.isdir(sec_dir):
+            sec_dir = os.path.join(ui_base, section.lower())
+        path = ""
+        # 大小写不敏感查找文件
+        if os.path.isdir(sec_dir):
+            for f in os.listdir(sec_dir):
+                if f.lower() == filename.lower():
+                    path = os.path.join(sec_dir, f)
+                    break
+        if not path or not os.path.exists(path):
+            return {}
+        try:
+            content = open(path, encoding="utf-8").read()
+        except Exception:
+            try:
+                content = open(path, encoding="gbk", errors="replace").read()
+            except Exception:
+                return {}
+        result: dict = {}
+        in_section = ""
+        items: dict = {}
+        for line in content.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("//") or stripped.startswith(";"):
+                continue
+            if stripped.startswith("["):
+                in_section = stripped[1:].rstrip("]").lower()
+            elif "=" in stripped:
+                k, _, v = stripped.partition("=")
+                k, v = k.strip(), v.strip()
+                if in_section == "init":
+                    result[k.lower()] = v
+                elif in_section == "items":
+                    items[k.strip()] = v.strip()
+        if items:
+            result["_items"] = items
+        return result
+
+    def _img(raw: str) -> str:
+        """\\mpc\\ui\\title\\InitBtn.mpc  →  asf/ui/title/initbtn.msf (全小写)
+
+        所有路径输出全小写。Rust 转换器保留原始文件名大小写，
+        运行 step lowercase_asf 会将 asf/ 下所有文件名转为小写以匹配。
+        """
+        if not raw:
+            return ""
+        p = raw.replace("\\", "/").lstrip("/")
+        if p.lower().startswith("mpc/"):
+            p = "asf/" + p[4:]
+        base, ext = os.path.splitext(p)
+        if ext.lower() in (".mpc", ".asf"):
+            p = base + ".msf"
+        return p.lower()
+
+    def _snd(raw: str) -> str:
+        """\\sound\\界-主菜单.wav  →  界-主菜单.wav"""
+        return os.path.basename(raw.replace("\\", "/")) if raw else ""
+
+    lines: list[str] = []
+    w = lines.append
+
+    def _kv(k: str, v: str) -> None:
+        if v:
+            lines.append(f"{k}={v}")
+
+    # ── GoodsInit ────────────────────────────────────────────
+    w("[GoodsInit]")
+    w("GoodsListType=0")
+    w("StoreIndexBegin=1")
+    w("StoreIndexEnd=198")
+    w("EquipIndexBegin=201")
+    w("EquipIndexEnd=207")
+    w("BottomIndexBegin=221")
+    w("BottomIndexEnd=223")
+    w("")
+
+    # ── MagicInit ────────────────────────────────────────────
+    w("[MagicInit]")
+    w("StoreIndexBegin=1")
+    w("StoreIndexEnd=36")
+    w("BottomIndexBegin=40")
+    w("BottomIndexEnd=44")
+    w("XiuLianIndex=49")
+    w("HideStartIndex=1000")
+    w("")
+
+    # ── Title ────────────────────────────────────────────────
+    # engine parseTitleGuiConfig: BackgroundImage 为空则返回 null
+    # sword2 title 背景是 Window.ini 本身没有 Image，但有 mpc/ui/title/ 下的资源
+    # 使用 title 背景图 (sword2 没有独立背景png，用 title window 的 panel 图)
+    tw = _rini("title", "Window.ini")
+    title_bg = _img(tw.get("image", ""))
+    # 如果 Window.ini 没有背景图，检查 asf/ 和 mpc/ 下是否有 title 图片
+    if not title_bg:
+        for base_dir in ["asf", "mpc"]:
+            for candidate in ["title.bmp", "title.png", "title.jpg", "title.asf", "title.mpc"]:
+                cpath = os.path.join(root, base_dir, "ui", "title", candidate)
+                if os.path.exists(cpath):
+                    _, ext = os.path.splitext(candidate)
+                    if ext.lower() in (".bmp", ".png", ".jpg"):
+                        # 图片文件保持原始格式和路径
+                        title_bg = f"{base_dir}/ui/title/{candidate}"
+                    else:
+                        title_bg = _img(f"\\{base_dir}\\ui\\title\\{candidate}")
+                    break
+            if title_bg:
+                break
+    w("[Title]")
+    _kv("BackgroundImage", title_bg if title_bg else "asf/ui/title/title.msf")
+    w("")
+
+    for btn_file, section_key in [
+        ("InitBtn.ini", "Title_Btn_Begin"),
+        ("LoadBtn.ini", "Title_Btn_Load"),
+        ("TeamBtn.ini", "Title_Btn_Team"),
+        ("ExitBtn.ini", "Title_Btn_Exit"),
+    ]:
+        d = _rini("title", btn_file)
+        if not d:
+            continue
+        w(f"[{section_key}]")
+        _kv("Left", d.get("left", ""))
+        _kv("Top", d.get("top", ""))
+        _kv("Width", d.get("width", ""))
+        _kv("Height", d.get("height", ""))
+        _kv("Image", _img(d.get("image", "")))
+        _kv("Sound", _snd(d.get("sound", "")))
+        w("")
+
+    # ── SaveLoad ─────────────────────────────────────────────
+    sw = _rini("saveload", "Window.ini")
+    w("[SaveLoad]")
+    _kv("Image", _img(sw.get("image", "")))
+    w("LeftAdjust=0")
+    w("TopAdjust=0")
+    w("")
+
+    snap = _rini("saveload", "SnapBmp.ini")
+    w("[Save_Snapshot]")
+    _kv("Left", snap.get("left", ""))
+    _kv("Top", snap.get("top", ""))
+    _kv("Width", snap.get("width", ""))
+    _kv("Height", snap.get("height", ""))
+    w("")
+
+    lb = _rini("saveload", "ListBox.ini")
+    items_d = lb.get("_items", {})
+    items_text = "/".join(v for k, v in sorted(items_d.items()) if k.isdigit())
+    w("[SaveLoad_Text_List]")
+    _kv("Text", items_text)
+    _kv("Left", lb.get("left", ""))
+    _kv("Top", lb.get("top", ""))
+    _kv("Width", lb.get("width", ""))
+    _kv("Height", lb.get("height", ""))
+    w("CharSpace=2")
+    w("LineSpace=0")
+    _kv("ItemHeight", lb.get("itemheight", ""))
+    _kv("Color", lb.get("color", ""))
+    _kv("SelectedColor", lb.get("selcolor", ""))
+    _kv("Sound", _snd(lb.get("sound", "")))
+    w("")
+
+    for btn_file, section_key in [
+        ("LoadBtn.ini", "SaveLoad_Load_Btn"),
+        ("SaveBtn.ini", "SaveLoad_Save_Btn"),
+        ("ExitBtn.ini", "SaveLoad_Exit_Btn"),
+    ]:
+        d = _rini("saveload", btn_file)
+        if not d:
+            continue
+        w(f"[{section_key}]")
+        _kv("Left", d.get("left", ""))
+        _kv("Top", d.get("top", ""))
+        _kv("Width", d.get("width", ""))
+        _kv("Height", d.get("height", ""))
+        _kv("Image", _img(d.get("image", "")))
+        _kv("Sound", _snd(d.get("sound", "")))
+        w("")
+
+    # SaveLoad_Save_Time_Text / SaveLoad_Message_Line_Text — sword2 无对应文件，保留默认
+    w("[SaveLoad_Save_Time_Text]")
+    w("Left=272")
+    w("Top=124")
+    w("Width=350")
+    w("Height=30")
+    w("CharSpace=1")
+    w("LineSpace=0")
+    w("Color=136,12,2,178")
+    w("")
+    w("[SaveLoad_Message_Line_Text]")
+    w("Left=0")
+    w("Top=440")
+    w("Width=640")
+    w("Height=40")
+    w("Align=1")
+    w("Color=255,215,0,204")
+    w("")
+
+    # ── System ───────────────────────────────────────────────
+    sysw = _rini("system", "Window.ini")
+    w("[System]")
+    _kv("Image", _img(sysw.get("image", "")))
+    w("LeftAdjust=0")
+    w("TopAdjust=0")
+    w("")
+
+    for btn_file, section_key in [
+        ("SaveLoad.ini", "System_SaveLoad_Btn"),
+        ("Option.ini", "System_Option_Btn"),
+        ("Quit.ini", "System_Exit_Btn"),
+        ("Return.ini", "System_Return_Btn"),
+    ]:
+        d = _rini("system", btn_file)
+        if not d:
+            continue
+        w(f"[{section_key}]")
+        _kv("Left", d.get("left", ""))
+        _kv("Top", d.get("top", ""))
+        _kv("Width", d.get("width", ""))
+        _kv("Height", d.get("height", ""))
+        _kv("Image", _img(d.get("image", "")))
+        _kv("Sound", _snd(d.get("sound", "")))
+        w("")
+
+    # ── BottomState (column / status bars) ───────────────────
+    cw = _rini("column", "Window.ini")
+    w("[BottomState]")
+    _kv("Image", _img(cw.get("image", "")))
+    _kv("Width", cw.get("width", "640"))
+    _kv("Height", cw.get("height", ""))
+    w("LeftAdjust=0")
+    w("TopAdjust=0")
+    w("")
+
+    for col_file, section_key in [
+        ("ColLife.ini", "BottomState_Life"),
+        ("ColThew.ini", "BottomState_Thew"),
+        ("ColMana.ini", "BottomState_Mana"),
+    ]:
+        d = _rini("column", col_file)
+        if not d:
+            continue
+        w(f"[{section_key}]")
+        _kv("Left", d.get("left", ""))
+        _kv("Top", d.get("top", ""))
+        _kv("Width", d.get("width", ""))
+        _kv("Height", d.get("height", ""))
+        _kv("Image", _img(d.get("image", "")))
+        w("")
+
+    # ── Top (button bar — uses bottom window image) ───────────
+    bw = _rini("bottom", "Window.ini")
+    w("[Top]")
+    _kv("Image", _img(bw.get("image", "")))
+    w("LeftAdjust=-276")
+    w("TopAdjust=0")
+    w("Anchor=Bottom")
+    w("")
+
+    for btn_file, section_key in [
+        ("BtnState.ini", "Top_State_Btn"),
+        ("BtnEquip.ini", "Top_Equip_Btn"),
+        ("BtnXiuLian.ini", "Top_XiuLian_Btn"),
+        ("BtnGoods.ini", "Top_Goods_Btn"),
+        ("BtnMagic.ini", "Top_Magic_Btn"),
+        ("BtnNotes.ini", "Top_Memo_Btn"),
+        ("BtnOption.ini", "Top_System_Btn"),
+    ]:
+        d = _rini("bottom", btn_file)
+        if not d:
+            continue
+        w(f"[{section_key}]")
+        _kv("Left", d.get("left", ""))
+        _kv("Top", d.get("top", ""))
+        _kv("Width", d.get("width", ""))
+        _kv("Height", d.get("height", ""))
+        _kv("Image", _img(d.get("image", "")))
+        _kv("Sound", _snd(d.get("sound", "")))
+        w("")
+
+    # ── Bottom (quickbar items) ───────────────────────────────
+    w("[Bottom]")
+    _kv("Image", _img(bw.get("image", "")))
+    w("LeftAdjust=-87")
+    w("TopAdjust=0")
+    w("")
+
+    w("[Bottom_Items]")
+    for i in range(1, 9):
+        d = _rini("bottom", f"Item{i}.ini")
+        if not d:
+            continue
+        w(f"Item_Left_{i}={d.get('left', '')}")
+        w(f"Item_Top_{i}={d.get('top', '')}")
+        w(f"Item_Width_{i}={d.get('width', '')}")
+        w(f"Item_Height_{i}={d.get('height', '')}")
+    w("")
+
+    # ── Dialog ───────────────────────────────────────────────
+    dw = _rini("dialog", "Window.ini")
+    w("[Dialog]")
+    _kv("Image", _img(dw.get("image", "")))
+    w("LeftAdjust=-20")
+    w("TopAdjust=-208")
+    w("")
+
+    # sword2 dialog 无独立 Txt/SelA/SelB ini 文件 — 使用 xin 默认值
+    w("[Dialog_Txt]")
+    w("Left=80")
+    w("Top=15")
+    w("Width=400")
+    w("Height=60")
+    w("CharSpace=-2")
+    w("LineSpace=0")
+    w("Color=255,255,255,204")
+    w("")
+    w("[Dialog_SelA]")
+    w("Left=90")
+    w("Top=30")
+    w("Width=380")
+    w("Height=20")
+    w("CharSpace=1")
+    w("LineSpace=0")
+    w("Color=0,0,255,204")
+    w("")
+    w("[Dialog_SelB]")
+    w("Left=90")
+    w("Top=52")
+    w("Width=380")
+    w("Height=20")
+    w("CharSpace=1")
+    w("LineSpace=0")
+    w("Color=0,0,255,204")
+    w("")
+
+    # engine parseDialogGuiConfig 需要 Dialog_Portrait
+    dh = _rini("dialog", "Head1.ini")
+    w("[Dialog_Portrait]")
+    _kv("Left", dh.get("left", "0"))
+    # Top 使用负值使头像显示在对话框上方（与 xin 行为一致）
+    w("Top=-200")
+    _kv("Width", dh.get("width", "500"))
+    _kv("Height", dh.get("height", "200"))
+    w("")
+
+    # ── State panel ──────────────────────────────────────────
+    si = _rini("state", "Image.ini")
+    w("[State]")
+    _kv("Image", _img(si.get("image", "")))
+    w("LeftAdjust=0")
+    w("TopAdjust=0")
+    w("")
+
+    for ini_file, section_key in [
+        ("Lab等级.ini", "State_Level"),
+        ("lab经验.ini", "State_Exp"),
+        ("lab升级.ini", "State_LevelUp"),
+        ("Lab生命.ini", "State_Life"),
+        ("lab体力.ini", "State_Thew"),
+        ("Lab内力.ini", "State_Mana"),
+        ("Lab攻击.ini", "State_Attack"),
+        ("Lab防御.ini", "State_Defend"),
+        ("Lab闪避.ini", "State_Evade"),
+    ]:
+        d = _rini("state", ini_file)
+        if not d:
+            continue
+        w(f"[{section_key}]")
+        _kv("Left", d.get("left", ""))
+        _kv("Top", d.get("top", ""))
+        _kv("Width", d.get("width", ""))
+        _kv("Height", d.get("height", ""))
+        w("CharSpace=0")
+        w("LineSpace=0")
+        _kv("Color", d.get("color", ""))
+        w("")
+
+    # ── Equip ────────────────────────────────────────────────
+    # engine equipSlotsFrom 读取 ${prefix}_Head/Neck/Body/Back/Hand/Wrist/Foot
+    ei = _rini("equip", "Image.ini")
+    w("[Equip]")
+    _kv("Image", _img(ei.get("image", "")))
+    w("LeftAdjust=-150")
+    w("TopAdjust=0")
+    w("")
+
+    equip_slot_names = [
+        "Equip_Head", "Equip_Neck", "Equip_Wrist",
+        "Equip_Body", "Equip_Hand", "Equip_Foot", "Equip_Back",
+    ]
+    equip_slot_data: list[dict] = []
+    for i, slot_name in enumerate(equip_slot_names, 1):
+        d = _rini("equip", f"Item{i}.ini")
+        equip_slot_data.append(d)
+        if not d:
+            continue
+        w(f"[{slot_name}]")
+        _kv("Left", d.get("left", ""))
+        _kv("Top", d.get("top", ""))
+        _kv("Width", d.get("width", ""))
+        _kv("Height", d.get("height", ""))
+        w("")
+
+    # ── NpcEquip ─────────────────────────────────────────────
+    # engine parseNpcEquipGuiConfig 需要 [NpcEquip] + 7 个 slot
+    # sword2 没有独立 npcequip 文件夹，复用 Equip 布局
+    w("[NpcEquip]")
+    _kv("Image", _img(ei.get("image", "")))
+    w("LeftAdjust=-150")
+    w("TopAdjust=0")
+    w("")
+
+    npc_equip_slot_names = [
+        "NpcEquip_Head", "NpcEquip_Neck", "NpcEquip_Wrist",
+        "NpcEquip_Body", "NpcEquip_Hand", "NpcEquip_Foot", "NpcEquip_Back",
+    ]
+    for slot_name, d in zip(npc_equip_slot_names, equip_slot_data):
+        if not d:
+            continue
+        w(f"[{slot_name}]")
+        _kv("Left", d.get("left", ""))
+        _kv("Top", d.get("top", ""))
+        _kv("Width", d.get("width", ""))
+        _kv("Height", d.get("height", ""))
+        w("")
+
+    # ── XiuLian ──────────────────────────────────────────────
+    # engine parseXiuLianGuiConfig 需要:
+    #   [XiuLian] - panel
+    #   [XiuLian_Magic_Image] - rectFrom (武功图标位置)
+    #   [XiuLian_Level_Text] - textFrom
+    #   [XiuLian_Exp_Text] - textFrom
+    #   [XiuLian_Name_Text] - textFrom
+    #   [XiuLian_Intro_Text] - textFrom
+    xw = _rini("xiulian", "Window.ini")
+    w("[XiuLian]")
+    _kv("Image", _img(xw.get("image", "")))
+    w("LeftAdjust=0")
+    w("TopAdjust=0")
+    w("")
+
+    # [XiuLian_Magic_Image] — 从 Magic.ini 读取武功图标位置
+    xm = _rini("xiulian", "Magic.ini")
+    w("[XiuLian_Magic_Image]")
+    _kv("Left", xm.get("left", "10"))
+    _kv("Top", xm.get("top", "9"))
+    _kv("Width", xm.get("width", "30"))
+    _kv("Height", xm.get("height", "38"))
+    w("")
+
+    # [XiuLian_Level_Text] — 从 Level.ini 读取
+    xl = _rini("xiulian", "Level.ini")
+    w("[XiuLian_Level_Text]")
+    _kv("Left", xl.get("left", "142"))
+    _kv("Top", xl.get("top", "52"))
+    _kv("Width", xl.get("width", "80"))
+    _kv("Height", xl.get("height", "12"))
+    w("CharSpace=0")
+    w("LineSpace=0")
+    _kv("Color", xl.get("color", "255,255,255"))
+    w("")
+
+    # [XiuLian_Exp_Text] — 从 Exp.ini 读取
+    xe = _rini("xiulian", "Exp.ini")
+    w("[XiuLian_Exp_Text]")
+    _kv("Left", xe.get("left", "142"))
+    _kv("Top", xe.get("top", "79"))
+    _kv("Width", xe.get("width", "80"))
+    _kv("Height", xe.get("height", "12"))
+    w("CharSpace=0")
+    w("LineSpace=0")
+    _kv("Color", xe.get("color", "255,255,255"))
+    w("")
+
+    # [XiuLian_Name_Text] — 从 Name.ini 读取
+    xn = _rini("xiulian", "Name.ini")
+    w("[XiuLian_Name_Text]")
+    _kv("Left", xn.get("left", "40"))
+    _kv("Top", xn.get("top", "106"))
+    _kv("Width", xn.get("width", "200"))
+    _kv("Height", xn.get("height", "20"))
+    w("CharSpace=0")
+    w("LineSpace=0")
+    _kv("Color", xn.get("color", "250,220,200"))
+    w("")
+
+    # [XiuLian_Intro_Text] — 从 Intro.ini 读取
+    xi_intro = _rini("xiulian", "Intro.ini")
+    w("[XiuLian_Intro_Text]")
+    _kv("Left", xi_intro.get("left", "40"))
+    _kv("Top", xi_intro.get("top", "133"))
+    _kv("Width", xi_intro.get("width", "160"))
+    _kv("Height", xi_intro.get("height", "120"))
+    w("CharSpace=0")
+    w("LineSpace=0")
+    _kv("Color", xi_intro.get("color", "220,180,130"))
+    w("")
+
+    # ── Goods ────────────────────────────────────────────────
+    # engine parseGoodsGuiConfig 需要:
+    #   [Goods] — panel + scrollBarFrom (ScrollBarLeft/ScrollBarRight/ScrollBarWidth/ScrollBarHeight/ScrollBarButton)
+    #   [Goods_List_Items] — 9 个物品格子
+    #   [Goods_Money] — 金钱显示
+    gw = _rini("goods", "Window.ini")
+    gsb = _rini("goods", "ScrollBar.ini")
+    gslide = _rini("goods", "SlideBtn.ini")
+    w("[Goods]")
+    _kv("Image", _img(gw.get("image", "")))
+    w("LeftAdjust=0")
+    w("TopAdjust=0")
+    # 滚动栏: engine scrollBarFrom 读取 ScrollBarLeft/ScrollBarRight(=top)/ScrollBarWidth/ScrollBarHeight/ScrollBarButton
+    _kv("ScrollBarLeft", gsb.get("left", "178"))
+    _kv("ScrollBarRight", gsb.get("top", "40"))
+    _kv("ScrollBarWidth", gsb.get("width", "28"))
+    _kv("ScrollBarHeight", gsb.get("height", "180"))
+    _kv("ScrollBarButton", _img(gslide.get("image", "")) or "asf/ui/goods/slidebtn.msf")
+    w("")
+
+    # engine 需要 [Goods_List_Items]（注意 _List_Items 后缀）
+    w("[Goods_List_Items]")
+    for i in range(1, 10):
+        d = _rini("goods", f"Item{i}.ini")
+        if not d:
+            continue
+        w(f"Item_Left_{i}={d.get('left', '')}")
+        w(f"Item_Top_{i}={d.get('top', '')}")
+        w(f"Item_Width_{i}={d.get('width', '')}")
+        w(f"Item_Height_{i}={d.get('height', '')}")
+    w("")
+
+    # [Goods_Money] — 金钱显示位置
+    gm = _rini("goods", "money.ini")
+    w("[Goods_Money]")
+    _kv("Left", gm.get("left", "100"))
+    _kv("Top", gm.get("top", "230"))
+    _kv("Width", gm.get("width", "100"))
+    _kv("Height", gm.get("height", "12"))
+    _kv("Color", gm.get("color", "250,250,250"))
+    w("")
+
+    # ── Magics ───────────────────────────────────────────────
+    # engine parseMagicsGuiConfig 需要:
+    #   [Magics] — panel + scrollBarFrom
+    #   [Magics_List_Items] — 9 个物品格子
+    mw = _rini("magic", "Window.ini")
+    msb = _rini("magic", "ScrollBar.ini")
+    mslide = _rini("magic", "SlideBtn.ini")
+    w("[Magics]")
+    _kv("Image", _img(mw.get("image", "")))
+    w("LeftAdjust=0")
+    w("TopAdjust=0")
+    _kv("ScrollBarLeft", msb.get("left", "178"))
+    _kv("ScrollBarRight", msb.get("top", "40"))
+    _kv("ScrollBarWidth", msb.get("width", "28"))
+    _kv("ScrollBarHeight", msb.get("height", "180"))
+    _kv("ScrollBarButton", _img(mslide.get("image", "")) or "asf/ui/option/slidebtn.msf")
+    w("")
+
+    # engine 需要 [Magics_List_Items]（注意 _List_Items 后缀）
+    w("[Magics_List_Items]")
+    for i in range(1, 10):
+        d = _rini("magic", f"Item{i}.ini")
+        if not d:
+            d = _rini("goods", f"Item{i}.ini")  # fallback: magic 和 goods grid 尺寸相同
+        if not d:
+            continue
+        w(f"Item_Left_{i}={d.get('left', '')}")
+        w(f"Item_Top_{i}={d.get('top', '')}")
+        w(f"Item_Width_{i}={d.get('width', '')}")
+        w(f"Item_Height_{i}={d.get('height', '')}")
+    w("")
+
+    # ── Memo (Notes) ─────────────────────────────────────────
+    # engine parseMemoGuiConfig 需要:
+    #   [Memo] — panel
+    #   [Memo_Text] — textFrom
+    #   [Memo_Slider] — rectFrom + Image_Btn
+    memow = _rini("memo", "Window.ini")
+    w("[Memo]")
+    _kv("Image", _img(memow.get("image", "")))
+    w("LeftAdjust=0")
+    w("TopAdjust=0")
+    w("")
+
+    # [Memo_Text] — 从 memo.ini 读取（memo/memo.ini 是文字区域）
+    mt = _rini("memo", "memo.ini")
+    w("[Memo_Text]")
+    _kv("Left", mt.get("left", "12"))
+    _kv("Top", mt.get("top", "18"))
+    _kv("Width", mt.get("width", "132"))
+    _kv("Height", mt.get("height", "160"))
+    w("CharSpace=0")
+    w("LineSpace=0")
+    _kv("Color", mt.get("color", "250,200,150"))
+    w("")
+
+    # [Memo_Slider] — 从 ScrollBar.ini / SlideBtn.ini 读取
+    memo_sb = _rini("memo", "ScrollBar.ini")
+    memo_slide = _rini("memo", "SlideBtn.ini")
+    w("[Memo_Slider]")
+    _kv("Left", memo_sb.get("left", "158"))
+    _kv("Top", memo_sb.get("top", "0"))
+    _kv("Width", memo_slide.get("width", "18"))
+    _kv("Height", memo_slide.get("height", "30"))
+    _kv("Image_Btn", _img(memo_slide.get("image", "")) or "asf/ui/goods/slidebtn.msf")
+    w("")
+
+    # ── Message ──────────────────────────────────────────────
+    # engine parseMessageGuiConfig 需要 [Message] + [Message_Text]
+    msgw = _rini("message", "Window.ini")
+    w("[Message]")
+    _kv("Image", _img(msgw.get("image", "")))
+    w("LeftAdjust=-40")
+    w("TopAdjust=-110")
+    w("")
+
+    msgl = _rini("message", "Label.ini")
+    w("[Message_Text]")
+    _kv("Left", msgl.get("left", "30"))
+    _kv("Top", msgl.get("top", "20"))
+    _kv("Width", msgl.get("width", "220"))
+    _kv("Height", msgl.get("height", "40"))
+    _kv("Color", msgl.get("color", "241,241,241,204"))
+    _kv("CharSpace", msgl.get("charspace", "0"))
+    w("LineSpace=1")
+    w("")
+
+    # ── ToolTip ──────────────────────────────────────────────
+    # engine 需要 [ToolTip_Use_Type] 和 [ToolTip_Type2]
+    # sword2 使用 Type2 风格（类似新剑侠情缘）
+    w("[ToolTip_Use_Type]")
+    w("UseType=2")
+    w("")
+
+    # [ToolTip_Type2] — 颜色配置
+    w("[ToolTip_Type2]")
+    w("Width=288")
+    w("TextHorizontalPadding=6")
+    w("TextVerticalPadding=4")
+    w("BackgroundColor=0,0,0,160")
+    w("MagicNameColor=225,225,110,160")
+    w("MagicLevelColor=255,255,255,160")
+    w("MagicIntroColor=255,255,255,160")
+    w("GoodNameColor=245,233,171,160")
+    w("GoodPriceColor=255,255,255,160")
+    w("GoodUserColor=255,255,255,160")
+    w("GoodPropertyColor=255,255,255,160")
+    w("GoodIntroColor=255,255,255,160")
+    w("")
+
+    # ── BuySell ──────────────────────────────────────────────
+    # engine parseBuySellGuiConfig 需要:
+    #   [BuySell] — panel + scrollBarFrom + CloseLeft/CloseTop/CloseImage/CloseSound
+    #   [BuySell_List_Items] — 9 个物品格子
+    bsw = _rini("buysell", "Window.ini")
+    bssb = _rini("buysell", "ScrollBar.ini")
+    bsslide = _rini("buysell", "SlideBtn.ini")
+    bsclose = _rini("buysell", "CloseBtn.ini")
+    w("[BuySell]")
+    _kv("Image", _img(bsw.get("image", "")))
+    w("LeftAdjust=0")
+    w("TopAdjust=0")
+    _kv("ScrollBarLeft", bssb.get("left", "178"))
+    _kv("ScrollBarRight", bssb.get("top", "40"))
+    _kv("ScrollBarWidth", bssb.get("width", "28"))
+    _kv("ScrollBarHeight", bssb.get("height", "180"))
+    _kv("ScrollBarButton", _img(bsslide.get("image", "")) or "asf/ui/option/slidebtn.msf")
+    _kv("CloseImage", _img(bsclose.get("image", "")))
+    _kv("CloseSound", _snd(bsclose.get("sound", "")))
+    _kv("CloseLeft", bsclose.get("left", "203"))
+    _kv("CloseTop", bsclose.get("top", "225"))
+    w("")
+
+    # engine 需要 [BuySell_List_Items]（注意 _List_Items 后缀）
+    w("[BuySell_List_Items]")
+    for i in range(1, 10):
+        d = _rini("buysell", f"Item{i}.ini")
+        if not d:
+            continue
+        w(f"Item_Left_{i}={d.get('left', '')}")
+        w(f"Item_Top_{i}={d.get('top', '')}")
+        w(f"Item_Width_{i}={d.get('width', '')}")
+        w(f"Item_Height_{i}={d.get('height', '')}")
+    w("")
+
+    # ── LittleMap ────────────────────────────────────────────
+    # engine parseLittleMapGuiConfig — sword2 无小地图资源，
+    # 不输出 [LittleMap] 等 section，engine 会使用内置默认值
+
+    # ── YesNo ────────────────────────────────────────────────
+    ynw = _rini("yesno", "Window.ini")
+    w("[YesNo]")
+    _kv("Image", _img(ynw.get("image", "")))
+    w("LeftAdjust=0")
+    w("TopAdjust=0")
+    w("")
+
+    yy = _rini("yesno", "BtnYes.ini")
+    w("[YesNo_Yes_Btn]")
+    _kv("Left", yy.get("left", ""))
+    _kv("Top", yy.get("top", ""))
+    _kv("Width", yy.get("width", ""))
+    _kv("Height", yy.get("height", ""))
+    _kv("Image", _img(yy.get("image", "")))
+    w("")
+
+    yn = _rini("yesno", "BtnNo.ini")
+    w("[YesNo_No_Btn]")
+    _kv("Left", yn.get("left", ""))
+    _kv("Top", yn.get("top", ""))
+    _kv("Width", yn.get("width", ""))
+    _kv("Height", yn.get("height", ""))
+    _kv("Image", _img(yn.get("image", "")))
+    w("")
+
+    # ── NpcInfoShow / Mouse ───────────────────────────────────
+    w("[NpcInfoShow]")
+    w("Width=300")
+    w("Height=25")
+    w("LeftAdjust=0")
+    w("TopAdjust=50")
+    w("")
+
+    w("[Mouse]")
+    mouse_common = _rini("common", "mouse.ini") if os.path.isdir(os.path.join(ui_base, "common")) else {}
+    mouse_img = _img(mouse_common.get("image", "")) if mouse_common else "asf/ui/common/mouse.msf"
+    w(f"Image={mouse_img if mouse_img else 'asf/ui/common/mouse.msf'}")
+    w("")
+
+    return "\n".join(lines)
+
+
 ALL_STEPS = [
     "copy", "lowercase", "encoding", "npc_fields", "portraits",
-    "talk", "npcres", "goods", "magic", "save", "misc",
+    "talk", "npcres", "goods", "magic", "save", "misc", "convert_video",
+    "move_sprites", "map_tiles", "cleanup_mpc", "lowercase_asf",
 ]
+
+# MPC subdirectories that contain sprites (should become asf/) vs map tiles (stay in mpc/)
+MPC_SPRITE_DIRS = ["character", "effect", "goods", "magic", "object", "portrait", "ui"]
 
 # Portrait name → numeric ID mapping (auto-generated, can be overridden)
 # We'll build this dynamically from Mpc/portrait/ contents
@@ -279,6 +1053,66 @@ def step_lowercase(root: str):
                         os.rename(full_path, new_path)
                 stats.files_renamed += 1
 
+    # Lowercase all files in save/game/ (e.g. SMZZ.NPC → smzz.npc, SMzz.OBJ → smzz.obj)
+    save_game_dir = os.path.join(root, "save", "game")
+    if os.path.isdir(save_game_dir):
+        renamed_count = 0
+        for fn in sorted(os.listdir(save_game_dir)):
+            if fn == fn.lower():
+                continue
+            src = os.path.join(save_game_dir, fn)
+            dst = os.path.join(save_game_dir, fn.lower())
+            if not os.path.isfile(src):
+                continue
+            if os.path.exists(dst):
+                log(f"警告: save/game/{fn.lower()} 已存在，跳过 {fn}")
+                continue
+            log(f"重命名 save/game/{fn} → {fn.lower()}")
+            if not DRY_RUN:
+                os.rename(src, dst)
+            renamed_count += 1
+        stats.files_renamed += renamed_count
+        log(f"save/game/ 文件小写化: {renamed_count} 个文件")
+
+    # Lowercase filename arguments in LoadNpc/LoadObj/LoadMap calls in all .txt scripts
+    script_dir = os.path.join(root, "script")
+    if os.path.isdir(script_dir):
+        load_pattern = re.compile(
+            r'(Load(?:Npc|Obj|Map)\s*\(\s*")([^"]+?)(\s*"\s*\))',
+            re.IGNORECASE,
+        )
+        total_replacements = 0
+        files_modified = 0
+        for dirpath, _, filenames in os.walk(script_dir):
+            for fn in filenames:
+                if not fn.lower().endswith(".txt"):
+                    continue
+                filepath = os.path.join(dirpath, fn)
+                try:
+                    with open(filepath, "r", encoding="utf-8") as f:
+                        content = f.read()
+                except Exception:
+                    continue
+                replacements_here = [0]
+
+                def make_replacer(counter):
+                    def replacer(m):
+                        arg = m.group(2)
+                        lowered = arg.lower()
+                        if lowered != arg:
+                            counter[0] += 1
+                        return m.group(1) + lowered + m.group(3)
+                    return replacer
+
+                new_content = load_pattern.sub(make_replacer(replacements_here), content)
+                if new_content != content:
+                    files_modified += 1
+                    total_replacements += replacements_here[0]
+                    if not DRY_RUN:
+                        with open(filepath, "w", encoding="utf-8") as f:
+                            f.write(new_content)
+        log(f"脚本 Load* 参数小写化: {total_replacements} 处替换 ({files_modified} 个文件)")
+
 
 # ============================================================
 # Step 3: Encoding (GBK → UTF-8)
@@ -394,7 +1228,7 @@ def build_portrait_mapping(root: str) -> dict:
 
     mapping = {}
     for idx, fn in enumerate(files, start=1):
-        asf_name = f"fac{idx:03d}.asf"
+        asf_name = f"fac{idx:03d}.msf"
         mapping[fn] = {"id": idx, "asf": asf_name}
 
     return mapping
@@ -439,7 +1273,7 @@ def step_portraits(root: str) -> dict:
         for mpc_name, info in mapping.items():
             src_path = os.path.join(portrait_dir, mpc_name)
             # Keep .mpc extension for Rust converter, but rename the base
-            dst_name = info["asf"].replace(".asf", ".mpc")
+            dst_name = os.path.splitext(info["asf"])[0] + ".mpc"
             dst_path = os.path.join(portrait_dir, dst_name)
             if os.path.exists(src_path):
                 if not DRY_RUN:
@@ -448,16 +1282,9 @@ def step_portraits(root: str) -> dict:
         stats.files_renamed += renamed
         log(f"重命名 {renamed} 个头像 MPC 文件")
 
-    # 4. Also move portrait dir from mpc/portrait to asf/portrait
-    # for better compatibility with xin structure
-    # Actually, let's create a symlink or just note it
-    # The Rust converter will handle mpc→msf, and the engine rewrites .asf→.msf at runtime
-    # So we need to put them where the engine expects: asf/portrait/facNNN.asf → .msf
-
-    # Create asf/portrait/ directory and move renamed MPCs there
-    # Actually, the converter processes mpc/ dir separately from asf/ dir.
-    # Let's keep them in mpc/portrait/ for now — the converter will convert them to .msf
-    # and HeadFile.ini references .asf which gets rewritten to .msf at runtime.
+    # 4. Keep portraits in mpc/portrait/ with .mpc extension so Rust can convert them.
+    # After Rust conversion, Rust writes fac001.msf to asf/portrait/ (via mpc_output_path).
+    # HeadFile.ini references .msf directly (no runtime rewriting needed).
 
     return mapping
 
@@ -744,37 +1571,57 @@ def extract_speaker(text: str) -> str | None:
 # Step 7: NPC Resource adjustments
 # ============================================================
 
-def step_npcres(root: str):
-    log_step("npcres", "npcres 格式调整 (.mpc→.asf 引用路径)")
-
-    npcres_dir = os.path.join(root, "ini", "npcres")
-    if not os.path.isdir(npcres_dir):
-        log("未找到 ini/npcres/ 目录，跳过")
-        return
-
+def replace_mpc_with_msf_in_ini_dir(dirpath: str, recursive: bool = False) -> int:
+    """将目录下所有 INI 文件中的 .mpc / .asf 引用统一替换为 .msf。
+    recursive=True 时递归处理子目录（如 ini/ui/）。
+    """
     converted = 0
-    for fn in sorted(os.listdir(npcres_dir)):
-        if not fn.lower().endswith(".ini"):
+    if recursive:
+        all_files = []
+        for root_w, _, filenames in os.walk(dirpath):
+            for fn in filenames:
+                all_files.append(os.path.join(root_w, fn))
+    else:
+        all_files = [os.path.join(dirpath, fn) for fn in os.listdir(dirpath)]
+
+    for filepath in sorted(all_files):
+        if not filepath.lower().endswith(".ini"):
             continue
-
-        filepath = os.path.join(npcres_dir, fn)
-        text = read_gbk(filepath)
+        try:
+            text = read_gbk(filepath)
+        except Exception:
+            continue
         original = text
-
-        # Note: We do NOT remove Shade= lines — the engine already handles/ignores them.
-        # We do NOT change .mpc to .asf in Image= — the engine auto-rewrites .mpc→.msf at runtime.
-        # The Rust converter will convert the actual .mpc files to .msf.
-
-        # However, we need to ensure the files are UTF-8 (already done in step 3)
-        # Nothing extra to do here unless we want to normalize format
-
+        # Replace .mpc → .msf and .asf → .msf (sprites/portraits are all .msf after conversion)
+        # We DON'T touch map tile refs (map references live in .map/.mmf, not in ini)
+        text = re.sub(r'(\.mpc)(?=[\s;,"\]\r\n]|$)', '.msf', text, flags=re.IGNORECASE | re.MULTILINE)
+        text = re.sub(r'(\.asf)(?=[\s;,"\]\r\n]|$)', '.msf', text, flags=re.IGNORECASE | re.MULTILINE)
         if text != original:
             if not DRY_RUN:
                 with open(filepath, "w", encoding="utf-8", newline="\n") as f:
                     f.write(text)
             converted += 1
+    return converted
 
-    log(f"npcres: {converted} 个文件需要调整（引擎运行时自动重写 .mpc→.msf）")
+
+# Keep old name as alias for backward compat
+replace_mpc_with_asf_in_ini_dir = replace_mpc_with_msf_in_ini_dir
+
+
+def step_npcres(root: str):
+    log_step("npcres", "npcres/objres 格式调整 (.mpc→.msf 引用路径)")
+
+    converted = 0
+    for subdir in ["npcres", "objres"]:
+        d = os.path.join(root, "ini", subdir)
+        if os.path.isdir(d):
+            n = replace_mpc_with_msf_in_ini_dir(d)
+            converted += n
+            log(f"{subdir}: 更新 {n} 个文件 (.mpc→.msf)")
+        else:
+            log(f"未找到 ini/{subdir}/ 目录，跳过")
+
+    log(f"npcres/objres 合计更新 {converted} 个文件")
 
 
 # ============================================================
@@ -782,18 +1629,15 @@ def step_npcres(root: str):
 # ============================================================
 
 def step_goods(root: str):
-    log_step("goods", "goods 格式调整")
+    log_step("goods", "goods 格式调整 (.mpc→.msf)")
 
     goods_dir = os.path.join(root, "ini", "goods")
     if not os.path.isdir(goods_dir):
         log("未找到 ini/goods/ 目录，跳过")
         return
 
-    # Engine auto-rewrites .mpc→.msf at runtime, so no path changes needed.
-    # Note: sword2 goods lack EffectType= and Part= fields that xin has.
-    # The engine should be tolerant of missing optional fields.
-
-    log("goods: 引擎运行时自动重写 .mpc→.msf，无需修改路径引用")
+    n = replace_mpc_with_msf_in_ini_dir(goods_dir)
+    log(f"goods: 更新 {n} 个文件 (.mpc→.msf)")
 
 
 # ============================================================
@@ -801,15 +1645,15 @@ def step_goods(root: str):
 # ============================================================
 
 def step_magic(root: str):
-    log_step("magic", "magic 格式调整")
+    log_step("magic", "magic 格式调整 (.mpc→.msf)")
 
     magic_dir = os.path.join(root, "ini", "magic")
     if not os.path.isdir(magic_dir):
         log("未找到 ini/magic/ 目录，跳过")
         return
 
-    # Engine auto-rewrites .mpc→.msf, so magic Image=/Icon= .mpc refs are fine.
-    log("magic: 引擎运行时自动重写 .mpc→.msf，无需修改路径引用")
+    n = replace_mpc_with_msf_in_ini_dir(magic_dir)
+    log(f"magic: 更新 {n} 个文件 (.mpc→.msf)")
 
 
 # ============================================================
@@ -919,25 +1763,25 @@ def step_misc(root: str):
     # 1. Generate MapName.ini from script/map/ folder names
     script_map_dir = os.path.join(root, "script", "map")
     if os.path.isdir(script_map_dir):
-        map_names = sorted(os.listdir(script_map_dir))
         mapname_lines = ["[MapName]"]
         # Find corresponding .map files
         map_dir = os.path.join(root, "map")
+        map_files = []
         if os.path.isdir(map_dir):
             map_files = [f for f in os.listdir(map_dir)
                         if f.lower().endswith((".map", ".mmf"))]
             for mf in sorted(map_files):
                 base = os.path.splitext(mf)[0]
-                # Use the map filename as display name (sword2 maps use Chinese names)
                 mapname_lines.append(f"{base}={base}")
 
         ini_map_dir = os.path.join(root, "ini", "map")
-        os.makedirs(ini_map_dir, exist_ok=True) if not DRY_RUN else None
+        if not DRY_RUN:
+            os.makedirs(ini_map_dir, exist_ok=True)
         mapname_path = os.path.join(ini_map_dir, "MapName.ini")
         if not os.path.exists(mapname_path):
             write_file(mapname_path, "\n".join(mapname_lines) + "\n")
             stats.files_created += 1
-            log(f"生成 MapName.ini ({len(map_files) if os.path.isdir(map_dir) else 0} 个地图)")
+            log(f"生成 MapName.ini ({len(map_files)} 个地图)")
 
     # 2. Create empty Rain.ini if not present
     rain_path = os.path.join(root, "ini", "map", "Rain.ini")
@@ -946,42 +1790,103 @@ def step_misc(root: str):
         stats.files_created += 1
         log("生成空 Rain.ini")
 
-    # 3. Create asf/ directory structure mirroring mpc/ for the converter output
+    # 3. Create Content/ directory (for TalkIndex.txt, fonts, music, sound, video)
+    content_dir = os.path.join(root, "Content")
+    if not DRY_RUN:
+        os.makedirs(content_dir, exist_ok=True)
+
+    # 3b. Generate Content/ui/ui_settings.ini (always regenerate from ini/ui/ source)
+    ui_dir = os.path.join(content_dir, "ui")
+    if not DRY_RUN:
+        os.makedirs(ui_dir, exist_ok=True)
+    ui_settings_path = os.path.join(ui_dir, "ui_settings.ini")
+    if not DRY_RUN:
+        write_file(ui_settings_path, build_sword2_ui_settings(root))
+    stats.files_created += 1
+    log("生成 Content/ui/ui_settings.ini (从 ini/ui/ 真实文件读取)")
+
+    # 4. Move font/, music/, sound/, video/ into Content/ (matches resources-xin structure)
+    for dirname in ["font", "music", "sound", "video"]:
+        src_dir = os.path.join(root, dirname)
+        dst_dir = os.path.join(content_dir, dirname)
+        if os.path.isdir(src_dir):
+            if not os.path.exists(dst_dir):
+                log(f"移动 {dirname}/ → Content/{dirname}/")
+                if not DRY_RUN:
+                    shutil.move(src_dir, dst_dir)
+                stats.files_renamed += 1
+            else:
+                log(f"Content/{dirname}/ 已存在，合并 {dirname}/")
+                if not DRY_RUN:
+                    for dirpath, _, filenames in os.walk(src_dir):
+                        rel = os.path.relpath(dirpath, src_dir)
+                        dstd = os.path.join(dst_dir, rel)
+                        os.makedirs(dstd, exist_ok=True)
+                        for fn in filenames:
+                            sf = os.path.join(dirpath, fn)
+                            df = os.path.join(dstd, fn)
+                            if not os.path.exists(df):
+                                shutil.move(sf, df)
+                    shutil.rmtree(src_dir, ignore_errors=True)
+
+    # 5. Remove snap/ and net/ — not part of xin resource format
+    for dirname in ["snap", "net"]:
+        dir_path = os.path.join(root, dirname)
+        if os.path.isdir(dir_path):
+            log(f"删除 {dirname}/ (xin 格式不需要)")
+            if not DRY_RUN:
+                shutil.rmtree(dir_path)
+
+    # 6. Create asf/ directory structure recursively mirroring mpc/
     mpc_dir = os.path.join(root, "mpc")
     asf_dir = os.path.join(root, "asf")
-    if os.path.isdir(mpc_dir) and not DRY_RUN:
-        for subdir in os.listdir(mpc_dir):
-            src_sub = os.path.join(mpc_dir, subdir)
-            if os.path.isdir(src_sub):
-                dst_sub = os.path.join(asf_dir, subdir)
-                os.makedirs(dst_sub, exist_ok=True)
-        log(f"创建 asf/ 目录结构")
+    if os.path.isdir(mpc_dir):
+        created_asf = 0
+        for dirpath, dirnames, _ in os.walk(mpc_dir):
+            for d in dirnames:
+                rel = os.path.relpath(os.path.join(dirpath, d), mpc_dir)
+                dst_sub = os.path.join(asf_dir, rel)
+                if not os.path.isdir(dst_sub):
+                    if not DRY_RUN:
+                        os.makedirs(dst_sub, exist_ok=True)
+                    created_asf += 1
+        log(f"创建 asf/ 目录结构（递归，新建 {created_asf} 个子目录）")
 
-    # 4. Create ini/save/ directory for default save templates if missing
+    # 7. Create map/bmp/ directory (matches resources-xin structure)
+    map_bmp_dir = os.path.join(root, "map", "bmp")
+    if not os.path.isdir(map_bmp_dir):
+        if not DRY_RUN:
+            os.makedirs(map_bmp_dir, exist_ok=True)
+        log("创建 map/bmp/ 目录")
+
+    # 8. Create ini/save/ directory for default save templates
     ini_save_dir = os.path.join(root, "ini", "save")
-    if not os.path.isdir(ini_save_dir) and not DRY_RUN:
-        os.makedirs(ini_save_dir, exist_ok=True)
+    if not os.path.isdir(ini_save_dir):
+        if not DRY_RUN:
+            os.makedirs(ini_save_dir, exist_ok=True)
         log("创建 ini/save/ 目录")
 
-    # 5. Create Content/ directory if not present (for TalkIndex.txt etc.)
-    content_dir = os.path.join(root, "Content")
-    if not os.path.isdir(content_dir) and not DRY_RUN:
-        os.makedirs(content_dir, exist_ok=True)
-        log("创建 Content/ 目录")
+    # 9. Replace .mpc refs in ini/ui/ and ini/未找到的/ directories
+    for subdir in ["ui", "未找到的"]:
+        d = os.path.join(root, "ini", subdir)
+        if os.path.isdir(d):
+            # ui/ has subdirs (buysell/, dialog/, title/, etc.), so recurse
+            use_recursive = (subdir == "ui")
+            n = replace_mpc_with_msf_in_ini_dir(d, recursive=use_recursive)
+            log(f"ini/{subdir}: 更新 {n} 个文件 (.mpc/.asf→.msf)")
 
-    # 6. Ensure ini/level/ has placeholders for missing files
+    # 10. Ensure ini/level/ has placeholders for missing files
     level_dir = os.path.join(root, "ini", "level")
     if os.path.isdir(level_dir):
         # Check for level-npc.ini (xin has this, sword2 doesn't)
         npc_level_path = os.path.join(level_dir, "level-npc.ini")
         if not os.path.exists(npc_level_path):
-            # Generate a basic NPC level table (60 levels matching sword2)
             lines = ["; NPC 等级经验表 (auto-generated for sword2 compatibility)"]
             lines.append("[INIT]")
             lines.append("Count=60")
             for i in range(1, 61):
                 lines.append(f"[{i}]")
-                exp = i * i * 100  # Simple quadratic curve
+                exp = i * i * 100
                 lines.append(f"LevelUpExp={exp}")
             write_file(npc_level_path, "\n".join(lines) + "\n")
             stats.files_created += 1
@@ -1007,6 +1912,327 @@ def step_misc(root: str):
 
 
 # ============================================================
+# Step 12b: Convert AVI videos → WebM (requires ffmpeg)
+# ============================================================
+
+def step_convert_video(root: str):
+    """
+    将 Content/video/*.avi 转换为 .webm（VP9+Opus），供 Web 播放器使用。
+    VideoPlayer.tsx 会自动把 .avi 扩展名替换为 .webm 再加载。
+    需要系统已安装 ffmpeg。
+    """
+    import shutil as _shutil
+    log_step("convert_video", "AVI → WebM 视频转换")
+
+    # Check ffmpeg availability
+    if not _shutil.which("ffmpeg"):
+        log("⚠️  未找到 ffmpeg，跳过视频转换。安装后重跑: sudo apt install ffmpeg")
+        return
+
+    video_dir = os.path.join(root, "Content", "video")
+    if not os.path.isdir(video_dir):
+        log(f"Content/video/ 不存在，跳过")
+        return
+
+    avi_files = [f for f in os.listdir(video_dir) if f.lower().endswith(".avi")]
+    if not avi_files:
+        log("Content/video/ 中没有 .avi 文件，跳过")
+        return
+
+    import multiprocessing as _mp
+    from concurrent.futures import ThreadPoolExecutor as _TPE
+
+    # Each ffmpeg process is already a subprocess; using threads here lets N
+    # files encode in parallel while also giving each ffmpeg all CPU threads.
+    n_jobs = max(1, _mp.cpu_count() // 2)  # half CPU count per process
+    n_parallel = 2                           # 2 files at a time
+
+    to_convert = []
+    skipped = 0
+    for avi_name in sorted(avi_files):
+        base = os.path.splitext(avi_name)[0]
+        src_path = os.path.join(video_dir, avi_name)
+        dst_path = os.path.join(video_dir, base + ".webm")
+        if os.path.exists(dst_path):
+            log(f"  跳过 {avi_name} (已有 {base}.webm)")
+            skipped += 1
+        else:
+            to_convert.append((avi_name, src_path, dst_path))
+
+    converted = 0
+    errors = 0
+
+    def _convert_one(args):
+        avi_name, src_path, dst_path = args
+        log(f"  转换 {avi_name} → {os.path.basename(dst_path)} ...")
+        if DRY_RUN:
+            return True
+        cmd = [
+            "ffmpeg", "-y", "-i", src_path,
+            "-c:v", "libvpx-vp9",
+            "-crf", "33", "-b:v", "0",
+            "-row-mt", "1",             # VP9 行并行，大幅加速
+            "-threads", str(n_jobs),    # 每个 ffmpeg 用 n_jobs 线程
+            "-c:a", "libopus", "-b:a", "96k",
+            "-deadline", "good", "-cpu-used", "4",  # 0=最优质/最慢, 8=最快
+            dst_path,
+        ]
+        try:
+            subprocess.run(cmd, check=True,
+                           stdout=subprocess.DEVNULL,
+                           stderr=subprocess.DEVNULL)
+            return True
+        except subprocess.CalledProcessError:
+            log(f"  ❌ 转换失败: {avi_name}")
+            return False
+
+    if to_convert and not DRY_RUN:
+        with _TPE(max_workers=n_parallel) as pool:
+            results = list(pool.map(_convert_one, to_convert))
+        converted = sum(1 for r in results if r)
+        errors = sum(1 for r in results if not r)
+        stats.files_created += converted
+    elif to_convert:
+        converted = len(to_convert)
+
+    log(f"  完成: {converted} 个转换, {skipped} 个已存在跳过" +
+        (f", {errors} 个失败" if errors else ""))
+
+
+# ============================================================
+# Step 13: Create msf/map/{mapName}/ per-map tile directories
+# ============================================================
+
+def step_map_tiles(root: str):
+    """
+    引擎加载地图 tile 时从 msf/map/{mapName}/ 读取 (map-renderer.ts 第 153 行)。
+    Sword2 的 tile 包名与地图名不同 (e.g., 临安城 → 长安 tile 包)，
+    所以需要为每张地图建立独立目录，从对应 tile 包复制 .msf 文件。
+    """
+    log_step("map_tiles", "创建 msf/map/{mapName}/ per-map tile 目录")
+
+    map_dir = os.path.join(root, "map")
+    msf_map_root = os.path.join(root, "msf", "map")
+    mpc_map_root = os.path.join(root, "mpc", "map")
+
+    if not os.path.isdir(map_dir):
+        log("未找到 map/ 目录，跳过")
+        return
+    if not os.path.isdir(mpc_map_root):
+        log("未找到 mpc/map/ 目录（Rust 尚未运行？），跳过")
+        return
+
+    if not DRY_RUN:
+        os.makedirs(msf_map_root, exist_ok=True)
+
+    total_maps = 0
+    total_tiles = 0
+    warnings = []
+
+    for fn in sorted(os.listdir(map_dir)):
+        if not fn.lower().endswith(".map"):
+            continue
+        map_name = os.path.splitext(fn)[0]
+        map_path = os.path.join(map_dir, fn)
+
+        # Read tile pack folder name from offset 0x20 (32 bytes, GBK, null-terminated)
+        try:
+            with open(map_path, "rb") as f:
+                f.seek(0x20)
+                tile_bytes = f.read(32)
+        except OSError as e:
+            warnings.append(f"{map_name}: 读取 .map 失败 ({e})")
+            continue
+
+        null_pos = tile_bytes.find(b"\x00")
+        if null_pos >= 0:
+            tile_bytes = tile_bytes[:null_pos]
+
+        dst_map_dir = os.path.join(msf_map_root, map_name)
+        if not DRY_RUN:
+            os.makedirs(dst_map_dir, exist_ok=True)
+
+        if not tile_bytes:
+            # Map has no tile pack (e.g., 沙漠之战, 龙门客栈-长安)
+            log(f"  {map_name}: 无 tile 包 (空目录)")
+            total_maps += 1
+            continue
+
+        try:
+            tile_path_raw = tile_bytes.decode("gbk", errors="replace")
+        except Exception:
+            warnings.append(f"{map_name}: GBK 解码失败")
+            continue
+
+        # Extract last path component (e.g., "\\mpc\\map\\长安" or "\\mpc\\map\\狂沙镇\\" → "狂沙镇")
+        pack_name = tile_path_raw.replace("\\\\", "/").replace("\\", "/").rstrip("/").split("/")[-1].strip()
+        if not pack_name:
+            log(f"  {map_name}: tile 包路径解析失败 (raw={tile_path_raw!r})")
+            total_maps += 1
+            continue
+
+        src_pack_dir = os.path.join(mpc_map_root, pack_name)
+        if not os.path.isdir(src_pack_dir):
+            warnings.append(f"{map_name}: tile 包目录不存在 mpc/map/{pack_name}")
+            total_maps += 1
+            continue
+
+        # Copy all .msf tiles from mpc/map/{packName}/ → msf/map/{mapName}/
+        copied = 0
+        for tile_fn in os.listdir(src_pack_dir):
+            if not tile_fn.lower().endswith(".msf"):
+                continue
+            src_file = os.path.join(src_pack_dir, tile_fn)
+            dst_file = os.path.join(dst_map_dir, tile_fn)
+            if not DRY_RUN and not os.path.exists(dst_file):
+                shutil.copy2(src_file, dst_file)
+            copied += 1
+
+        pack_note = "" if pack_name == map_name else f" ← mpc/map/{pack_name}"
+        log(f"  {map_name}{pack_note}: {copied} MSF tiles")
+        total_maps += 1
+        total_tiles += copied
+
+    for w in warnings:
+        log(f"  ⚠ {w}")
+
+    log(f"map_tiles 完成: {total_maps} 张地图, {total_tiles} 个 tile 文件")
+    stats.files_copied += total_tiles
+
+
+# ============================================================
+# Step 14: Delete all residual .mpc files
+# ============================================================
+
+def step_cleanup_mpc(root: str):
+    """
+    删除转换目录下所有剩余的 .mpc / .shd 原始文件。
+    .mpc 转换后均已变成 .msf。
+    .shd 阴影数据已在 Rust 转换时合并进 .msf 的 RGBA 层，不再需要保留。
+    """
+    log_step("cleanup_mpc", "删除所有剩余 .mpc / .shd 原始文件")
+
+    total_deleted = 0
+    total_bytes = 0
+
+    for dirpath, _, filenames in os.walk(root):
+        for fn in filenames:
+            if not (fn.lower().endswith(".mpc") or fn.lower().endswith(".shd")):
+                continue
+            fpath = os.path.join(dirpath, fn)
+            try:
+                fsize = os.path.getsize(fpath)
+                if not DRY_RUN:
+                    os.remove(fpath)
+                total_deleted += 1
+                total_bytes += fsize
+            except OSError as e:
+                stats.errors.append(f"删除失败 {fpath}: {e}")
+
+    size_mb = total_bytes / (1024 * 1024)
+    log(f"删除 {total_deleted} 个 .mpc/.shd 文件，释放 {size_mb:.1f} MB")
+    stats.files_renamed += total_deleted  # reuse counter for removals
+
+
+# ============================================================
+# Step 12: Move sprite MPC files from mpc/ to asf/
+# ============================================================
+
+def step_move_sprites(root: str):
+    log_step("move_sprites", f"移动剩余精灵文件 mpc/{{char,effect,...}} → asf/ (Rust 已输出 .msf)")
+
+    mpc_root = os.path.join(root, "mpc")
+    asf_root = os.path.join(root, "asf")
+
+    if not os.path.isdir(mpc_root):
+        log("未找到 mpc/ 目录，跳过")
+        return
+
+    total_moved = 0
+    total_dirs_removed = 0
+
+    for sprite_dir in MPC_SPRITE_DIRS:
+        src_dir = os.path.join(mpc_root, sprite_dir)
+        dst_dir = os.path.join(asf_root, sprite_dir)
+
+        if not os.path.isdir(src_dir):
+            continue
+
+        moved = 0
+        # Move ALL remaining files (.mpc, .shd — .msf is already in asf/ from Rust)
+        for dirpath, dirnames, filenames in os.walk(src_dir):
+            rel = os.path.relpath(dirpath, src_dir)
+            dst_subdir = os.path.join(dst_dir, rel) if rel != "." else dst_dir
+            if not DRY_RUN:
+                os.makedirs(dst_subdir, exist_ok=True)
+
+            for fn in filenames:
+                src_file = os.path.join(dirpath, fn)
+                dst_file = os.path.join(dst_subdir, fn)
+                # .shd shadow files are now merged into MSF RGBA — skip them entirely
+                if fn.lower().endswith(".shd"):
+                    if not DRY_RUN:
+                        os.remove(src_file)
+                    moved += 1
+                    continue
+                # Don't overwrite .msf files that Rust already wrote
+                if fn.lower().endswith(".msf") and os.path.exists(dst_file):
+                    if not DRY_RUN:
+                        os.remove(src_file)  # Remove the duplicate in mpc/
+                    moved += 1
+                    continue
+                if not DRY_RUN:
+                    if os.path.exists(dst_file):
+                        os.remove(dst_file)
+                    shutil.move(src_file, dst_file)
+                moved += 1
+
+        log(f"  mpc/{sprite_dir}/ → asf/{sprite_dir}/  ({moved} 个文件)")
+        total_moved += moved
+
+        # Remove now-empty source dir
+        if not DRY_RUN and os.path.isdir(src_dir):
+            shutil.rmtree(src_dir)
+            total_dirs_removed += 1
+
+    log(f"移动完成: {total_moved} 个文件, 删除 {total_dirs_removed} 个 mpc/ 子目录")
+    stats.files_renamed += total_moved
+
+
+def step_lowercase_asf(root: str):
+    """递归将 asf/ 目录下所有文件名转为小写。
+
+    Rust 转换器输出的 MSF 文件保留了原始 MPC 的 PascalCase 文件名
+    (如 InitBtn.msf, BtnYes.msf)，但 ui_settings.ini 中引用的路径
+    为小写。Linux 文件系统区分大小写，所以必须统一。
+
+    可单独运行: python3 scripts/convert-sword2.py --steps lowercase_asf
+    """
+    log_step("lowercase_asf", "asf/ 目录下所有文件名转小写")
+
+    asf_dir = os.path.join(root, "asf")
+    if not os.path.isdir(asf_dir):
+        log("asf/ 目录不存在，跳过")
+        return
+
+    renamed = 0
+    for dirpath, _dirnames, filenames in os.walk(asf_dir):
+        for fn in filenames:
+            if fn != fn.lower():
+                src = os.path.join(dirpath, fn)
+                dst = os.path.join(dirpath, fn.lower())
+                if os.path.exists(dst) and src != dst:
+                    log(f"警告: {dst} 已存在，跳过 {fn}")
+                    continue
+                if not DRY_RUN:
+                    os.rename(src, dst)
+                renamed += 1
+
+    log(f"重命名 {renamed} 个文件为小写")
+    stats.files_renamed += renamed
+
+
+# ============================================================
 # Main
 # ============================================================
 
@@ -1026,6 +2252,10 @@ def main():
                        help=f"源目录 (默认: {DEFAULT_SRC})")
     parser.add_argument("--dst", type=str, default=DEFAULT_DST,
                        help=f"目标目录 (默认: {DEFAULT_DST})")
+    parser.add_argument("--no-rust", action="store_true",
+                       help="跳过 Rust 转换器 (仅执行 Python 步骤)")
+    parser.add_argument("--delete-originals", action="store_true",
+                       help="转换后删除原始 .asf/.mpc/.map/.wmv/.wma 文件 (传递给 Rust 转换器)")
 
     args = parser.parse_args()
     DRY_RUN = args.dry_run
@@ -1059,7 +2289,11 @@ def main():
     # In dry-run mode, if dst doesn't exist yet, use src for reading
     work_dir = dst if os.path.isdir(dst) else src
 
-    for step in steps:
+    # move_sprites runs AFTER Rust (post-Rust step); skip it in the normal loop
+    POST_RUST_STEPS = {"move_sprites", "map_tiles", "cleanup_mpc", "lowercase_asf"}
+    pre_rust_steps = [s for s in steps if s not in POST_RUST_STEPS]
+
+    for step in pre_rust_steps:
         if step == "copy":
             step_copy(src, dst)
             # After copy, work_dir should be dst if it now exists
@@ -1088,20 +2322,61 @@ def main():
             step_save(work_dir)
         elif step == "misc":
             step_misc(work_dir)
+        elif step == "convert_video":
+            step_convert_video(work_dir)
+        # move_sprites is handled post-Rust (see below)
 
     stats.summary()
 
     if DRY_RUN:
         print("\n⚠️  这是 DRY-RUN 模式，没有实际修改任何文件。")
         print("    去掉 --dry-run 参数以执行实际转换。")
+        return
 
-    print(f"\n后续步骤:")
-    print(f"  1. 运行 Rust 转换器处理二进制文件:")
-    print(f"     cargo run --release --bin convert-all -- {dst}")
-    print(f"  2. 检查 {dst}/Content/TalkIndex.txt 中的对话数据")
-    print(f"  3. 检查 {dst}/Content/talk-section-mapping.txt 中的段落映射")
-    print(f"  4. 检查 {dst}/ini/ui/dialog/HeadFile.ini 中的头像映射")
-    print(f"  5. 检查 {dst}/ini/ui/dialog/portrait-mapping.txt 中的头像对照表")
+    # Run Rust converter for binary format conversion (ASF→MSF, MPC→MSF, MAP→MMF, WMV→WebM, WMA→OGG)
+    if not args.no_rust:
+        converter_dir = os.path.join(workspace, "packages", "converter")
+        if not os.path.isdir(converter_dir):
+            print(f"\n⚠️  未找到 Rust 转换器目录: {converter_dir}")
+            print(f"   请手动运行: cd {converter_dir} && cargo run --release --bin convert-all -- {work_dir}")
+        else:
+            print(f"\n{'='*60}")
+            print(f"运行 Rust 转换器 (二进制格式 + 编码转换)")
+            print(f"{'='*60}")
+            cmd = ["cargo", "run", "--release", "--bin", "convert-all", "--", work_dir]
+            if args.delete_originals:
+                cmd.append("--delete-originals")
+            print(f"命令: {' '.join(cmd)}")
+            print(f"目录: {converter_dir}")
+            try:
+                result = subprocess.run(cmd, cwd=converter_dir, check=True)
+                print(f"\n✅ Rust 转换器运行成功")
+            except subprocess.CalledProcessError as e:
+                print(f"\n❌ Rust 转换器失败 (退出码 {e.returncode})")
+                sys.exit(e.returncode)
+            except FileNotFoundError:
+                print(f"\n❌ 未找到 cargo 命令，请安装 Rust: https://rustup.rs")
+                sys.exit(1)
+    else:
+        print(f"\n后续步骤 (--no-rust 已跳过 Rust 转换器):")
+        print(f"  cd packages/converter && cargo run --release --bin convert-all -- {work_dir}")
+
+    # Post-Rust steps (need .msf files to already exist)
+    if not DRY_RUN:
+        if "move_sprites" in steps:
+            step_move_sprites(work_dir)
+        if "map_tiles" in steps:
+            step_map_tiles(work_dir)
+        if "cleanup_mpc" in steps:
+            step_cleanup_mpc(work_dir)
+        if "lowercase_asf" in steps:
+            step_lowercase_asf(work_dir)
+
+    print(f"\n检查文件:")
+    print(f"  {work_dir}/Content/TalkIndex.txt")
+    print(f"  {work_dir}/Content/talk-section-mapping.txt")
+    print(f"  {work_dir}/ini/ui/dialog/HeadFile.ini")
+    print(f"  {work_dir}/msf/map/  (per-map tile dirs)")
 
 
 if __name__ == "__main__":

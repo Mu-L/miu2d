@@ -335,7 +335,7 @@ export const MagicTooltip: React.FC<MagicTooltipProps> = ({
           <ProgressBar
             value={magic.currentLevelExp}
             max={magic.levelUpExp}
-            color={modernColors.primary}
+            color="linear-gradient(90deg, #9B59B6, #4A90D9)"
             height={6}
             showText={false}
           />

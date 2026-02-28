@@ -14,7 +14,7 @@ function solidColor(c: UiColorRGBA): string {
 import type { MagicItemInfo } from "@miu2d/engine/magic";
 import type React from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useToolTipType2Config, useToolTipUseTypeConfig } from "./useUISettings";
+import { useToolTipType1Config, useToolTipType2Config, useToolTipUseTypeConfig } from "./useUISettings";
 import { useAsfAnimation, useAsfImage } from "./hooks";
 
 interface MagicTooltipProps {
@@ -26,7 +26,8 @@ interface MagicTooltipProps {
 // ============= Type1 Magic Tooltip (image-based, tipbox.asf) =============
 
 const MagicTooltipType1: React.FC<MagicTooltipProps> = ({ magicInfo, position, isVisible }) => {
-  const bgImage = useAsfImage("asf/ui/common/tipbox.asf", 0);
+  const cfg = useToolTipType1Config();
+  const bgImage = useAsfImage(cfg.image, 0);
   const [bgSize, setBgSize] = useState({ width: 265, height: 270 });
 
   useEffect(() => {
@@ -91,14 +92,14 @@ const MagicTooltipType1: React.FC<MagicTooltipProps> = ({ magicInfo, position, i
         />
       )}
 
-      {/* Magic Image - config: Left=132, Top=47, Width=60, Height=75 */}
+      {/* Magic Image */}
       <div
         style={{
           position: "absolute",
-          left: 132,
-          top: 47,
-          width: 60,
-          height: 75,
+          left: cfg.itemImage.left,
+          top: cfg.itemImage.top,
+          width: cfg.itemImage.width,
+          height: cfg.itemImage.height,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -109,8 +110,8 @@ const MagicTooltipType1: React.FC<MagicTooltipProps> = ({ magicInfo, position, i
             src={magicImage.dataUrl}
             alt={name}
             style={{
-              maxWidth: 60,
-              maxHeight: 75,
+              maxWidth: cfg.itemImage.width,
+              maxHeight: cfg.itemImage.height,
               imageRendering: "pixelated",
             }}
           />
@@ -130,15 +131,15 @@ const MagicTooltipType1: React.FC<MagicTooltipProps> = ({ magicInfo, position, i
         )}
       </div>
 
-      {/* Magic Name - config: Left=67, Top=191, Color=102,73,212,204 (purple) */}
+      {/* Magic Name */}
       <div
         style={{
           position: "absolute",
-          left: 67,
-          top: 191,
-          width: 90,
-          height: 20,
-          color: "rgb(102, 73, 212)",
+          left: cfg.name.left,
+          top: cfg.name.top,
+          width: cfg.name.width,
+          height: cfg.name.height,
+          color: cfg.name.color,
           fontSize: 12,
           fontFamily: "SimSun, serif",
           whiteSpace: "nowrap",
@@ -148,15 +149,15 @@ const MagicTooltipType1: React.FC<MagicTooltipProps> = ({ magicInfo, position, i
         {name}
       </div>
 
-      {/* Level - config: Left=160, Top=191, Color=91,31,27,204 (dark red) */}
+      {/* Level */}
       <div
         style={{
           position: "absolute",
-          left: 160,
-          top: 191,
-          width: 88,
-          height: 20,
-          color: "rgb(91, 31, 27)",
+          left: cfg.priceOrLevel.left,
+          top: cfg.priceOrLevel.top,
+          width: cfg.priceOrLevel.width,
+          height: cfg.priceOrLevel.height,
+          color: cfg.priceOrLevel.color,
           fontSize: 12,
           fontFamily: "SimSun, serif",
           whiteSpace: "nowrap",
@@ -169,11 +170,11 @@ const MagicTooltipType1: React.FC<MagicTooltipProps> = ({ magicInfo, position, i
       <div
         style={{
           position: "absolute",
-          left: 67,
-          top: 210,
-          width: 196,
-          height: 120,
-          color: "rgb(52, 21, 14)",
+          left: cfg.magicIntro.left,
+          top: cfg.magicIntro.top,
+          width: cfg.magicIntro.width,
+          height: cfg.magicIntro.height,
+          color: cfg.magicIntro.color,
           fontSize: 12,
           fontFamily: "SimSun, serif",
           lineHeight: 1.3,

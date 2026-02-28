@@ -82,7 +82,14 @@ export function createEngineUIBridge(
       assignMagicToBottom: (src, slot) => callbacks.handleMagicDrop(src, slot),
       swapBottomSlots: (fromSlot, toSlot) => gm.magicInventory.swapBottomSlots(fromSlot, toSlot),
       clearBottomSlot: (slot) => gm.magicInventory.assignMagicToBottomSlot(0, slot),
-      setXiuLianMagic: (i) => gm.magicInventory.exchangeListItem(i, MAGIC_LIST_CONFIG.xiuLianIndex),
+      setXiuLianMagic: (i) => {
+        if (i === 0) {
+          // 清除修炼武功属性，不移动数据（底栏可能仍引用 xiuLianIndex）
+          gm.magicInventory.setXiuLianMagic(null);
+        } else {
+          gm.magicInventory.exchangeListItem(i, MAGIC_LIST_CONFIG.xiuLianIndex);
+        }
+      },
     },
     shop: {
       buyItem: (i) => gm.handleBuyItem(i),

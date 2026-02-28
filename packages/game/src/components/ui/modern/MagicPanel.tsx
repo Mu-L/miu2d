@@ -4,6 +4,7 @@
  */
 
 import type { MagicItemInfo } from "@miu2d/engine/magic";
+import { MAGIC_LIST_CONFIG } from "@miu2d/engine/player/magic/magic-list-config";
 import type React from "react";
 import { useCallback, useMemo, useState } from "react";
 import type { TouchDragData } from "../../../contexts";
@@ -41,9 +42,11 @@ interface MagicSlotProps {
   magic: MagicItem | null;
   magicInfo?: MagicItemInfo | null;
   storeIndex: number;
+  isDragging?: boolean;
   onClick?: () => void;
   onRightClick?: () => void;
   onDragStart?: () => void;
+  onDragEnd?: () => void;
   onDrop?: () => void;
   onMouseEnter?: (e: React.MouseEvent) => void;
   onMouseMove?: (e: React.MouseEvent) => void;
@@ -130,16 +133,18 @@ const SectionTitle: React.FC<{ title: string }> = ({ title }) => (
 const MagicSlot: React.FC<MagicSlotProps> = ({
   magic,
   magicInfo,
+  isDragging,
   onClick,
   onRightClick,
   onDragStart,
+  onDragEnd,
   onDrop,
   onMouseEnter,
   onMouseMove,
   onMouseLeave,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
-  const iconPath = magicInfo?.magic?.image ?? magic?.iconPath ?? null;
+  const iconPath = magicInfo?.magic?.icon ?? magicInfo?.magic?.image ?? magic?.iconPath ?? null;
   const displayName = magicInfo?.magic?.name ?? magic?.name ?? "";
   const level = magicInfo?.level ?? magic?.level ?? 0;
   const hasMagic = !!(magicInfo?.magic || magic);
@@ -156,6 +161,7 @@ const MagicSlot: React.FC<MagicSlotProps> = ({
         cursor: hasMagic ? "grab" : "default",
         transition: transitions.fast,
         transform: isHovered && hasMagic ? "scale(1.08)" : "scale(1)",
+        opacity: isDragging ? 0.5 : 1,
       }}
       onClick={hasMagic ? onClick : undefined}
       onContextMenu={(e) => {
@@ -180,6 +186,9 @@ const MagicSlot: React.FC<MagicSlotProps> = ({
           e.dataTransfer.effectAllowed = "move";
           onDragStart?.();
         }
+      }}
+      onDragEnd={() => {
+        onDragEnd?.();
       }}
       onDragOver={(e) => {
         e.preventDefault();
@@ -227,32 +236,6 @@ const MagicSlot: React.FC<MagicSlotProps> = ({
         {/* 武功图标：占位符在底层，ASF 动画覆盖在上层 */}
         {hasMagic && (
           <>
-            {/* 文字占位符（当图标不存在时显示） */}
-            {!iconPath && (
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 16,
-                    fontWeight: 700,
-                    color: "rgba(255,255,255,0.9)",
-                    textShadow: "0 1px 4px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.4)",
-                    textAlign: "center",
-                    lineHeight: 1.1,
-                    letterSpacing: 1,
-                  }}
-                >
-                  {displayName.slice(0, 2)}
-                </span>
-              </div>
-            )}
             {/* ASF 动画图标 */}
             {iconPath && (
               <AsfAnimatedSprite
@@ -338,6 +321,7 @@ export const MagicPanel: React.FC<MagicPanelProps> = ({
   onTouchDrop,
 }) => {
   const [scrollOffset, setScrollOffset] = useState(0);
+  const [localDragIndex, setLocalDragIndex] = useState<number | null>(null);
   const panelWidth = 280;
 
   // 位置: 屏幕中央偏右
@@ -345,7 +329,7 @@ export const MagicPanel: React.FC<MagicPanelProps> = ({
     () => ({
       position: "absolute",
       left: screenWidth / 2 + 20,
-      top: 30,
+      top: 46,
       width: panelWidth,
       maxHeight: "calc(100vh - 120px)",
       display: "flex",
@@ -376,7 +360,7 @@ export const MagicPanel: React.FC<MagicPanelProps> = ({
       magicInfo: MagicItemInfo | null;
       storeIndex: number;
     }> = [];
-    for (let i = 0; i < 36; i++) {
+    for (let i = 0; i < MAGIC_LIST_CONFIG.storeIndexEnd; i++) {
       const magic = magics?.[i] ?? null;
       const magicInfo = magicInfos?.[i] ?? null;
       result.push({ magic, magicInfo, storeIndex: i + 1 });
@@ -395,7 +379,10 @@ export const MagicPanel: React.FC<MagicPanelProps> = ({
   }, [allSlots]);
 
   // 最大滚动行数
-  const maxScrollRow = Math.max(0, Math.ceil(36 / cols) - Math.ceil(slotsPerPage / cols));
+  const maxScrollRow = Math.max(
+    0,
+    Math.ceil(MAGIC_LIST_CONFIG.storeIndexEnd / cols) - Math.ceil(slotsPerPage / cols)
+  );
 
   // 滚动处理
   const handleScroll = useCallback(
@@ -406,25 +393,34 @@ export const MagicPanel: React.FC<MagicPanelProps> = ({
     [maxScrollRow]
   );
 
+  // 镜像经典 MagicGui 的拖放逻辑
   const handleDragStart = useCallback(
     (storeIndex: number) => () => {
+      setLocalDragIndex(storeIndex);
       onDragStart?.({ type: "magic", storeIndex });
     },
     [onDragStart]
   );
 
+  const handleDragEnd = useCallback(() => {
+    setLocalDragIndex(null);
+    onDragEnd?.();
+  }, [onDragEnd]);
+
   const handleDrop = useCallback(
     (storeIndex: number) => () => {
-      // 优先处理从武功列表拖来的
-      if (dragData && dragData.storeIndex > 0) {
+      // 经典 MagicGui 逻辑：有 dragData 则传入，否则传 storeIndex:-1
+      // handleMagicDropOnStore 检查 source.storeIndex>0 → SWAP_MAGIC
+      // 否则检查 bottomMagicDragData → CLEAR_BOTTOM_SLOT
+      if (dragData) {
         onDrop?.(storeIndex, dragData);
+      } else {
+        onDrop?.(storeIndex, { type: "magic", storeIndex: -1 });
       }
-      // 处理从底部快捷栏拖来的
-      else if (bottomDragData && bottomDragData.listIndex > 0) {
-        onDrop?.(storeIndex, { type: "magic", storeIndex: bottomDragData.listIndex });
-      }
+      setLocalDragIndex(null);
+      onDragEnd?.();
     },
-    [dragData, bottomDragData, onDrop]
+    [dragData, onDrop, onDragEnd]
   );
 
   // 鼠标进入/移动时更新Tooltip位置（跟随鼠标）
@@ -568,9 +564,11 @@ export const MagicPanel: React.FC<MagicPanelProps> = ({
                     magic={item.magic}
                     magicInfo={item.magicInfo}
                     storeIndex={item.storeIndex}
+                    isDragging={localDragIndex === item.storeIndex}
                     onClick={() => onMagicClick?.(item.storeIndex)}
                     onRightClick={() => onMagicRightClick?.(item.storeIndex)}
                     onDragStart={handleDragStart(item.storeIndex)}
+                    onDragEnd={handleDragEnd}
                     onDrop={handleDrop(item.storeIndex)}
                     onMouseEnter={handleMouseEnter(item.magicInfo)}
                     onMouseMove={handleMouseMove(item.magicInfo)}

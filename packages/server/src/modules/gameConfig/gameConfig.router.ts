@@ -7,7 +7,7 @@ import {
   GetGameConfigInputSchema,
   UpdateGameConfigInputSchema,
 } from "@miu2d/types";
-import type { z } from "zod";
+import { z } from "zod";
 import type { Context } from "../../trpc/context";
 import { Ctx, Mutation, Query, Router, UseMiddlewares } from "../../trpc/decorators";
 import { requireUser } from "../../trpc/middlewares";
@@ -38,5 +38,25 @@ export class GameConfigRouter {
   @Mutation({ input: UpdateGameConfigInputSchema, output: GameConfigSchema })
   async update(input: z.infer<typeof UpdateGameConfigInputSchema>, @Ctx() ctx: Context) {
     return gameConfigService.update(input, ctx.userId!, ctx.language);
+  }
+
+  /**
+   * 仅更新 uiSettingsIni 字段（ImportAllModal 使用）
+   */
+  @UseMiddlewares(requireUser)
+  @Mutation({
+    input: z.object({ gameId: z.string(), content: z.string() }),
+    output: GameConfigSchema,
+  })
+  async setUiSettingsIni(
+    input: { gameId: string; content: string },
+    @Ctx() ctx: Context
+  ) {
+    return gameConfigService.patchUiSettingsIni(
+      input.gameId,
+      input.content,
+      ctx.userId!,
+      ctx.language
+    );
   }
 }

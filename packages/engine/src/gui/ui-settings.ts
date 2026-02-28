@@ -165,6 +165,12 @@ export interface TextConfig {
 
 export interface PanelConfig {
   image: string;
+  /** Optional decorative overlay rendered on top of the base panel image */
+  overlayImage?: string;
+  /** Horizontal offset of the overlay image within the panel (default 0) */
+  overlayLeft?: number;
+  /** Vertical offset of the overlay image within the panel (default 0) */
+  overlayTop?: number;
   leftAdjust: number;
   topAdjust: number;
   /** Optional explicit panel dimensions from ini (override image size) */
@@ -245,6 +251,7 @@ export interface GoodsGuiConfig {
   };
   items: { left: number; top: number; width: number; height: number }[];
   money: TextConfig;
+  goldIcon?: { left: number; top: number; width: number; height: number; image: string };
 }
 
 export interface MagicsGuiConfig {
@@ -327,8 +334,14 @@ function panelFrom(
   const rawWidth = parseInt2(s.Width, 0);
   const rawHeight = parseInt2(s.Height, 0);
   const rawAnchor = s.Anchor?.trim();
+  const rawOverlay = s.OverlayImage?.trim();
+  const rawOverlayLeft = parseInt2(s.OverlayLeft, 0);
+  const rawOverlayTop = parseInt2(s.OverlayTop, 0);
   return {
     image: normalizeImagePath(s.Image || defaults.image),
+    ...(rawOverlay ? { overlayImage: normalizeImagePath(rawOverlay) } : {}),
+    ...(rawOverlay && rawOverlayLeft !== 0 ? { overlayLeft: rawOverlayLeft } : {}),
+    ...(rawOverlay && rawOverlayTop !== 0 ? { overlayTop: rawOverlayTop } : {}),
     leftAdjust: parseInt2(s.LeftAdjust, defaults.leftAdjust ?? 0),
     topAdjust: parseInt2(s.TopAdjust, defaults.topAdjust ?? 0),
     ...(rawWidth > 0 ? { width: rawWidth } : {}),
@@ -597,6 +610,19 @@ export function parseGoodsGuiConfig(settings: Record<string, IniSection>): Goods
       height: 12,
       color: "rgba(255,255,255,0.8)",
     }),
+    ...(() => {
+      const gi = getSection(settings, "Goods_GoldIcon");
+      if (!gi.Image && !gi.Left) return {};
+      return {
+        goldIcon: {
+          left: parseInt2(gi.Left, 65),
+          top: parseInt2(gi.Top, 230),
+          width: parseInt2(gi.Width, 26),
+          height: parseInt2(gi.Height, 13),
+          image: normalizeImagePath(gi.Image || "asf/ui/goods/gold.asf"),
+        },
+      };
+    })(),
   };
 }
 
@@ -995,7 +1021,36 @@ export interface BottomSlotConfig {
 export interface BottomGuiConfig {
   panel: PanelConfig;
   items: BottomSlotConfig[];
+  buttons: ButtonConfig[];
 }
+
+/** Button section names under [Bottom] for sword2-style layout */
+const BOTTOM_BUTTON_SECTIONS = [
+  "Bottom_State_Btn",
+  "Bottom_Equip_Btn",
+  "Bottom_XiuLian_Btn",
+  "Bottom_Goods_Btn",
+  "Bottom_Magic_Btn",
+  "Bottom_Memo_Btn",
+  "Bottom_System_Btn",
+] as const;
+
+const BOTTOM_BUTTON_DEFAULTS: {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+  image: string;
+  sound: string;
+}[] = [
+  { left: 43, top: 4, width: 30, height: 30, image: "asf/ui/bottom/BtnState.asf", sound: "" },
+  { left: 7, top: 36, width: 30, height: 30, image: "asf/ui/bottom/BtnEquip.asf", sound: "" },
+  { left: 40, top: 36, width: 30, height: 30, image: "asf/ui/bottom/BtnXiuLian.asf", sound: "" },
+  { left: 500, top: 0, width: 30, height: 30, image: "asf/ui/bottom/BtnGoods.asf", sound: "" },
+  { left: 534, top: 0, width: 30, height: 30, image: "asf/ui/bottom/BtnMagic.asf", sound: "" },
+  { left: 493, top: 32, width: 30, height: 30, image: "asf/ui/bottom/BtnNotes.asf", sound: "" },
+  { left: 526, top: 33, width: 30, height: 30, image: "asf/ui/bottom/BtnOption.asf", sound: "" },
+];
 
 export function parseBottomGuiConfig(settings: Record<string, IniSection>): BottomGuiConfig {
   const bottomItems = getSection(settings, "Bottom_Items");
@@ -1019,12 +1074,18 @@ export function parseBottomGuiConfig(settings: Record<string, IniSection>): Bott
     height: parseInt2(bottomItems[`Item_Height_${i + 1}`], defaultSlots[i].height),
   }));
 
+  // Parse function buttons (sword2-style: buttons are part of the bottom bar)
+  const buttons = BOTTOM_BUTTON_SECTIONS.map((sec, i) =>
+    buttonFrom(getSection(settings, sec), BOTTOM_BUTTON_DEFAULTS[i])
+  );
+
   return {
     panel: panelFrom(getSection(settings, "Bottom"), {
       image: "asf/ui/bottom/window.asf",
       leftAdjust: 102,
     }),
     items,
+    buttons,
   };
 }
 
@@ -1173,6 +1234,47 @@ export function parseToolTipType2Config(settings: Record<string, IniSection>): T
     goodUserColor: parseIniColor(sec["GoodUserColor"] ?? "255,255,255,160"),
     goodPropertyColor: parseIniColor(sec["GoodPropertyColor"] ?? "255,255,255,160"),
     goodIntroColor: parseIniColor(sec["GoodIntroColor"] ?? "255,255,255,160"),
+  };
+}
+
+// ============= ToolTip Type1 Config =============
+// 图片背景式 tooltip（tipbox 图 + 内部文字/图标布局）
+// C# 参考: Engine/Gui/ToolTipGuiType1.cs
+
+export interface ToolTipType1Config {
+  /** 背景 tipbox 图路径 [ToolTip_Type1] Image */
+  image: string;
+  /** 武功/物品图标区域 [ToolTip_Type1_Item_Image] */
+  itemImage: { left: number; top: number; width: number; height: number };
+  /** 名称文字 [ToolTip_Type1_Item_Name] */
+  name: TextConfig;
+  /** 等级/价格文字 [ToolTip_Type1_Item_PriceOrLevel] */
+  priceOrLevel: TextConfig;
+  /** 物品效果文字 [ToolTip_Type1_Item_Effect] */
+  effect: TextConfig;
+  /** 武功简介 [ToolTip_Type1_Item_Magic_Intro] */
+  magicIntro: TextConfig;
+  /** 物品简介 [ToolTip_Type1_Item_Good_Intro] */
+  goodIntro: TextConfig;
+}
+
+export function parseToolTipType1Config(settings: Record<string, IniSection>): ToolTipType1Config {
+  const sec = getSection(settings, "ToolTip_Type1");
+  const imageSec = getSection(settings, "ToolTip_Type1_Item_Image");
+  const nameSec = getSection(settings, "ToolTip_Type1_Item_Name");
+  const priceOrLevelSec = getSection(settings, "ToolTip_Type1_Item_PriceOrLevel");
+  const effectSec = getSection(settings, "ToolTip_Type1_Item_Effect");
+  const magicIntroSec = getSection(settings, "ToolTip_Type1_Item_Magic_Intro");
+  const goodIntroSec = getSection(settings, "ToolTip_Type1_Item_Good_Intro");
+
+  return {
+    image: normalizeImagePath(sec.Image ?? "asf/ui/common/tipbox.asf"),
+    itemImage: rectFrom(imageSec, { left: 132, top: 47, width: 60, height: 75 }),
+    name: textFrom(nameSec, { left: 67, top: 191, width: 90, height: 20, color: "rgb(102,73,212)" }),
+    priceOrLevel: textFrom(priceOrLevelSec, { left: 160, top: 191, width: 88, height: 20, color: "rgb(91,31,27)" }),
+    effect: textFrom(effectSec, { left: 67, top: 210, width: 196, height: 40, color: "rgb(52,21,14)" }),
+    magicIntro: textFrom(magicIntroSec, { left: 67, top: 255, width: 196, height: 80, color: "rgb(52,21,14)" }),
+    goodIntro: textFrom(goodIntroSec, { left: 67, top: 255, width: 196, height: 80, color: "rgb(52,21,14)" }),
   };
 }
 

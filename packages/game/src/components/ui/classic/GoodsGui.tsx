@@ -76,7 +76,8 @@ const ItemSlot: React.FC<ItemSlotProps> = ({
   onTouchDragStart,
   onTouchDrop,
 }) => {
-  const itemImage = useAsfImage(item?.good?.imagePath ?? null, 0);
+  // Use small icon (iconPath = goods-xxx-xxxs.msf) for grid display; fall back to imagePath
+  const itemImage = useAsfImage((item?.good?.iconPath || item?.good?.imagePath) ?? null, 0);
   const { isMobile } = useDevice();
 
   // 触摸拖拽支持（仅移动端）
@@ -128,9 +129,12 @@ const ItemSlot: React.FC<ItemSlotProps> = ({
         height: config.height,
         cursor: item ? "grab" : "default",
         borderRadius: 2,
+        overflow: "hidden",
+        boxShadow: "inset 0 0 0 1px rgba(100,80,30,0.4)",
         touchAction: isMobile ? "none" : undefined,
       }}
       title={item?.good?.name || "空"}
+      draggable={!isMobile && !!item}
       onClick={onClick}
       onContextMenu={
         !isMobile
@@ -142,6 +146,7 @@ const ItemSlot: React.FC<ItemSlotProps> = ({
           : undefined
       }
       // PC 端拖放事件
+      onDragStart={!isMobile && !!item ? onDragStart : undefined}
       onDrop={!isMobile ? onDrop : undefined}
       onDragOver={!isMobile ? onDragOver : undefined}
       // PC 端鼠标事件
@@ -155,8 +160,7 @@ const ItemSlot: React.FC<ItemSlotProps> = ({
           <img
             src={itemImage.dataUrl}
             alt={item.good.name}
-            draggable={!isMobile}
-            onDragStart={!isMobile ? onDragStart : undefined}
+            draggable={false}
             style={{
               position: "absolute",
               left: (config.width - itemImage.width) / 2,
@@ -208,6 +212,10 @@ export const GoodsGui: React.FC<GoodsGuiProps> = ({
 
   // Load panel background
   const panelImage = useAsfImage(config?.panel.image || "asf/ui/common/panel3.asf");
+  // 装饰性叠加图（如 sword2 的 goods/dragbox.msf 格子边框）
+  const overlayImage = useAsfImage(config?.panel.overlayImage ?? "");
+  // 金币图标
+  const goldIconImage = useAsfImage(config?.goldIcon?.image ?? "");
 
   // Calculate panel position - Globals.WindowWidth / 2f + leftAdjust
   const panelStyle = useMemo(() => {
@@ -326,6 +334,24 @@ export const GoodsGui: React.FC<GoodsGuiProps> = ({
         />
       )}
 
+      {/* 装饰性叠加图（物品格子边框 dragbox） */}
+      {overlayImage.dataUrl && (
+        <img
+          src={overlayImage.dataUrl}
+          alt=""
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            width: overlayImage.width,
+            height: overlayImage.height,
+            imageRendering: "pixelated",
+            pointerEvents: "none",
+
+          }}
+        />
+      )}
+
       {/* Item slots */}
       {config.items.map((itemConfig, idx) => {
         const item = visibleItems[idx];
@@ -367,6 +393,23 @@ export const GoodsGui: React.FC<GoodsGuiProps> = ({
       >
         {money}
       </div>
+
+      {/* Gold icon */}
+      {config.goldIcon && goldIconImage.dataUrl && (
+        <img
+          src={goldIconImage.dataUrl}
+          alt=""
+          style={{
+            position: "absolute",
+            left: config.goldIcon.left,
+            top: config.goldIcon.top,
+            width: goldIconImage.width,
+            height: goldIconImage.height,
+            imageRendering: "pixelated",
+            pointerEvents: "none",
+          }}
+        />
+      )}
 
       {/* Scroll bar with ASF texture */}
       <ScrollBar

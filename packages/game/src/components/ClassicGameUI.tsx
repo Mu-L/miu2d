@@ -67,10 +67,12 @@ export const ClassicGameUI: React.FC<ClassicGameUIProps> = ({ logic, width, heig
   // 检测 State 和 Equip 是否共用同一背景图（整合模式，如 demo2）
   const stateGuiConfig = useStateGuiConfig();
   const equipGuiConfig = useEquipGuiConfig();
+  // 同一背景图 AND 同一叠加图才算整合模式（避免 sword2 中两者共用 panel.msf 但 overlayImage 不同被误判）
   const isStateIntegratedWithEquip =
     !!stateGuiConfig &&
     !!equipGuiConfig &&
-    stateGuiConfig.panel.image === equipGuiConfig.panel.image;
+    stateGuiConfig.panel.image === equipGuiConfig.panel.image &&
+    (stateGuiConfig.panel.overlayImage ?? "") === (equipGuiConfig.panel.overlayImage ?? "");
 
   const {
     engine,
@@ -352,47 +354,14 @@ export const ClassicGameUI: React.FC<ClassicGameUIProps> = ({ logic, width, heig
           }
         }}
         onGoodsLeave={handleMouseLeave}
+        onStateClick={() => togglePanel("state")}
+        onEquipClick={() => togglePanel("equip")}
+        onXiuLianClick={() => togglePanel("xiulian")}
+        onGoodsClick={() => togglePanel("goods")}
+        onMagicClick={() => togglePanel("magic")}
+        onMemoClick={() => togglePanel("memo")}
+        onSystemClick={() => togglePanel("system")}
       />
-
-      {/* Dialog */}
-      {dialog?.isVisible && (
-        <DialogUI
-          state={dialog}
-          screenWidth={width}
-          screenHeight={height}
-          onClose={() => dispatch({ type: "DIALOG_CLICK" })}
-          onSelectionMade={(sel) => {
-            dispatch({ type: "DIALOG_SELECT", selection: sel });
-          }}
-        />
-      )}
-
-      {/* Selection */}
-      {selection?.isVisible && (
-        <SelectionUI
-          state={{
-            ...selection,
-            options: selection.options.map((o) => ({ ...o })),
-          }}
-          screenWidth={width}
-          screenHeight={height}
-          onSelect={(index) => dispatch({ type: "SELECTION_CHOOSE", index })}
-        />
-      )}
-
-      {/* Multi-Selection */}
-      {multiSelection?.isVisible && (
-        <SelectionMultipleUI
-          state={{
-            ...multiSelection,
-            options: multiSelection.options.map((o) => ({ ...o })),
-            selectedIndices: [...multiSelection.selectedIndices],
-          }}
-          screenWidth={width}
-          screenHeight={height}
-          onToggleSelection={(index) => dispatch({ type: "MULTI_SELECTION_TOGGLE", index })}
-        />
-      )}
 
       {/* State Panel - 整合模式下由 EquipGui 通过 overlayStats 渲染文字，此处仅在非整合模式显示 */}
       {panels?.state && player && (
@@ -581,6 +550,46 @@ export const ClassicGameUI: React.FC<ClassicGameUIProps> = ({ logic, width, heig
             dispatch({ type: "MINIMAP_CLICK", worldX: worldPos.x, worldY: worldPos.y });
             togglePanel("littleMap");
           }}
+        />
+      )}
+
+      {/* Dialog - 渲染在弹窗面板之上 */}
+      {dialog?.isVisible && (
+        <DialogUI
+          state={dialog}
+          screenWidth={width}
+          screenHeight={height}
+          onClose={() => dispatch({ type: "DIALOG_CLICK" })}
+          onSelectionMade={(sel) => {
+            dispatch({ type: "DIALOG_SELECT", selection: sel });
+          }}
+        />
+      )}
+
+      {/* Selection - 渲染在弹窗面板之上 */}
+      {selection?.isVisible && (
+        <SelectionUI
+          state={{
+            ...selection,
+            options: selection.options.map((o) => ({ ...o })),
+          }}
+          screenWidth={width}
+          screenHeight={height}
+          onSelect={(index) => dispatch({ type: "SELECTION_CHOOSE", index })}
+        />
+      )}
+
+      {/* Multi-Selection - 渲染在弹窗面板之上 */}
+      {multiSelection?.isVisible && (
+        <SelectionMultipleUI
+          state={{
+            ...multiSelection,
+            options: multiSelection.options.map((o) => ({ ...o })),
+            selectedIndices: [...multiSelection.selectedIndices],
+          }}
+          screenWidth={width}
+          screenHeight={height}
+          onToggleSelection={(index) => dispatch({ type: "MULTI_SELECTION_TOGGLE", index })}
         />
       )}
 

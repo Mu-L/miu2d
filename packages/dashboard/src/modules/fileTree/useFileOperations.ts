@@ -29,7 +29,6 @@ interface UseFileOperationsOptions {
     node: FileTreeNode
   ) => FileTreeNode[];
   refreshFolder: (parentId: string | null) => Promise<void>;
-  clearSelection: () => void;
 }
 
 export function useFileOperations({
@@ -39,7 +38,6 @@ export function useFileOperations({
   removeNodeFromTree,
   insertNodeInTree,
   refreshFolder,
-  clearSelection,
 }: UseFileOperationsOptions) {
   const utils = trpc.useUtils();
   const createFolderMutation = trpc.file.createFolder.useMutation();
@@ -160,7 +158,7 @@ export function useFileOperations({
 
       // 乐观移除 — 立即从树中删除，不等服务端完成
       setTreeNodes((prev) => removeNodeFromTree(prev, node.id));
-      clearSelection();
+      // 注意：不在这里调用 clearSelection()，避免对话框因 selectedNode 变 null 而提前消失
 
       try {
         await deleteMutation.mutateAsync({ fileId: node.id });
@@ -180,7 +178,7 @@ export function useFileOperations({
         operationLock.current = false;
       }
     },
-    [gameId, utils.file.list, setTreeNodes, removeNodeFromTree, clearSelection, deleteMutation]
+    [gameId, utils.file.list, setTreeNodes, removeNodeFromTree, deleteMutation]
   );
 
   // === 移动（拖拽） ===

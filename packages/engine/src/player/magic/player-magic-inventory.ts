@@ -461,7 +461,7 @@ export class PlayerMagicInventory {
   getIconPath(index: number): string | null {
     const magic = this.get(index);
     if (!magic) return null;
-    return magic.image || magic.icon || null;
+    return magic.icon || magic.image || null;
   }
 
   /**
@@ -699,6 +699,18 @@ export class PlayerMagicInventory {
   }
 
   /**
+   * 获取修炼武功（用于 UI 显示）
+   * 如果修炼武功已被分配到快捷栏，返回 null（修炼和快捷栏互斥）
+   */
+  getXiuLianMagicForDisplay(): MagicItemInfo | null {
+    const xiuLianIdx = MAGIC_LIST_CONFIG.xiuLianIndex;
+    if (this.bottomSlots.includes(xiuLianIdx)) {
+      return null;
+    }
+    return this.getActiveMagicList()[xiuLianIdx] ?? null;
+  }
+
+  /**
    * 设置修炼武功
    * setter - 同时更新 SpecialAttackTexture
    */
@@ -814,7 +826,11 @@ export class PlayerMagicInventory {
       this.updateView();
       return true;
     }
-    if (storeIndex < MAGIC_LIST_CONFIG.storeIndexBegin || storeIndex > MAGIC_LIST_CONFIG.storeIndexEnd) {
+    // 允许 xiuLianIndex（61）也可以绑定到快捷栏
+    if (
+      storeIndex !== MAGIC_LIST_CONFIG.xiuLianIndex &&
+      (storeIndex < MAGIC_LIST_CONFIG.storeIndexBegin || storeIndex > MAGIC_LIST_CONFIG.storeIndexEnd)
+    ) {
       return false;
     }
     // 同一武功只能占一个快捷槽：先清除已有引用
