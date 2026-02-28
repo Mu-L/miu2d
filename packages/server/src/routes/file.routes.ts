@@ -140,7 +140,19 @@ async function resolveFilePath(
         AND LOWER(f.name) = ps.seg_name
         AND f.deleted_at IS NULL
     )
-    SELECT f.*
+    SELECT
+      f.id,
+      f.game_id        AS "gameId",
+      f.parent_id      AS "parentId",
+      f.name,
+      f.type,
+      f.storage_key    AS "storageKey",
+      f.size,
+      f.mime_type      AS "mimeType",
+      f.checksum,
+      f.created_at     AS "createdAt",
+      f.updated_at     AS "updatedAt",
+      f.deleted_at     AS "deletedAt"
     FROM resolve r
     JOIN files f ON f.id = r.id
     WHERE r.depth = ${pathSegments.length}
