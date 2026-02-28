@@ -9,7 +9,7 @@ import { TRPCError } from "@trpc/server";
 import { and, count, desc, eq } from "drizzle-orm";
 import { db } from "../../db/client";
 import { games, saves, users } from "../../db/schema";
-import { verifyGameOrAdminAccess } from "../../utils/gameAccess";
+import { verifyGameOwnerAccess } from "../../utils/gameAccess";
 
 function generateShareCode(): string {
   return randomBytes(6).toString("base64url"); // 8 chars
@@ -225,7 +225,7 @@ export class SaveService {
 
     if (input.gameSlug) {
       const game = await this.resolveGame(input.gameSlug);
-      await verifyGameOrAdminAccess(game.id, operatorId);
+      await verifyGameOwnerAccess(game.id, operatorId);
       conditions.push(eq(saves.gameId, game.id));
     }
 
@@ -278,7 +278,7 @@ export class SaveService {
       throw new TRPCError({ code: "NOT_FOUND", message: "存档不存在" });
     }
 
-    await verifyGameOrAdminAccess(row.save.gameId, operatorId);
+    await verifyGameOwnerAccess(row.save.gameId, operatorId);
 
     return {
       ...this.toOutput(row.save),
@@ -303,7 +303,7 @@ export class SaveService {
     operatorId: string
   ) {
     const game = await this.resolveGame(input.gameSlug);
-    await verifyGameOrAdminAccess(game.id, operatorId);
+    await verifyGameOwnerAccess(game.id, operatorId);
 
     const values = {
       gameId: game.id,
@@ -343,7 +343,7 @@ export class SaveService {
       throw new TRPCError({ code: "NOT_FOUND", message: "存档不存在" });
     }
 
-    await verifyGameOrAdminAccess(existing.gameId, operatorId);
+    await verifyGameOwnerAccess(existing.gameId, operatorId);
 
     // 从 data 中提取元信息
     const playerData = input.data.player as Record<string, unknown> | undefined;
@@ -383,7 +383,7 @@ export class SaveService {
       throw new TRPCError({ code: "NOT_FOUND", message: "存档不存在" });
     }
 
-    await verifyGameOrAdminAccess(existing.gameId, operatorId);
+    await verifyGameOwnerAccess(existing.gameId, operatorId);
 
     const shareCode = isShared ? (existing.shareCode ?? generateShareCode()) : existing.shareCode;
 
@@ -410,7 +410,7 @@ export class SaveService {
       throw new TRPCError({ code: "NOT_FOUND", message: "存档不存在" });
     }
 
-    await verifyGameOrAdminAccess(existing.gameId, operatorId);
+    await verifyGameOwnerAccess(existing.gameId, operatorId);
 
     await db.delete(saves).where(eq(saves.id, saveId));
     return { id: saveId };
