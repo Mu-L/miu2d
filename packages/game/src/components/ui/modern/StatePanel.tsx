@@ -62,6 +62,13 @@ const StatIcon: React.FC<{ type: string; size?: number }> = ({ type, size = 16 }
   );
 };
 
+// 属性颜色映射（使用具体 rgba 避免字符串拼接产生非法 CSS）
+const statColorMap: Record<string, { solid: string; dim: string; glow: string }> = {
+  life:  { solid: "rgba(220,80,80,0.95)",  dim: "rgba(220,80,80,0.35)",  glow: "rgba(220,80,80,0.5)" },
+  mana:  { solid: "rgba(80,140,220,0.95)", dim: "rgba(80,140,220,0.35)", glow: "rgba(80,140,220,0.5)" },
+  thew:  { solid: "rgba(80,200,120,0.95)", dim: "rgba(80,200,120,0.35)", glow: "rgba(80,200,120,0.5)" },
+};
+
 // 属性进度条组件
 const StatBar: React.FC<{
   label: string;
@@ -70,26 +77,29 @@ const StatBar: React.FC<{
   max: number;
   color: string;
   showValues?: boolean;
-}> = ({ label, type, current, max, color, showValues = true }) => {
+}> = ({ label, type, current, max, showValues = true }) => {
   const percent = max > 0 ? Math.min((current / max) * 100, 100) : 0;
+  const c = statColorMap[type] ?? { solid: "rgba(255,255,255,0.8)", dim: "rgba(255,255,255,0.2)", glow: "rgba(255,255,255,0.3)" };
 
   return (
     <div style={{ marginBottom: spacing.sm }}>
+      {/* 标签行 */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: spacing.xs,
+          marginBottom: 4,
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: spacing.sm }}>
-          <StatIcon type={type} size={16} />
+          <StatIcon type={type} size={15} />
           <span
             style={{
-              fontSize: typography.fontSize.sm,
+              fontSize: typography.fontSize.xs,
               color: modernColors.text.secondary,
               fontWeight: typography.fontWeight.medium,
+              letterSpacing: "0.06em",
             }}
           >
             {label}
@@ -98,8 +108,9 @@ const StatBar: React.FC<{
         {showValues && (
           <span
             style={{
-              fontSize: typography.fontSize.sm,
-              color: modernColors.text.primary,
+              fontSize: typography.fontSize.xs,
+              color: "rgba(255,255,255,0.92)",
+              textShadow: `0 0 8px ${c.glow}`,
               fontFamily: "monospace",
             }}
           >
@@ -107,32 +118,57 @@ const StatBar: React.FC<{
           </span>
         )}
       </div>
+      {/* 进度条 */}
       <div
         style={{
           width: "100%",
-          height: 8,
-          background: modernColors.bg.glassDark,
-          borderRadius: borderRadius.sm,
+          height: 10,
+          background: "rgba(0,0,0,0.45)",
+          borderRadius: 5,
           overflow: "hidden",
-          boxShadow: "inset 0 1px 2px rgba(0,0,0,0.3)",
+          border: `1px solid ${c.dim}`,
+          position: "relative",
         }}
       >
         <div
           style={{
             width: `${percent}%`,
             height: "100%",
-            background: color,
-            borderRadius: borderRadius.sm,
-            boxShadow: `0 0 8px ${color}`,
+            background: `linear-gradient(90deg, ${c.dim}, ${c.solid})`,
+            borderRadius: 4,
+            boxShadow: `0 0 8px ${c.glow}`,
             transition: transitions.normal,
+            position: "relative",
           }}
-        />
+        >
+          {/* 顶部高光 */}
+          {percent > 4 && (
+            <div
+              style={{
+                position: "absolute",
+                top: 1,
+                left: 4,
+                right: 4,
+                height: 3,
+                background: "rgba(255,255,255,0.3)",
+                borderRadius: 2,
+              }}
+            />
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
-// 战斗属性行
+// 战斗属性颜色（仅用于数值文字，不做背景/边框）
+const combatValueColor: Record<string, string> = {
+  attack: "rgba(255,150,80,0.9)",
+  defend: "rgba(100,170,255,0.9)",
+  evade:  "rgba(170,130,255,0.9)",
+};
+
+// 战斗属性行 — 极简平铺式，无背景色无色块，数值带淡色
 const CombatStat: React.FC<{
   label: string;
   type: string;
@@ -145,15 +181,16 @@ const CombatStat: React.FC<{
       alignItems: "center",
       justifyContent: "space-between",
       padding: `${spacing.sm}px 0`,
-      borderBottom: `1px solid ${modernColors.border.glass}`,
+      borderBottom: `1px solid rgba(255,255,255,0.06)`,
     }}
   >
     <div style={{ display: "flex", alignItems: "center", gap: spacing.sm }}>
-      <StatIcon type={type} size={18} />
+      <StatIcon type={type} size={15} />
       <span
         style={{
           fontSize: typography.fontSize.sm,
           color: modernColors.text.secondary,
+          letterSpacing: "0.03em",
         }}
       >
         {label}
@@ -164,19 +201,14 @@ const CombatStat: React.FC<{
         style={{
           fontSize: typography.fontSize.md,
           fontWeight: typography.fontWeight.semibold,
-          color: modernColors.text.primary,
+          color: combatValueColor[type] ?? modernColors.text.primary,
           fontFamily: "monospace",
         }}
       >
         {value}
       </span>
       {bonus && (
-        <span
-          style={{
-            fontSize: typography.fontSize.xs,
-            color: modernColors.stats.thew,
-          }}
-        >
+        <span style={{ fontSize: typography.fontSize.xs, color: "rgba(80,200,120,0.85)" }}>
           {bonus}
         </span>
       )}
@@ -233,16 +265,16 @@ export const StatePanel: React.FC<StatePanelProps> = ({
   onClose,
   playerName = "主角",
 }) => {
-  const panelWidth = 260;
+  const panelWidth = 280;
 
   const panelStyle: React.CSSProperties = useMemo(
     () => ({
       position: "absolute",
       left: 20,
-      top: 60,
+      top: 46,
       width: panelWidth,
       pointerEvents: "auto",
-      // 毛玻璃效果（使用theme变量）
+      // 毛玻璃效果
       ...glassEffect.standard,
       borderRadius: borderRadius.xl,
       // 金色边框装饰
@@ -367,17 +399,14 @@ export const StatePanel: React.FC<StatePanelProps> = ({
             <div
               style={{
                 display: "inline-flex",
-                alignItems: "center",
+                alignItems: "baseline",
                 gap: spacing.xs,
-                padding: `${spacing.xs}px ${spacing.sm}px`,
-                background: `linear-gradient(90deg, ${wuxiaAccent.gold}20, transparent)`,
-                borderLeft: `2px solid ${wuxiaAccent.gold}`,
               }}
             >
               <span
                 style={{
                   fontSize: typography.fontSize.sm,
-                  color: modernColors.text.secondary,
+                  color: modernColors.text.muted,
                 }}
               >
                 等级
@@ -386,7 +415,7 @@ export const StatePanel: React.FC<StatePanelProps> = ({
                 style={{
                   fontSize: typography.fontSize.xxl,
                   fontWeight: typography.fontWeight.bold,
-                  color: modernColors.accent,
+                  color: wuxiaAccent.gold,
                   fontFamily: "Georgia, serif",
                   textShadow: `0 0 10px ${wuxiaAccent.gold}66`,
                 }}
@@ -460,7 +489,8 @@ export const StatePanel: React.FC<StatePanelProps> = ({
             style={{
               width: 16,
               height: 1,
-              background: `linear-gradient(90deg, ${wuxiaAccent.gold}, transparent)`,
+              background: "linear-gradient(90deg, #D4AF37, transparent)",
+              display: "inline-block",
             }}
           />
           三维属性
@@ -469,6 +499,7 @@ export const StatePanel: React.FC<StatePanelProps> = ({
               flex: 1,
               height: 1,
               background: `linear-gradient(90deg, transparent, ${modernColors.border.glass})`,
+              display: "inline-block",
             }}
           />
         </div>
@@ -512,7 +543,8 @@ export const StatePanel: React.FC<StatePanelProps> = ({
             style={{
               width: 16,
               height: 1,
-              background: `linear-gradient(90deg, ${wuxiaAccent.gold}, transparent)`,
+              background: "linear-gradient(90deg, #D4AF37, transparent)",
+              display: "inline-block",
             }}
           />
           战斗属性
@@ -521,18 +553,12 @@ export const StatePanel: React.FC<StatePanelProps> = ({
               flex: 1,
               height: 1,
               background: `linear-gradient(90deg, transparent, ${modernColors.border.glass})`,
+              display: "inline-block",
             }}
           />
         </div>
 
-        <div
-          style={{
-            background: modernColors.bg.glassDark,
-            borderRadius: borderRadius.md,
-            padding: `${spacing.xs}px ${spacing.md}px`,
-            border: `1px solid ${modernColors.border.glass}`,
-          }}
-        >
+        <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
           <CombatStat label="攻击" type="attack" value={attackText} bonus={attackBonusText} />
           <CombatStat label="防御" type="defend" value={defendText} bonus={defendBonusText} />
           <CombatStat label="身法" type="evade" value={stats.evade} />

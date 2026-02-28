@@ -4,6 +4,7 @@
  */
 
 import type { MagicItemInfo } from "@miu2d/engine/magic";
+import { MAGIC_LIST_CONFIG } from "@miu2d/engine/player/magic/magic-list-config";
 import type React from "react";
 import { useCallback, useMemo, useState } from "react";
 import type { TouchDragData } from "../../../contexts";
@@ -171,7 +172,7 @@ const MagicDisplay: React.FC<MagicDisplayProps> = ({
   onMouseLeave,
 }) => {
   // 获取图标路径
-  const iconPath = magicInfo?.magic?.image ?? magic?.iconPath ?? null;
+  const iconPath = magicInfo?.magic?.icon ?? magicInfo?.magic?.image ?? magic?.iconPath ?? null;
 
   // 确定要显示的数据
   const displayMagic = magicInfo?.magic ?? magic;
@@ -214,18 +215,6 @@ const MagicDisplay: React.FC<MagicDisplayProps> = ({
             flexShrink: 0,
           }}
         >
-          {/* 外框装饰 */}
-          <div
-            style={{
-              position: "absolute",
-              inset: -3,
-              background: isHovered
-                ? `linear-gradient(135deg, ${wuxiaAccent.goldBright}, ${wuxiaAccent.gold})`
-                : `linear-gradient(135deg, ${wuxiaAccent.gold}, ${wuxiaAccent.goldDark})`,
-              clipPath: octagonClip,
-              transition: transitions.fast,
-            }}
-          />
           {/* 图标容器 */}
           <div
             style={{
@@ -239,32 +228,10 @@ const MagicDisplay: React.FC<MagicDisplayProps> = ({
               overflow: "hidden",
             }}
           >
-            {/* 文字占位符（当 ASF 未加载或不存在时可见） */}
-            <div
-              style={{
-                position: "absolute",
-                inset: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: "rgba(255,255,255,0.8)",
-                  textShadow: "0 1px 3px rgba(0,0,0,0.5)",
-                  textAlign: "center",
-                  lineHeight: 1.1,
-                }}
-              >
-                {name.slice(0, 2)}
-              </span>
-            </div>
-            {/* ASF 动画图标（加载成功时覆盖占位符） */}
+            {/* ASF 动画图标 */}
             {iconPath && (
               <AsfAnimatedSprite
+                key={iconPath}
                 path={iconPath}
                 autoPlay={true}
                 loop={true}
@@ -296,14 +263,11 @@ const MagicDisplay: React.FC<MagicDisplayProps> = ({
           <div
             style={{
               display: "inline-flex",
-              alignItems: "center",
+              alignItems: "baseline",
               gap: spacing.xs,
-              padding: `${spacing.xs}px ${spacing.sm}px`,
-              background: `linear-gradient(90deg, ${wuxiaAccent.purple}33, transparent)`,
-              borderLeft: `2px solid ${wuxiaAccent.purple}`,
             }}
           >
-            <span style={{ fontSize: typography.fontSize.sm, color: modernColors.text.secondary }}>
+            <span style={{ fontSize: typography.fontSize.sm, color: modernColors.text.muted }}>
               境界
             </span>
             <span
@@ -430,7 +394,7 @@ export const XiuLianPanel: React.FC<XiuLianPanelProps> = ({
     () => ({
       position: "absolute",
       left: screenWidth / 2 - panelWidth - 20,
-      top: 30,
+      top: 46,
       width: panelWidth,
       display: "flex",
       flexDirection: "column",
@@ -482,7 +446,7 @@ export const XiuLianPanel: React.FC<XiuLianPanelProps> = ({
     (e: React.DragEvent) => {
       if (hasMagic) {
         e.dataTransfer.effectAllowed = "move";
-        onDragStart?.({ type: "magic", storeIndex: 49 }); // xiuLianIndex = 49
+        onDragStart?.({ type: "magic", storeIndex: MAGIC_LIST_CONFIG.xiuLianIndex });
       }
     },
     [hasMagic, onDragStart]
@@ -605,17 +569,12 @@ export const XiuLianPanel: React.FC<XiuLianPanelProps> = ({
             width: "100%",
             minHeight: hasMagic ? "auto" : 100,
             padding: spacing.md,
-            background: isDragOver
-              ? `rgba(212, 175, 55, 0.15)`
-              : isSlotHovered && hasMagic
+            background:
+              isSlotHovered && hasMagic
                 ? "rgba(255, 255, 255, 0.05)"
                 : modernColors.bg.glassDark,
             border: `2px ${hasMagic ? "solid" : "dashed"} ${
-              isDragOver
-                ? wuxiaAccent.gold
-                : hasMagic
-                  ? `${wuxiaAccent.goldDark}66`
-                  : modernColors.border.glass
+              hasMagic ? `${wuxiaAccent.goldDark}66` : modernColors.border.glass
             }`,
             borderRadius: borderRadius.lg,
             display: "flex",
@@ -626,6 +585,7 @@ export const XiuLianPanel: React.FC<XiuLianPanelProps> = ({
           }}
           draggable={!!hasMagic}
           onDragStart={handleSlotDragStart}
+          onDragEnd={() => onDragEnd?.()}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}

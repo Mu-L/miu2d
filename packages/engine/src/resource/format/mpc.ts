@@ -59,9 +59,12 @@ export async function loadMpcWithShadow(mpcUrl: string, shdUrl?: string): Promis
     return null;
   }
 
-  // TODO: WASM 版本暂不支持 SHD 合成，需要时再实现
+  // SHD shadow data is now baked into MSF RGBA frames during the convert-sword2 pipeline.
+  // No runtime merging needed: shadows appear as [0,0,0,153] pixels in transparent areas,
+  // and sprite pixels (alpha=255) are drawn on top. The shd parameter is kept for API
+  // compatibility but is no longer used.
   if (shd) {
-    logger.warn(`[MPC] SHD shadow merging not yet implemented in WASM, ignoring shadow`);
+    logger.debug(`[MPC] SHD shadow is already merged in MSF RGBA (no runtime action needed)`);
   }
 
   return decodeMpcWasm(buffer);

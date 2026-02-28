@@ -105,7 +105,7 @@ Miu2D implements **17 integrated ARPG subsystems** entirely from first principle
 
 | System | Module | Highlights |
 |--------|--------|------------|
-| **Rendering** | `renderer/` | Raw WebGL sprite batcher (~4,800 tiles → 1–5 draw calls), Canvas2D fallback, GLSL color filters (poison / freeze / petrify), screen effects (fade, flash, water ripple) |
+| **Rendering** | `renderer/` | Raw WebGL sprite batcher (~4,800 tiles → 1–5 draw calls), Canvas2D fallback, GLSL color filters (poison / freeze / petrify), screen effects (fade, flash, water ripple), **local lighting** (additive lum masks for dark scenes) |
 | **Character** | `character/` | 7-level inheritance chain (Sprite → CharacterBase → Movement → Combat → Character → Player/NPC); stats, status flags, bezier-curve movement |
 | **Combat** | `character/` | Hit detection, damage formula, knockback, death & respawn, party/enemy faction logic |
 | **Magic / Skill** | `magic/` | 22 MoveKind trajectories (line, spiral, homing, AoE, summon, time-stop…) × 10 SpecialKind effects; per-level config, passive XiuLian system |
@@ -137,6 +137,11 @@ The renderer is **685 lines** of direct `WebGLRenderingContext` calls — no wra
 - **GLSL color filters** — grayscale (petrification), blue tint (frozen), green tint (poison) applied per-sprite in the fragment shader
 - **Screen effects** — fade in/out, color overlays, screen flash, water ripple, all composited in the render loop
 - **Canvas 2D fallback** — same `Renderer` interface, full feature parity for devices without WebGL
+- **Local lighting (LumMask)** — when `SetMainLum` darkens the scene, light-emitting entities (objects, NPCs, magic projectiles) generate an additive white 800×400 elliptical glow mask at their position. A per-tile dedup (matching C++ `Weather::drawElementLum`) prevents double-drawing. A `noLum` flag on magic sub-projectiles suppresses redundant light sources for dense spell patterns, accurately matching the C++ reference:
+  - **LineMove**: 1-in-3 sub-projectiles emit light (`i % 3 === 1`)
+  - **Square region**: 1-in-9 (`i % 3 === 1 && j % 3 === 1`)
+  - **Wave / Rectangle region**: 1-in-4 (`i % 2 !== 0 && j % 2 !== 0`)
+  - **CircleMove** (e.g. 依风剑法): 1-in-8 of the 32 projectiles emit light
 
 ### Script Engine — 182 Commands
 

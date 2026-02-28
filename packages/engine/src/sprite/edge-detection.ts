@@ -28,11 +28,15 @@ function _getCanvasId(canvas: HTMLCanvasElement | OffscreenCanvas): number {
 }
 
 /**
- * 检查颜色是否透明（用于NPC/Obj碰撞）
- * alpha < 200
+ * 检查颜色是否透明（用于边缘检测）
+ * alpha < 10
+ *
+ * 注意：SHD 阴影像素 alpha=153 (60% opacity)，必须视为"不透明"
+ * 以避免在阴影-身体边界产生假边缘导致悬停时闪烁。
+ * 仅 alpha 接近 0 的像素才视为真正透明的"外部"。
  */
 function isColorTransparent(alpha: number): boolean {
-  return alpha < 200;
+  return alpha < 10;
 }
 
 /**

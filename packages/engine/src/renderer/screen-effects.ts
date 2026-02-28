@@ -165,6 +165,11 @@ export class ScreenEffects {
     this.state.fadeLum = Math.min(32, Math.max(0, level));
   }
 
+  /** Get current fade luminance (0-32) */
+  getFadeLum(): number {
+    return this.state.fadeLum;
+  }
+
   /**
    * Get the fade target transparency (0 = transparent, 1 = opaque black).
    * C++ formula: internalFadeLum = fadeLum >= 31 ? 255 : fadeLum * 8

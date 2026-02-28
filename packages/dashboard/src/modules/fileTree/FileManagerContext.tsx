@@ -96,7 +96,6 @@ export function FileManagerProvider({ children }: { children: ReactNode }) {
     removeNodeFromTree: tree.removeNodeFromTree,
     insertNodeInTree: tree.insertNodeInTree,
     refreshFolder: tree.refreshFolder,
-    clearSelection: tree.clearSelection,
   });
 
   // --- File upload ---

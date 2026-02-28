@@ -14,7 +14,7 @@ function solidColor(c: UiColorRGBA): string {
 import type { Good } from "@miu2d/engine/player/goods";
 import type React from "react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useToolTipType2Config, useToolTipUseTypeConfig } from "./useUISettings";
+import { useToolTipType1Config, useToolTipType2Config, useToolTipUseTypeConfig } from "./useUISettings";
 import { useAsfImage } from "./hooks";
 
 interface ItemTooltipProps {
@@ -34,7 +34,8 @@ const ItemTooltipType1: React.FC<ItemTooltipProps> = ({
   position,
   isVisible,
 }) => {
-  const bgImage = useAsfImage("asf/ui/common/tipbox.asf", 0);
+  const cfg = useToolTipType1Config();
+  const bgImage = useAsfImage(cfg.image, 0);
   const [bgSize, setBgSize] = useState({ width: 265, height: 270 });
 
   useEffect(() => {
@@ -105,14 +106,14 @@ const ItemTooltipType1: React.FC<ItemTooltipProps> = ({
         />
       )}
 
-      {/* Item Image - config: Left=132, Top=47, Width=60, Height=75 */}
+      {/* Item Image */}
       <div
         style={{
           position: "absolute",
-          left: 132,
-          top: 47,
-          width: 60,
-          height: 75,
+          left: cfg.itemImage.left,
+          top: cfg.itemImage.top,
+          width: cfg.itemImage.width,
+          height: cfg.itemImage.height,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -123,23 +124,23 @@ const ItemTooltipType1: React.FC<ItemTooltipProps> = ({
             src={itemImage.dataUrl}
             alt={good.name}
             style={{
-              maxWidth: 60,
-              maxHeight: 75,
+              maxWidth: cfg.itemImage.width,
+              maxHeight: cfg.itemImage.height,
               imageRendering: "pixelated",
             }}
           />
         )}
       </div>
 
-      {/* Item Name - config: Left=67, Top=191, Color=102,73,212,204 (purple) */}
+      {/* Item Name */}
       <div
         style={{
           position: "absolute",
-          left: 67,
-          top: 191,
-          width: 90,
-          height: 20,
-          color: "rgb(102, 73, 212)",
+          left: cfg.name.left,
+          top: cfg.name.top,
+          width: cfg.name.width,
+          height: cfg.name.height,
+          color: cfg.name.color,
           fontSize: 12,
           fontFamily: "SimSun, serif",
           whiteSpace: "nowrap",
@@ -149,15 +150,15 @@ const ItemTooltipType1: React.FC<ItemTooltipProps> = ({
         {good.name || "无名称"}
       </div>
 
-      {/* Price - config: Left=160, Top=191, Color=91,31,27,204 (dark red) */}
+      {/* Price */}
       <div
         style={{
           position: "absolute",
-          left: 160,
-          top: 191,
-          width: 88,
-          height: 20,
-          color: "rgb(91, 31, 27)",
+          left: cfg.priceOrLevel.left,
+          top: cfg.priceOrLevel.top,
+          width: cfg.priceOrLevel.width,
+          height: cfg.priceOrLevel.height,
+          color: cfg.priceOrLevel.color,
           fontSize: 12,
           fontFamily: "SimSun, serif",
           whiteSpace: "nowrap",
@@ -166,38 +167,39 @@ const ItemTooltipType1: React.FC<ItemTooltipProps> = ({
         {priceText}
       </div>
 
-      {/* Effect Text - config: Left=67, Top=215, Color=0,0,255,204 (blue) */}
-      <div
-        style={{
-          position: "absolute",
-          left: 67,
-          top: 215,
-          width: 188,
-          height: 20,
-          color: "rgb(0, 0, 255)",
-          fontSize: 12,
-          fontFamily: "SimSun, serif",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-        }}
-      >
-        {effectText}
-      </div>
+      {/* Effect Text */}
+      {effectText && (
+        <div
+          style={{
+            position: "absolute",
+            left: cfg.effect.left,
+            top: cfg.effect.top,
+            width: cfg.effect.width,
+            height: cfg.effect.height,
+            color: cfg.effect.color,
+            fontSize: 12,
+            fontFamily: "SimSun, serif",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+          }}
+        >
+          {effectText}
+        </div>
+      )}
 
-      {/* Intro/Description - positioned below effect */}
+      {/* Intro/Description */}
       <div
         style={{
           position: "absolute",
-          left: 67,
-          top: 238,
-          width: 188,
-          height: 28,
-          color: "rgb(91, 31, 27)",
+          left: cfg.goodIntro.left,
+          top: cfg.goodIntro.top,
+          width: cfg.goodIntro.width,
+          height: cfg.goodIntro.height,
+          color: cfg.goodIntro.color,
           fontSize: 11,
           fontFamily: "SimSun, serif",
           lineHeight: 1.3,
           overflow: "hidden",
-          textOverflow: "ellipsis",
         }}
       >
         {good.intro || "无简介"}

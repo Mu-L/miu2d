@@ -95,6 +95,23 @@ export class GameConfigService {
     return this.toGameConfig(newRow);
   }
   /**
+   * 仅更新 uiSettingsIni 字段（保留其他配置不变）
+   */
+  async patchUiSettingsIni(
+    gameId: string,
+    content: string,
+    userId: string,
+    language: Language
+  ): Promise<GameConfig> {
+    const current = await this.get(gameId, userId, language);
+    return this.update(
+      { gameId, data: { ...current.data, uiSettingsIni: content } },
+      userId,
+      language
+    );
+  }
+
+  /**
    * 公开接口：通过 slug 获取游戏配置（无需认证）
    * 游戏不存在或未开放 → 仅返回 { gameEnabled: false }
    * 游戏存在且已开放 → 返回完整配置

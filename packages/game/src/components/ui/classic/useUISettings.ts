@@ -32,6 +32,7 @@ import {
   parseStateGuiConfig,
   parseSystemGuiConfig,
   parseTitleGuiConfig,
+  parseToolTipType1Config,
   parseToolTipType2Config,
   parseToolTipUseTypeConfig,
   parseTopGuiConfig,
@@ -39,6 +40,7 @@ import {
   type StateGuiConfig,
   type SystemGuiConfig,
   type TitleGuiConfig,
+  type ToolTipType1Config,
   type ToolTipType2Config,
   type ToolTipUseTypeConfig,
   type TopGuiConfig,
@@ -65,6 +67,7 @@ let cachedConfigs: {
   bottomState?: BottomStateGuiConfig;
   top?: TopGuiConfig;
   toolTipUseType?: ToolTipUseTypeConfig;
+  toolTipType1?: ToolTipType1Config;
   toolTipType2?: ToolTipType2Config;
   title?: TitleGuiConfig | null;
 } = {};
@@ -108,6 +111,7 @@ async function ensureLoaded(): Promise<void> {
       bottomState: parseBottomStateGuiConfig(settings),
       top: parseTopGuiConfig(settings),
       toolTipUseType: parseToolTipUseTypeConfig(settings),
+      toolTipType1: parseToolTipType1Config(settings),
       toolTipType2: parseToolTipType2Config(settings),
       title: parseTitleGuiConfig(settings),
     };
@@ -492,6 +496,35 @@ export function useToolTipType2Config(): ToolTipType2Config {
     }
     ensureLoaded().then(() => {
       setConfig(cachedConfigs.toolTipType2 ?? defaultType2);
+    });
+  }, []);
+
+  return config;
+}
+
+/**
+ * Hook to get ToolTip Type1 config (image-based tooltip layout with tipbox image)
+ * Returns config with element positions for name, level, intro, and item icon
+ */
+export function useToolTipType1Config(): ToolTipType1Config {
+  const defaultType1: ToolTipType1Config = {
+    image: "asf/ui/common/tipbox.asf",
+    itemImage: { left: 132, top: 47, width: 60, height: 75 },
+    name: { left: 67, top: 191, width: 90, height: 20, charSpace: 0, lineSpace: 0, color: "rgb(102,73,212)" },
+    priceOrLevel: { left: 160, top: 191, width: 88, height: 20, charSpace: 0, lineSpace: 0, color: "rgb(91,31,27)" },
+    effect: { left: 67, top: 210, width: 196, height: 40, charSpace: 0, lineSpace: 0, color: "rgb(52,21,14)" },
+    magicIntro: { left: 67, top: 255, width: 196, height: 80, charSpace: 0, lineSpace: 0, color: "rgb(52,21,14)" },
+    goodIntro: { left: 67, top: 255, width: 196, height: 80, charSpace: 0, lineSpace: 0, color: "rgb(52,21,14)" },
+  };
+  const [config, setConfig] = useState<ToolTipType1Config>(cachedConfigs.toolTipType1 ?? defaultType1);
+
+  useEffect(() => {
+    if (cachedConfigs.toolTipType1) {
+      setConfig(cachedConfigs.toolTipType1);
+      return;
+    }
+    ensureLoaded().then(() => {
+      setConfig(cachedConfigs.toolTipType1 ?? defaultType1);
     });
   }, []);
 

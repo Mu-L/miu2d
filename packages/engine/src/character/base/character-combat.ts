@@ -58,6 +58,12 @@ export abstract class CharacterCombat extends CharacterMovement {
     this.isDeath = false;
     this.isDeathInvoked = false;
     this.isBodyIniAdded = 0;
+
+    // If currently in death state, switch to Stand to prevent
+    // updateDeath() from re-setting isDeath = true on the next frame
+    if (this.isInDeathing) {
+      this.state = CharacterState.Stand;
+    }
   }
 
   fullThew(): void {

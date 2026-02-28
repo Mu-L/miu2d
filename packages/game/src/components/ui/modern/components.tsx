@@ -244,7 +244,7 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({
         style={{
           width: `${Math.min(100, Math.max(0, percent))}%`,
           height: "100%",
-          background: `linear-gradient(90deg, ${color}, ${color}dd)`,
+          background: color,
           borderRadius: "inherit",
           transition: "width 0.3s ease",
         }}
