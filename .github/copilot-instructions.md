@@ -15,7 +15,7 @@
 - Biome (lint + format)
 - **pnpm monorepo**
 - Rust + WebAssembly (高性能模块)
-- NestJS (ESM) + tRPC (服务端)
+- Hono + tRPC (服务端)
 - PostgreSQL + Drizzle ORM (数据库)
 - MinIO / S3 (文件存储)
 
@@ -129,7 +129,7 @@ pnpm --filter @miu2d/server dev # 只运行 server 包
 | `@miu2d/dashboard` | `packages/dashboard/` | 编辑器仪表盘（模块编辑、侧边栏、资源管理） |
 | `@miu2d/viewer` | `packages/viewer/` | 资源查看器（ASF/Map/MPC/XnbAudio）|
 | `@miu2d/web` | `packages/web/` | 应用壳：路由入口、landing 页、登录注册 |
-| `@miu2d/server` | `packages/server/` | NestJS 后端服务，tRPC API |
+| `@miu2d/server` | `packages/server/` | Hono 后端服务，tRPC API |
 | `@miu2d/types` | `packages/types/` | **共享 Zod Schema 和 TypeScript 类型** |
 | `@miu2d/converter` | `packages/converter/` | Rust CLI 资源转换工具（ASF/MPC → MSF，MAP → MMF） |
 | **C# 参考** | `JxqyHD/Engine/` | 原 C# 实现，功能参考来源 |
@@ -412,10 +412,10 @@ packages/dashboard/src/
 
 ## @miu2d/server - 后端服务
 
-NestJS + tRPC 后端，端口 4000。
+Hono + tRPC 后端，端口 4000。
 
 ### 技术栈
-- **NestJS** - ESM 模式
+- **Hono** - 轻量 HTTP 框架
 - **tRPC** - 类型安全的 API
 - **Drizzle ORM** - PostgreSQL 数据库
 - **MinIO/S3** - 文件存储

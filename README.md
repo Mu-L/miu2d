@@ -15,7 +15,7 @@
 
 ---
 
-Miu2D is a **160,000-line** 2D ARPG engine written in TypeScript and Rust, rendering through **raw WebGL** with no dependency on Unity, Godot, Phaser, PixiJS, or any other game framework. Every subsystem — sprite batching, A* pathfinding, binary format decoders, scripting VM, weather particles, screen effects — is implemented from first principles.
+Miu2D is a **176,000-line** 2D ARPG engine written in TypeScript and Rust, rendering through **raw WebGL** with no dependency on Unity, Godot, Phaser, PixiJS, or any other game framework. Every subsystem — sprite batching, A* pathfinding, binary format decoders, scripting VM, weather particles, screen effects — is implemented from first principles.
 
 As a proof of concept, Miu2D has been used to rebuild **three classic Kingsoft (西山居) wuxia RPGs**, all fully playable in any modern browser.
 
@@ -90,7 +90,7 @@ Most web game projects reach for PixiJS, Phaser, or a WASM-compiled Unity/Godot 
 - **Full control over the render loop** — a `SpriteBatcher` coalesces ~4,800 map tile draws into 1–5 WebGL draw calls; a `RectBatcher` reduces ~300 weather particles to a single call.
 - **No abstraction tax** — no unused scene graph, no 3D math overhead, no framework event model to work around.
 - **Rust-speed where it matters** — A* pathfinding runs in ~0.2 ms via WASM with obstacle data written directly into linear memory (no serialization, no FFI copy).
-- **Clean architecture for study** — a 7-level class hierarchy (Sprite → CharacterBase → Movement → Combat → Character → PlayerBase → PlayerCombat → Player) with clear separation of concerns, ideal for understanding how a full 2D RPG engine works under the hood.
+- **Clean architecture for study** — an 8-level class hierarchy (Sprite → CharacterBase → Movement → Combat → Character → PlayerBase → PlayerCombat → Player) with clear separation of concerns, ideal for understanding how a full 2D RPG engine works under the hood.
 
 ---
 
@@ -98,15 +98,15 @@ Most web game projects reach for PixiJS, Phaser, or a WASM-compiled Unity/Godot 
 
 | Layer | Package | LOC | Details |
 |---|---|---:|---|
-| **UI** | `@miu2d/game` | 31,174 | React 19 · 3 themes (Classic / Modern / Mobile) · 56 components |
-| **Engine** | `@miu2d/engine` | 59,342 | Pure TypeScript · 213 files · 19 modules · no React dependency |
-| ↳ Renderer | `renderer/` | 2,838 | Raw WebGL · SpriteBatcher · Canvas2D fallback · GLSL filters |
-| ↳ Script VM | `script/` | 5,879 | 182 commands · custom parser + async executor |
-| ↳ Character | `character/` | 6,415 | 7-level inheritance chain · NPC AI · bezier movement |
-| ↳ Magic | `magic/` | 8,702 | 22 MoveKind trajectories · 10 SpecialKind effects |
-| **WASM** | `@miu2d/engine-wasm` | 2,644 | Rust → WebAssembly · A\* pathfinder · decoders · SpatialHash · zstd |
-| **Backend** | `@miu2d/server` | 13,700 | Hono + tRPC + Drizzle ORM · 22 PostgreSQL tables · 17 routers |
-| **Editor** | `@miu2d/dashboard` | 34,731 | VS Code-style layout · 13 editing modules |
+| **UI** | `@miu2d/game` | 31,615 | React 19 · 3 themes (Classic / Modern / Mobile) · 84 components |
+| **Engine** | `@miu2d/engine` | 64,650 | Pure TypeScript · 215 files · 19 modules · no React dependency |
+| ↳ Renderer | `renderer/` | 3,135 | Raw WebGL · SpriteBatcher · Canvas2D fallback · GLSL filters |
+| ↳ Script VM | `script/` | 6,205 | 218 commands · custom parser + async executor |
+| ↳ Character | `character/` | 6,410 | 8-level inheritance chain · NPC AI · bezier movement |
+| ↳ Magic | `magic/` | 8,798 | 22 MoveKind trajectories · 10 SpecialKind effects |
+| **WASM** | `@miu2d/engine-wasm` | 3,160 | Rust → WebAssembly · A\* pathfinder · decoders · SpatialHash · zstd |
+| **Backend** | `@miu2d/server` | 14,143 | Hono + tRPC + Drizzle ORM · 21 PostgreSQL tables · 19 routers |
+| **Editor** | `@miu2d/dashboard` | 35,150 | VS Code-style layout · 13 editing modules |
 
 ### Tech Stack
 
@@ -127,18 +127,18 @@ Most web game projects reach for PixiJS, Phaser, or a WASM-compiled Unity/Godot 
 
 ## Engine Systems
 
-Miu2D implements **17 integrated ARPG subsystems** entirely from first principles:
+Miu2D implements **17 integrated ARPG subsystems** (218 script commands) entirely from first principles:
 
 | System | Module | Highlights |
 |--------|--------|------------|
 | **Rendering** | `renderer/` | Raw WebGL sprite batcher (~4,800 tiles → 1–5 draw calls), Canvas2D fallback, GLSL color filters (poison / freeze / petrify), screen effects (fade, flash, water ripple), **local lighting** (additive lum masks for dark scenes) |
-| **Character** | `character/` | 7-level inheritance chain (Sprite → CharacterBase → Movement → Combat → Character → Player/NPC); stats, status flags, bezier-curve movement |
+| **Character** | `character/` | 8-level inheritance chain (Sprite → CharacterBase → Movement → Combat → Character → PlayerBase → PlayerCombat → Player/NPC); stats, status flags, bezier-curve movement |
 | **Combat** | `character/` | Hit detection, damage formula, knockback, death & respawn, party/enemy faction logic |
 | **Magic / Skill** | `magic/` | 22 MoveKind trajectories (line, spiral, homing, AoE, summon, time-stop…) × 10 SpecialKind effects; per-level config, passive XiuLian system |
 | **NPC & AI** | `npc/` | Behavior state machine (idle / patrol / chase / flee / dead), interaction scripts, spatial grid for fast neighbor lookup |
 | **Player** | `player/` | Controller, inventory (goods system), equipment slots, magic slots, experience & leveling |
 | **Map** | `map/` | Multi-layer tile parsing, obstacle grid, trap zones, event areas, layer-sorted rendering |
-| **Script / Event** | `script/` | Custom VM: parser + async executor, 182 commands across 9 categories (dialog, player, NPC, state, audio, effects, objects, items, misc) |
+| **Script / Event** | `script/` | Custom VM: parser + async executor, 218 commands across 9 categories (dialog, player, NPC, state, audio, effects, objects, items, misc) |
 | **Pathfinding** | `wasm/` | Rust WASM A* with zero-copy shared memory; 5 strategies (greedy → full A*); ~0.2 ms per query, ≈10× faster than TS |
 | **Collision** | `wasm/` | SpatialHash in Rust/WASM for O(1) broad-phase entity queries |
 | **Audio** | `audio/` | Web Audio API manager: streamed BGM (OGG/MP3), positional SFX (WAV/OGG), fade transitions |
@@ -169,7 +169,7 @@ The renderer is **685 lines** of direct `WebGLRenderingContext` calls — no wra
   - **Wave / Rectangle region**: 1-in-4 (`i % 2 !== 0 && j % 2 !== 0`)
   - **CircleMove** (e.g. 依风剑法): 1-in-8 of the 32 projectiles emit light
 
-### Script Engine — 182 Commands
+### Script Engine — 218 Commands
 
 A custom **parser** tokenizes game script files; an **executor** interprets them with blocking/async support. Commands span 9 categories:
 
@@ -241,25 +241,25 @@ The engine parses **8 binary file formats** from the original game — all rever
 - **Screen droplets** — simulated refraction/lens effect of water running down the camera
 - **Snow** — individual snowflake physics with wobble, spin, drift, and gradual melt
 
-### Character System — 7-Level Inheritance
+### Character System — 8-Level Inheritance
 
 A deep, well-structured class hierarchy with clear separation of concerns:
 
 ```
-Sprite (615 LOC)
- └─ CharacterBase (961) — stats, properties, status flags
-     └─ CharacterMovement (1,057) — A* pathfinding, tile walking, bezier curves
-         └─ CharacterCombat (780) — attack, damage calc, status effects
-             └─ Character (980) — shared NPC/Player logic [abstract]
-                 ├─ PlayerBase → PlayerCombat → Player (2,698 combined)
-                 └─ Npc (658) — AI behavior, interaction scripts, spatial grid
+Sprite (656 LOC)
+ └─ CharacterBase (963) — stats, properties, status flags
+     └─ CharacterMovement (1,051) — A* pathfinding, tile walking, bezier curves
+         └─ CharacterCombat (784) — attack, damage calc, status effects
+             └─ Character (987) — shared NPC/Player logic [abstract]
+                 ├─ PlayerBase → PlayerCombat → Player (2,696 combined)
+                 └─ Npc (659) — AI behavior, interaction scripts, spatial grid
 ```
 
 ---
 
 ## Game Data Editor (Dashboard)
 
-The project includes a **34,731-line** VS Code-style game editor with Activity Bar, Sidebar, and Content panels:
+The project includes a **35,150-line** VS Code-style game editor with Activity Bar, Sidebar, and Content panels:
 
 | Module | What it edits |
 |--------|---------------|
@@ -280,44 +280,44 @@ The project includes a **34,731-line** VS Code-style game editor with Activity B
 
 ## Project Structure
 
-11 packages in a pnpm monorepo, **~160,000 lines** total:
+11 packages in a pnpm monorepo, **~176,000 lines** total:
 
 | Package | LOC | Role |
 |---------|----:|------|
-| `@miu2d/engine` | 59,342 | Pure TS game engine — 19 modules, no React dependency |
-| `@miu2d/dashboard` | 34,731 | VS Code-style game data editor (13 modules) |
-| `@miu2d/game` | 31,174 | Game runtime with 3 UI themes (classic/modern/mobile) |
-| `@miu2d/server` | 13,700 | Hono + tRPC backend (22 tables, 17 routers) |
-| `@miu2d/types` | 6,412 | Shared Zod 4 schemas (18 domain modules) |
-| `@miu2d/web` | 4,872 | App shell, routing, landing page |
-| `@miu2d/converter` | 3,975 | Rust CLI: ASF/MPC → MSF, MAP → MMF batch conversion |
+| `@miu2d/engine` | 64,650 | Pure TS game engine — 19 modules, no React dependency |
+| `@miu2d/dashboard` | 35,150 | VS Code-style game data editor (13 modules) |
+| `@miu2d/game` | 31,615 | Game runtime with 3 UI themes (classic/modern/mobile) |
+| `@miu2d/server` | 14,143 | Hono + tRPC backend (21 tables, 19 routers) |
+| `@miu2d/types` | 12,183 | Shared Zod 4 schemas (18 domain modules) |
+| `@miu2d/web` | 4,973 | App shell, routing, landing page |
+| `@miu2d/converter` | 4,354 | Rust CLI: ASF/MPC → MSF, MAP → MMF batch conversion |
+| `@miu2d/engine-wasm` | 3,160 | Rust → WASM: pathfinder, decoders, spatial hash, zstd |
 | `@miu2d/viewer` | 3,151 | Resource viewers (ASF/Map/MPC/Audio) |
-| `@miu2d/engine-wasm` | 2,644 | Rust → WASM: pathfinder, decoders, spatial hash, zstd |
-| `@miu2d/ui` | 1,210 | Generic UI components (no business deps) |
-| `@miu2d/shared` | 981 | i18n, tRPC client, React contexts |
+| `@miu2d/ui` | 1,775 | Generic UI components (no business deps) |
+| `@miu2d/shared` | 990 | i18n, tRPC client, React contexts |
 
 ### Engine Module Breakdown
 
 | Module | LOC | Responsibility |
 |--------|----:|----------------|
-| `magic/` | 8,702 | 22 MoveKind trajectories, effects, passives, sprite factories |
-| `character/` | 6,415 | 7-level inheritance chain, stats, combat, movement |
-| `runtime/` | 6,208 | GameEngine, GameManager, InputHandler, CameraController |
-| `script/` | 5,879 | 182-command scripting VM (parser + executor + 9 command categories) |
-| `player/` | 5,842 | Player controller, inventory, magic slots, equipment |
-| `gui/` | 3,921 | GUI manager, dialog system, buy interface, UI bridge |
-| `npc/` | 3,838 | NPC AI, interaction scripts, spatial grid, magic cache |
-| `resource/` | 2,950 | Resource loader, 8 binary format decoders |
-| `renderer/` | 2,838 | WebGL + Canvas2D renderers, sprite/rect batchers, GLSL shaders |
-| `storage/` | 2,121 | Save/load system, game state persistence |
-| `obj/` | 1,981 | Scene objects (chests, doors, traps), manager + renderer |
+| `magic/` | 8,798 | 22 MoveKind trajectories, effects, passives, sprite factories |
+| `character/` | 6,410 | 8-level inheritance chain, stats, combat, movement |
+| `runtime/` | 6,252 | GameEngine, GameManager, InputHandler, CameraController |
+| `script/` | 6,205 | 218-command scripting VM (parser + executor + 9 command categories) |
+| `player/` | 5,839 | Player controller, inventory, magic slots, equipment |
+| `gui/` | 4,560 | GUI manager, dialog system, buy interface, UI bridge |
+| `npc/` | 3,843 | NPC AI, interaction scripts, spatial grid, magic cache |
+| `renderer/` | 3,135 | WebGL + Canvas2D renderers, sprite/rect batchers, GLSL shaders |
+| `resource/` | 2,940 | Resource loader, 8 binary format decoders |
+| `storage/` | 2,132 | Save/load system, game state persistence |
+| `obj/` | 1,978 | Scene objects (chests, doors, traps), manager + renderer |
 | `map/` | 1,638 | Map parsing, obstacle grid, tile rendering, trap zones |
 | `weather/` | 1,533 | Rain, snow, screen droplets, lightning |
 | `wasm/` | 1,202 | WASM bridge layer (pathfinder, decoders, collision) |
-| `core/` | 1,110 | Engine context, types, logger, game API |
+| `core/` | 1,109 | Engine context, types, logger, game API |
 | `utils/` | 989 | Direction, distance, collision, INI parser |
-| `sprite/` | 873 | Base sprite class, edge detection |
-| `audio/` | 781 | Web Audio API manager (OGG/MP3/WAV) |
+| `sprite/` | 903 | Base sprite class, edge detection |
+| `audio/` | 782 | Web Audio API manager (OGG/MP3/WAV) |
 | `data/` | 485 | Data models and config definitions |
 
 Also included: `resources/` (game assets), `docs/` (format specs), `JxqyHD/` (43,293 LOC C# reference from the original engine).
