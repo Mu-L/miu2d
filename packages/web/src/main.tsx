@@ -1,6 +1,7 @@
 import { initWasm } from "@miu2d/engine/wasm";
 import { createRoot } from "react-dom/client";
 import "@miu2d/shared/i18n"; // 初始化 i18n
+import "./monaco-setup"; // Monaco Editor 本地化（禁止 CDN 加载）
 import "./styles/index.css";
 import App from "./App";
 
