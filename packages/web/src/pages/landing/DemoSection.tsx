@@ -4,17 +4,19 @@
  * 通过 iframe 嵌入游戏，支持多游戏 Tab 切换
  * - 新剑侠情缘 /game/sword1?embed=1（默认）
  * - 月影传说   /game/demo?embed=1
+ * - 剑侠情缘2  /game/sword2?embed=1
  */
 
 import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-type GameTab = "sword1" | "yuying";
+type GameTab = "sword1" | "yuying" | "sword2";
 
 const GAME_TABS: { key: GameTab; slug: string }[] = [
   { key: "sword1", slug: "sword1" },
   { key: "yuying", slug: "demo" },
+  { key: "sword2", slug: "sword2" },
 ];
 
 // 计算游戏尺寸的纯函数
