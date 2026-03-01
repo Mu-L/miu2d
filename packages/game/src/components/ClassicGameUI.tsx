@@ -6,16 +6,11 @@
  */
 
 import { logger } from "@miu2d/engine/core/logger";
-import { MAGIC_LIST_CONFIG } from "@miu2d/engine/player/magic/magic-list-config";
-import type { UIEquipSlotName } from "@miu2d/engine/gui/ui-types";
-import { GoodKind } from "@miu2d/engine/player/goods";
 import type React from "react";
-import { useCallback, useEffect } from "react";
-import type { TouchDragData } from "../contexts";
+import { useEffect } from "react";
 import { GameUIContext } from "../contexts";
+import { buildGameUIContextValue, useTouchDropHandlers } from "./hooks";
 import type { GameUILogic } from "./hooks";
-import type { EquipSlotType } from "./ui/classic";
-import type { GoodItemData } from "./ui/classic";
 import { useEquipGuiConfig, useStateGuiConfig } from "./ui/classic/useUISettings";
 import {
   BottomGui,
@@ -36,7 +31,6 @@ import {
   SelectionMultipleUI,
   SelectionUI,
   StateGui,
-  slotTypeToEquipPosition,
   TimerGui,
   TopGui,
   XiuLianGui,
@@ -47,20 +41,6 @@ interface ClassicGameUIProps {
   width: number;
   height: number;
 }
-
-// 将 EquipSlotType 转换为 UIEquipSlotName
-const equipSlotToUISlot = (slot: EquipSlotType): UIEquipSlotName => {
-  const mapping: Record<EquipSlotType, UIEquipSlotName> = {
-    head: "head",
-    neck: "neck",
-    body: "body",
-    back: "back",
-    hand: "hand",
-    wrist: "wrist",
-    foot: "foot",
-  };
-  return mapping[slot];
-};
 
 /**
  * ClassicGameUI Component
@@ -132,147 +112,18 @@ export const ClassicGameUI: React.FC<ClassicGameUIProps> = ({ logic, width, heig
   }, [engine, isStateIntegratedWithEquip]);
 
   // ============= Touch Drop Handlers =============
-  // 这些处理器需要在组件内部定义以访问最新的 logic 状态
-
-  const handleBottomTouchDrop = useCallback(
-    (targetIndex: number, touchData: TouchDragData) => {
-      if (touchData.type === "goods") {
-        if (targetIndex < 3 && touchData.bagIndex !== undefined) {
-          if (touchData.goodsInfo?.kind !== GoodKind.Drug) {
-            dispatch({ type: "SHOW_MESSAGE", text: "只有药品可以放到快捷栏" });
-            return;
-          }
-          const targetBagIndex = 221 + targetIndex;
-          dispatch({ type: "SWAP_ITEMS", fromIndex: touchData.bagIndex, toIndex: targetBagIndex });
-        } else if (targetIndex < 3 && touchData.bottomSlot !== undefined) {
-          const fromIndex = 221 + touchData.bottomSlot;
-          const toIndex = 221 + targetIndex;
-          dispatch({ type: "SWAP_ITEMS", fromIndex, toIndex });
-        }
-      } else if (touchData.type === "magic") {
-        if (targetIndex >= 3) {
-          const targetBottomSlot = targetIndex - 3;
-          if (touchData.storeIndex !== undefined) {
-            dispatch({
-              type: "ASSIGN_MAGIC_TO_BOTTOM",
-              magicIndex: touchData.storeIndex,
-              bottomSlot: targetBottomSlot,
-            });
-          } else if (touchData.bottomSlot !== undefined) {
-            dispatch({
-              type: "SWAP_BOTTOM_SLOTS",
-              fromSlot: touchData.bottomSlot - 3,
-              toSlot: targetBottomSlot,
-            });
-          }
-        }
-      }
-    },
-    [dispatch, engine]
-  );
-
-  const handleEquipTouchDrop = useCallback(
-    (slot: EquipSlotType, touchData: TouchDragData) => {
-      if (touchData.type === "goods" && touchData.bagIndex !== undefined) {
-        dispatch({
-          type: "EQUIP_ITEM",
-          fromIndex: touchData.bagIndex,
-          toSlot: equipSlotToUISlot(slot),
-        });
-      } else if (touchData.type === "equip" && touchData.equipSlot) {
-        dispatch({
-          type: "SWAP_EQUIP_SLOTS",
-          fromSlot: equipSlotToUISlot(touchData.equipSlot as EquipSlotType),
-          toSlot: equipSlotToUISlot(slot),
-        });
-      }
-    },
-    [dispatch]
-  );
-
-  const handleGoodsTouchDrop = useCallback(
-    (targetIndex: number, touchData: TouchDragData) => {
-      if (touchData.type === "goods" && touchData.bagIndex !== undefined) {
-        dispatch({ type: "SWAP_ITEMS", fromIndex: touchData.bagIndex, toIndex: targetIndex });
-      } else if (touchData.type === "goods" && touchData.bottomSlot !== undefined) {
-        const fromIndex = 221 + touchData.bottomSlot;
-        dispatch({ type: "SWAP_ITEMS", fromIndex, toIndex: targetIndex });
-      } else if (touchData.type === "equip" && touchData.equipSlot) {
-        const fromIndex = slotTypeToEquipPosition(touchData.equipSlot as EquipSlotType) + 200;
-        dispatch({ type: "SWAP_ITEMS", fromIndex, toIndex: targetIndex });
-      }
-    },
-    [dispatch]
-  );
-
-  const handleMagicTouchDrop = useCallback(
-    (targetStoreIndex: number, touchData: TouchDragData) => {
-      if (touchData.type === "magic" && touchData.storeIndex !== undefined) {
-        dispatch({
-          type: "SWAP_MAGIC",
-          fromIndex: touchData.storeIndex,
-          toIndex: targetStoreIndex,
-        });
-      } else if (touchData.type === "magic" && touchData.bottomSlot !== undefined) {
-        // 从快捷栏拖回技能栏：清除快捷栏引用
-        dispatch({ type: "CLEAR_BOTTOM_SLOT", bottomSlot: touchData.bottomSlot - 3 });
-      }
-    },
-    [dispatch]
-  );
-
-  const handleXiuLianTouchDrop = useCallback(
-    (touchData: TouchDragData) => {
-      const xiuLianIndex = MAGIC_LIST_CONFIG.xiuLianIndex;
-      if (touchData.type === "magic") {
-        if (
-          touchData.storeIndex !== undefined &&
-          touchData.storeIndex > 0 &&
-          touchData.storeIndex !== xiuLianIndex
-        ) {
-          dispatch({ type: "SWAP_MAGIC", fromIndex: touchData.storeIndex, toIndex: xiuLianIndex });
-        } else if (touchData.bottomSlot !== undefined) {
-          const fromListIndex = engine
-            ?.getGameManager()
-            ?.magicInventory?.getBottomSlots()[touchData.bottomSlot - 3];
-          if (fromListIndex != null) {
-            dispatch({ type: "SWAP_MAGIC", fromIndex: fromListIndex, toIndex: xiuLianIndex });
-          }
-        }
-      }
-    },
-    [dispatch, engine]
-  );
+  const {
+    handleBottomTouchDrop,
+    handleEquipTouchDrop,
+    handleGoodsTouchDrop,
+    handleMagicTouchDrop,
+    handleXiuLianTouchDrop,
+  } = useTouchDropHandlers(logic);
 
   if (!engine) return null;
 
   // ======= GameUIContext value =======
-  const gameUIContextValue = {
-    screenWidth: width,
-    screenHeight: height,
-    togglePanel,
-    playerVitals: {
-      life: player?.life ?? 100,
-      lifeMax: player?.lifeMax ?? 100,
-      mana: player?.mana ?? 50,
-      manaMax: player?.manaMax ?? 50,
-      thew: player?.thew ?? 100,
-      thewMax: player?.thewMax ?? 100,
-    },
-    onMagicHover: handleMagicHover,
-    onMagicLeave: handleMagicLeave,
-    onGoodsHover: (goodData: GoodItemData | null, x: number, y: number) => {
-      if (goodData?.good) {
-        logic.setTooltip({
-          isVisible: true,
-          good: goodData.good,
-          isRecycle: false,
-          position: { x, y },
-        });
-      }
-    },
-    onGoodsLeave: handleMouseLeave,
-  };
+  const gameUIContextValue = buildGameUIContextValue(logic, width, height);
 
   return (
     <GameUIContext.Provider value={gameUIContextValue}>

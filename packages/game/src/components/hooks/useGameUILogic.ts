@@ -99,7 +99,7 @@ export interface BuyData {
 
 // ============= Utility Functions =============
 
-const equipSlotToUISlot = (slot: EquipSlotType): UIEquipSlotName => {
+export const equipSlotToUISlot = (slot: EquipSlotType): UIEquipSlotName => {
   const mapping: Record<EquipSlotType, UIEquipSlotName> = {
     head: "head",
     neck: "neck",
