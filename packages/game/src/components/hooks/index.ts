@@ -13,4 +13,6 @@ export type {
   MinimapState,
   TooltipState,
 } from "./useGameUILogic";
-export { useGameUILogic } from "./useGameUILogic";
+export { equipSlotToUISlot, useGameUILogic } from "./useGameUILogic";
+export { buildGameUIContextValue } from "./buildGameUIContextValue";
+export { useTouchDropHandlers } from "./useTouchDropHandlers";
