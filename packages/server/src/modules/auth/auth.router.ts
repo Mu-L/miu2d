@@ -11,6 +11,7 @@ import { getMessage } from "../../i18n";
 import type { Context } from "../../trpc/context";
 import { Ctx, Mutation, Router } from "../../trpc/decorators";
 import { Logger } from "../../utils/logger.js";
+import { verifyPassword } from "../../utils/password";
 import { emailTokenService } from "../user/emailToken.service";
 import { authService, toUserOutput } from "./auth.service";
 
@@ -25,7 +26,8 @@ export class AuthRouter {
   async login(input: LoginInput, @Ctx() ctx: Context) {
     const user = await authService.getUserByEmail(input.email);
 
-    if (!user || user.passwordHash !== input.password) {
+    const passwordValid = user ? await verifyPassword(input.password, user.passwordHash) : false;
+    if (!user || !passwordValid) {
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: getMessage(ctx.language, "errors.auth.invalidCredentials"),
