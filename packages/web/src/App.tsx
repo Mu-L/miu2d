@@ -2,6 +2,7 @@ import { DashboardApp } from "@miu2d/dashboard";
 import { GameScreen } from "@miu2d/game";
 import { AuthProvider, DeviceProvider, ThemeProvider, TRPCProvider } from "@miu2d/shared";
 import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import { PWAUpdatePrompt } from "./PWAUpdatePrompt";
 import { LoginPage } from "./pages/LoginPage";
 import { LandingPage } from "./pages/landing";
 import NotFoundPage from "./pages/NotFoundPage";
@@ -24,6 +25,7 @@ export default function App() {
                 <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </Router>
+            <PWAUpdatePrompt />
           </DeviceProvider>
         </ThemeProvider>
       </AuthProvider>

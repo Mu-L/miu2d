@@ -3,6 +3,7 @@ import * as path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react-oxc";
 import { defineConfig, type Plugin } from "vite";
+import { VitePWA } from "vite-plugin-pwa";
 
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
@@ -40,7 +41,75 @@ function resources404Plugin(): Plugin {
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [resources404Plugin(), tailwindcss(), react()],
+  plugins: [
+    resources404Plugin(),
+    tailwindcss(),
+    react(),
+    VitePWA({
+      registerType: "prompt",
+      // Registration is handled manually by PWAUpdatePrompt via useRegisterSW hook
+      injectRegister: null,
+      // Manifest is authored manually in public/manifest.webmanifest and linked in index.html
+      manifest: false,
+      strategies: "generateSW",
+      workbox: {
+        // Precache all static assets produced by Vite build
+        globPatterns: ["**/*.{js,css,html,wasm}"],
+        // Don't precache large game resource files
+        globIgnores: ["**/resources/**"],
+        // Limit precache entry size to 5 MB
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        runtimeCaching: [
+          // WASM files: CacheFirst (content-hashed by build)
+          {
+            urlPattern: /\.wasm$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "wasm-cache",
+              expiration: { maxEntries: 20, maxAgeSeconds: 30 * 24 * 60 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // Game binary resources (maps, sprites, audio): CacheFirst
+          {
+            urlPattern: /^https?:\/\/.*\/game\/[^/]+\/resources\//i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "game-resources-cache",
+              expiration: { maxEntries: 500, maxAgeSeconds: 7 * 24 * 60 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          // Game data API: NetworkFirst (data changes with engine iterations)
+          {
+            urlPattern: /^https?:\/\/.*\/game\/[^/]+\/api\//i,
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "game-api-cache",
+              networkTimeoutSeconds: 5,
+              expiration: { maxEntries: 50, maxAgeSeconds: 24 * 60 * 60 },
+              cacheableResponse: { statuses: [200] },
+            },
+          },
+          // tRPC / auth API: NetworkOnly (must not serve stale auth data)
+          {
+            urlPattern: /^https?:\/\/.*\/trpc\//i,
+            handler: "NetworkOnly",
+          },
+          // Static image assets in public/icons and public/screenshot
+          {
+            urlPattern: /\/(icons|screenshot)\/.+\.(png|jpg|webp|svg)$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "static-images-cache",
+              expiration: { maxEntries: 50, maxAgeSeconds: 30 * 24 * 60 * 60 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+        ],
+      },
+    }),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
