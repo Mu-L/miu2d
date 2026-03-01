@@ -2,6 +2,7 @@ import type { UserSettings } from "@miu2d/types";
 import { eq } from "drizzle-orm";
 import { db } from "../../db/client";
 import { gameMembers, games, sessions, users } from "../../db/schema";
+import { hashPassword } from "../../utils/password";
 
 const SESSION_COOKIE_NAME = "SESSION_ID";
 const SESSION_COOKIE_MAX_AGE = 1000 * 60 * 60 * 24 * 7;
@@ -80,7 +81,7 @@ export class AuthService {
         .values({
           name: input.name,
           email: input.email,
-          passwordHash: input.password,
+          passwordHash: await hashPassword(input.password),
           role: "user",
         })
         .returning();

@@ -4,6 +4,7 @@ import { and, eq, ne } from "drizzle-orm";
 import { db } from "../../db/client";
 import { users } from "../../db/schema";
 import { getMessage, type Language } from "../../i18n";
+import { hashPassword, verifyPassword } from "../../utils/password";
 
 export const toUserOutput = (user: typeof users.$inferSelect) => ({
   id: user.id,
@@ -135,7 +136,8 @@ export class UserService {
       });
     }
 
-    if (user.passwordHash !== currentPassword) {
+    const passwordValid = await verifyPassword(currentPassword, user.passwordHash);
+    if (!passwordValid) {
       throw new TRPCError({
         code: "BAD_REQUEST",
         message: getMessage(language, "errors.user.wrongPassword"),
@@ -144,7 +146,7 @@ export class UserService {
 
     const [updated] = await db
       .update(users)
-      .set({ passwordHash: newPassword })
+      .set({ passwordHash: await hashPassword(newPassword) })
       .where(eq(users.id, userId))
       .returning();
 
