@@ -17,6 +17,7 @@ import { sceneRoutes } from "./routes/scene.routes";
 import { createContext, setPendingRes } from "./trpc/context";
 import { appRouter } from "./trpc/router";
 import { seedDemoData } from "./utils/demo";
+import { createRateLimiter } from "./utils/rate-limiter";
 
 const app = new Hono();
 
@@ -32,6 +33,26 @@ app.route("/game", gameConfigRoutes);
 app.route("/game", dataRoutes);
 app.route("/game", sceneRoutes);
 app.route("/game", levelRoutes);
+
+// Rate limiting for auth endpoints (must be registered before the tRPC handler)
+// Login: 10 attempts per IP per 15 minutes
+app.use(
+  "/trpc/auth.login",
+  createRateLimiter({
+    maxRequests: 10,
+    windowMs: 15 * 60 * 1000,
+    message: "Too many login attempts, please try again in 15 minutes.",
+  })
+);
+// Register: 5 attempts per IP per hour
+app.use(
+  "/trpc/auth.register",
+  createRateLimiter({
+    maxRequests: 5,
+    windowMs: 60 * 60 * 1000,
+    message: "Too many registration attempts, please try again in 1 hour.",
+  })
+);
 
 // tRPC
 app.use("/trpc/*", async (c, next) => {
