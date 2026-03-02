@@ -135,6 +135,7 @@ export interface UIMagicActions {
   swapBottomSlots: (fromSlot: number, toSlot: number) => void;
   clearBottomSlot: (bottomSlot: number) => void;
   setXiuLianMagic: (magicIndex: number) => void;
+  setXiuLianFromBottom: (bottomSlot: number) => void;
 }
 
 /** 商店操作 */
@@ -445,17 +446,16 @@ export class UIBridgeImpl implements UIBridge {
       storeMagics.push(convertMagicInfoToSlot(info, i));
     }
 
-    // 底栏武功（独立引用槽，不占用存储区索引）
+    // 底栏武功（独立容器，直接持有武功项）
     const bottomMagics: (UIMagicSlot | null)[] = [];
-    const bottomSlots = magicInventory.getBottomSlots();
     const bottomItems = magicInventory.getBottomMagics();
     for (let s = 0; s < bottomItems.length; s++) {
-      const storeIndex = bottomSlots[s] ?? 0;
-      bottomMagics.push(convertMagicInfoToSlot(bottomItems[s], storeIndex));
+      // 用负值区分底栏槽位，避免与面板索引冲突
+      bottomMagics.push(convertMagicInfoToSlot(bottomItems[s], -(s + 1)));
     }
 
-    // 修炼武功 (xiuLianIndex)
-    const xiuLianInfo = magicInventory.getItemInfo(MAGIC_LIST_CONFIG.xiuLianIndex);
+    // 修炼武功（独立容器，直接读取）
+    const xiuLianInfo = magicInventory.getXiuLianMagic();
     const xiuLianMagic = convertMagicInfoToSlot(xiuLianInfo, MAGIC_LIST_CONFIG.xiuLianIndex);
 
     return {
@@ -607,6 +607,9 @@ export class UIBridgeImpl implements UIBridge {
         break;
       case "SET_XIULIAN_MAGIC":
         this.deps.magic.setXiuLianMagic(action.magicIndex);
+        break;
+      case "SET_XIULIAN_FROM_BOTTOM":
+        this.deps.magic.setXiuLianFromBottom(action.bottomSlot);
         break;
 
       // 商店

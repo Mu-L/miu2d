@@ -404,14 +404,25 @@ export class GoodsListManager {
   exchangeListItem(index1: number, index2: number): void {
     logger.log(`[GoodsListManager] exchangeListItem: ${index1} <-> ${index2}`);
     if (index1 !== index2 && this.indexInRange(index1) && this.indexInRange(index2)) {
-      const temp = this.goodsList[index1];
-      this.goodsList[index1] = this.goodsList[index2];
-      this.goodsList[index2] = temp;
+      const temp = this.getItemInfo(index1);
+      this._setItemRaw(index1, this.getItemInfo(index2));
+      this._setItemRaw(index2, temp);
       logger.debug(
         "[GoodsListManager] exchangeListItem: calling onUpdateView, callback exists:",
         !!this.onUpdateView
       );
       this.onUpdateView?.();
+    }
+  }
+
+  /**
+   * 内部：直接写入物品（支持背包、装备、底栏分区路由）
+   */
+  private _setItemRaw(index: number, item: GoodsItemInfo | null): void {
+    if (this.isInBottomGoodsRange(index)) {
+      this.bottomItems[index - BOTTOM_INDEX_BEGIN] = item;
+    } else {
+      this.goodsList[index] = item;
     }
   }
 

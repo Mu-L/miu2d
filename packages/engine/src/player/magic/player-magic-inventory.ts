@@ -883,6 +883,18 @@ export class PlayerMagicInventory {
   }
 
   /**
+   * 将快捷栏[slot]武功移到修炼区，修炼区原武功移到该快捷栏槽位（互换）
+   */
+  moveBottomSlotToXiuLian(bottomSlot: number): void {
+    if (bottomSlot < 0 || bottomSlot >= MAGIC_LIST_CONFIG.bottomSlotCount) return;
+    const item = this.bottomSlots[bottomSlot];
+    this.bottomSlots[bottomSlot] = this.xiuLianMagic;
+    this.xiuLianMagic = item;
+    this.callbacks.onXiuLianMagicChange?.(this.xiuLianMagic);
+    this.updateView();
+  }
+
+  /**
    * 交换两个快捷栏槽位引用（仅移动引用，不移动武功数据）
    */
   swapBottomSlots(fromSlot: number, toSlot: number): void {

@@ -84,11 +84,14 @@ export function createEngineUIBridge(
       clearBottomSlot: (slot) => gm.magicInventory.assignMagicToBottomSlot(0, slot),
       setXiuLianMagic: (i) => {
         if (i === 0) {
-          // 清除修炼武功属性，不移动数据（底栏可能仍引用 xiuLianIndex）
+          // 清除修炼武功
           gm.magicInventory.setXiuLianMagic(null);
         } else {
           gm.magicInventory.exchangeListItem(i, MAGIC_LIST_CONFIG.xiuLianIndex);
         }
+      },
+      setXiuLianFromBottom: (bottomSlot) => {
+        gm.magicInventory.moveBottomSlotToXiuLian(bottomSlot);
       },
     },
     shop: {

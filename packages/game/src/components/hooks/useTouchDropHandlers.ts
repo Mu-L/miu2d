@@ -115,16 +115,12 @@ export function useTouchDropHandlers(logic: Pick<GameUILogic, "dispatch" | "engi
         ) {
           dispatch({ type: "SWAP_MAGIC", fromIndex: touchData.storeIndex, toIndex: xiuLianIndex });
         } else if (touchData.bottomSlot !== undefined) {
-          const fromListIndex = engine
-            ?.getGameManager()
-            ?.magicInventory?.getBottomSlots()[touchData.bottomSlot - 3];
-          if (fromListIndex != null) {
-            dispatch({ type: "SWAP_MAGIC", fromIndex: fromListIndex, toIndex: xiuLianIndex });
-          }
+          // 从快捷栏拖到修炼区：直接互换
+          dispatch({ type: "SET_XIULIAN_FROM_BOTTOM", bottomSlot: touchData.bottomSlot - 3 });
         }
       }
     },
-    [dispatch, engine]
+    [dispatch]
   );
 
   return {
