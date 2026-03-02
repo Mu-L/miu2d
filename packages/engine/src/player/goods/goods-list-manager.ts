@@ -17,6 +17,7 @@ export const EQUIP_INDEX_BEGIN = 201;
 export const EQUIP_INDEX_END = 207;
 export const BOTTOM_INDEX_BEGIN = 221;
 export const BOTTOM_INDEX_END = 223;
+export const BOTTOM_ITEMS_COUNT = 3;
 
 // Equipment slot indices (201-207)
 // 201 = Head, 202 = Neck, 203 = Body, 204 = Back, 205 = Hand, 206 = Wrist, 207 = Foot
@@ -63,6 +64,8 @@ export class GoodsListManager {
   }
 
   private goodsList: (GoodsItemInfo | null)[] = new Array(MAX_GOODS + 1).fill(null);
+  // 快捷栏：独立物品数组（不占用 goodsList 索引）
+  private bottomItems: (GoodsItemInfo | null)[] = new Array(BOTTOM_ITEMS_COUNT).fill(null);
 
   // Callbacks for equipment changes
   private onEquiping: EquipingCallback | null = null;
@@ -96,6 +99,7 @@ export class GoodsListManager {
     for (let i = LIST_INDEX_BEGIN; i <= LIST_INDEX_END; i++) {
       this.goodsList[i] = null;
     }
+    this.bottomItems.fill(null);
   }
 
   /**
@@ -158,15 +162,30 @@ export class GoodsListManager {
 
   /**
    * Get item info at index
+   * Bottom range (221-223) routes to the independent bottomItems array
    */
   getItemInfo(index: number): GoodsItemInfo | null {
+    if (this.isInBottomGoodsRange(index)) {
+      return this.bottomItems[index - BOTTOM_INDEX_BEGIN];
+    }
     return this.indexInRange(index) ? this.goodsList[index] : null;
   }
 
   /**
    * Set item at specific index (for loading saves)
+   * Bottom range (221-223) routes to bottomItems array
    */
   setItemAtIndex(index: number, fileName: string, count: number = 1): boolean {
+    if (this.isInBottomGoodsRange(index)) {
+      const good = getGood(fileName);
+      if (!good) {
+        logger.warn(`[GoodsListManager] Failed to load good: ${fileName}`);
+        return false;
+      }
+      this.bottomItems[index - BOTTOM_INDEX_BEGIN] = { good, count, remainColdMilliseconds: 0 };
+      return true;
+    }
+
     if (!this.indexInRange(index)) return false;
 
     const good = getGood(fileName);
@@ -244,22 +263,8 @@ export class GoodsListManager {
       }
     }
 
-    // Find empty slot in store
+    // Find empty slot in store range (bottom bar is independent, not used as overflow)
     for (let i = STORE_INDEX_BEGIN; i <= STORE_INDEX_END; i++) {
-      if (this.goodsList[i] === null) {
-        this.goodsList[i] = {
-          good,
-          count: 1,
-          remainColdMilliseconds: 0,
-        };
-        this.checkAddNoEquipGood(good);
-        this.onUpdateView?.(); // Trigger UI update
-        return { success: true, index: i, good };
-      }
-    }
-
-    // Try bottom slots
-    for (let i = BOTTOM_INDEX_BEGIN; i <= BOTTOM_INDEX_END; i++) {
       if (this.goodsList[i] === null) {
         this.goodsList[i] = {
           good,
@@ -692,9 +697,6 @@ export class GoodsListManager {
     for (let i = STORE_INDEX_BEGIN; i <= STORE_INDEX_END; i++) {
       if (this.goodsList[i] === null) return true;
     }
-    for (let i = BOTTOM_INDEX_BEGIN; i <= BOTTOM_INDEX_END; i++) {
-      if (this.goodsList[i] === null) return true;
-    }
     return false;
   }
 
@@ -732,27 +734,41 @@ export class GoodsListManager {
   }
 
   /**
-   * Get bottom bar items (hotbar)
+   * Get bottom bar items (hotbar) from independent bottomItems array
    */
   getBottomItems(): (GoodsItemInfo | null)[] {
-    const items: (GoodsItemInfo | null)[] = [];
-    for (let i = BOTTOM_INDEX_BEGIN; i <= BOTTOM_INDEX_END; i++) {
-      items.push(this.goodsList[i]);
-    }
-    return items;
+    return [...this.bottomItems];
   }
 
   /**
    * Get the image path for an item at index
    */
   getImagePath(index: number): string | null {
-    const good = this.get(index);
-    if (!good) return null;
-
+    const info = this.getItemInfo(index);
+    if (!info) return null;
     // Use icon for bottom bar items
     if (this.isInBottomGoodsRange(index)) {
-      return good.iconPath;
+      return info.good.iconPath;
     }
-    return good.imagePath;
+    return info.good.imagePath;
+  }
+
+  /**
+   * Set item directly in bottom slot (for save loading)
+   */
+  setBottomItemAtSlot(slot: number, item: GoodsItemInfo | null): void {
+    if (slot >= 0 && slot < BOTTOM_ITEMS_COUNT) {
+      this.bottomItems[slot] = item;
+    }
+  }
+
+  /**
+   * Get item directly from bottom slot
+   */
+  getBottomItemAtSlot(slot: number): GoodsItemInfo | null {
+    if (slot >= 0 && slot < BOTTOM_ITEMS_COUNT) {
+      return this.bottomItems[slot];
+    }
+    return null;
   }
 }

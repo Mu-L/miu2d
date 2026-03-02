@@ -337,24 +337,70 @@ export interface ObjSaveItem {
 }
 
 /**
+ * 武功存档项（新格式）
+ */
+export interface MagicSaveItem {
+  fileName: string;
+  level: number;
+  exp: number;
+  hideCount?: number;
+  lastPanelSlot?: number;
+}
+
+/**
+ * 武功容器存档（新格式）
+ */
+export interface MagicContainerSave {
+  /** 60 个槽位（索引 0-59 对应面板槽位 1-60） */
+  panelMagics: (MagicSaveItem | null)[];
+  xiuLianMagic: MagicSaveItem | null;
+  /** 5 个快捷栏槽位 */
+  bottomMagics: (MagicSaveItem | null)[];
+  hiddenMagics: MagicSaveItem[];
+}
+
+/**
+ * 物品存档项（新格式）
+ */
+export interface GoodsSaveItem {
+  fileName: string;
+  count: number;
+}
+
+/**
+ * 物品容器存档（新格式）
+ */
+export interface GoodsContainerSave {
+  bagItems: GoodsSaveItem[];
+  /** 7 个装备槽位 */
+  equipItems: (GoodsSaveItem | null)[];
+  /** 3 个快捷栏槽位 */
+  bottomItems: (GoodsSaveItem | null)[];
+}
+
+/**
  * 多角色存档数据
  * 保存非当前角色的数据（在 PlayerChange 切换过的角色）
  */
 export interface CharacterSaveSlot {
   /** 玩家数据 */
   player: PlayerSaveData | null;
-  /** 武功列表 */
-  magics: MagicItemData[] | null;
-  /** 修炼武功索引 */
-  xiuLianIndex: number;
-  /** 快捷栏引用数组 (storeIndex 1..60 | null，5 个槽位) */
+  /** 武功列表（旧格式，可选） */
+  magics?: MagicItemData[] | null;
+  /** 修炼武功索引（旧格式，可选） */
+  xiuLianIndex?: number;
+  /** 快捷栏引用数组（旧格式，可选） */
   bottomSlots?: (number | null)[];
   /** 替换武功列表 */
   replaceMagicLists?: unknown;
-  /** 物品列表 */
-  goods: GoodsItemData[] | null;
-  /** 装备列表 */
-  equips: (GoodsItemData | null)[] | null;
+  /** 物品列表（旧格式，可选） */
+  goods?: GoodsItemData[] | null;
+  /** 装备列表（旧格式，可选） */
+  equips?: (GoodsItemData | null)[] | null;
+  /** 武功容器（新格式，可选） */
+  magicContainer?: MagicContainerSave | null;
+  /** 物品容器（新格式，可选） */
+  goodsContainer?: GoodsContainerSave | null;
   /** 备忘录 */
   memo: string[] | null;
 }
@@ -379,16 +425,20 @@ export interface SaveData {
   parallelScripts: ParallelScriptItem[];
   /** 玩家数据 */
   player: PlayerSaveData;
-  /** 物品列表 */
-  goods: GoodsItemData[];
-  /** 装备列表 (索引对应装备槽位) */
-  equips: (GoodsItemData | null)[];
-  /** 武功列表 */
-  magics: MagicItemData[];
-  /** 修炼武功索引 */
-  xiuLianIndex: number;
-  /** 快捷栏引用数组 (storeIndex 1..60 | null，5 个槽位) */
+  /** 物品列表（旧格式，已被 goodsContainer 取代） */
+  goods?: GoodsItemData[];
+  /** 装备列表（旧格式，已被 goodsContainer 取代） */
+  equips?: (GoodsItemData | null)[];
+  /** 武功列表（旧格式，已被 magicContainer 取代） */
+  magics?: MagicItemData[];
+  /** 修炼武功索引（旧格式，已被 magicContainer 取代） */
+  xiuLianIndex?: number;
+  /** 快捷栏引用数组（旧格式，已被 magicContainer 取代） */
   bottomSlots?: (number | null)[];
+  /** 武功容器（新格式） */
+  magicContainer?: MagicContainerSave;
+  /** 物品容器（新格式） */
+  goodsContainer?: GoodsContainerSave;
   /** 替换武功列表 (角色变身时的临时武功) */
   replaceMagicLists?: object;
   /** 备忘录 */
