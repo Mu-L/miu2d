@@ -25,12 +25,9 @@ export function useTouchDropHandlers(logic: Pick<GameUILogic, "dispatch" | "engi
             dispatch({ type: "SHOW_MESSAGE", text: "只有药品可以放到快捷栏" });
             return;
           }
-          const targetBagIndex = 221 + targetIndex;
-          dispatch({ type: "SWAP_ITEMS", fromIndex: touchData.bagIndex, toIndex: targetBagIndex });
+          dispatch({ type: "MOVE_BAG_TO_BOTTOM", bagIndex: touchData.bagIndex, bottomSlot: targetIndex });
         } else if (targetIndex < 3 && touchData.bottomSlot !== undefined) {
-          const fromIndex = 221 + touchData.bottomSlot;
-          const toIndex = 221 + targetIndex;
-          dispatch({ type: "SWAP_ITEMS", fromIndex, toIndex });
+          dispatch({ type: "SWAP_BOTTOM_GOODS", fromSlot: touchData.bottomSlot, toSlot: targetIndex });
         }
       } else if (touchData.type === "magic") {
         if (targetIndex >= 3) {
@@ -78,10 +75,9 @@ export function useTouchDropHandlers(logic: Pick<GameUILogic, "dispatch" | "engi
       if (touchData.type === "goods" && touchData.bagIndex !== undefined) {
         dispatch({ type: "SWAP_ITEMS", fromIndex: touchData.bagIndex, toIndex: targetIndex });
       } else if (touchData.type === "goods" && touchData.bottomSlot !== undefined) {
-        const fromIndex = 221 + touchData.bottomSlot;
-        dispatch({ type: "SWAP_ITEMS", fromIndex, toIndex: targetIndex });
+        dispatch({ type: "MOVE_BOTTOM_TO_BAG", bottomSlot: touchData.bottomSlot, bagIndex: targetIndex });
       } else if (touchData.type === "equip" && touchData.equipSlot) {
-        const fromIndex = slotTypeToEquipPosition(touchData.equipSlot as EquipSlotType) + 200;
+        const fromIndex = slotTypeToEquipPosition(touchData.equipSlot as EquipSlotType) + 500;
         dispatch({ type: "SWAP_ITEMS", fromIndex, toIndex: targetIndex });
       }
     },

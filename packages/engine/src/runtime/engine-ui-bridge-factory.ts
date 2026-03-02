@@ -21,17 +21,17 @@ export interface UIBridgeEngineCallbacks {
 }
 
 const EQUIP_SLOT_MAP: Record<string, number> = {
-  head: 201,
-  neck: 202,
-  body: 203,
-  back: 204,
-  hand: 205,
-  wrist: 206,
-  foot: 207,
+  head: 501,
+  neck: 502,
+  body: 503,
+  back: 504,
+  hand: 505,
+  wrist: 506,
+  foot: 507,
 };
 
 function slotNameToIndex(slot: string): number {
-  return EQUIP_SLOT_MAP[slot] ?? 201;
+  return EQUIP_SLOT_MAP[slot] ?? 501;
 }
 
 /**
@@ -70,6 +70,20 @@ export function createEngineUIBridge(
         gm.goodsListManager.useBottomSlot(slot, gm.player, (fn) =>
           gm.npcManager.forEachPartner(fn)
         ),
+      sellBottomGoods: (slot) => {
+        const info = gm.goodsListManager.getBottomItemAtSlot(slot);
+        if (info?.good && info.good.sellPrice > 0 && gm.buyManager.getCanSellSelfGoods()) {
+          gm.player.money += info.good.sellPrice;
+          gm.goodsListManager.setBottomItemAtSlot(slot, null);
+          gm.buyManager.addGood(info.good);
+        }
+      },
+      moveBagToBottom: (bagIndex, bottomSlot) =>
+        gm.goodsListManager.moveBagToBottom(bagIndex, bottomSlot),
+      moveBottomToBag: (bottomSlot, bagIndex) =>
+        gm.goodsListManager.moveBottomToBag(bottomSlot, bagIndex),
+      swapBottomGoods: (fromSlot, toSlot) =>
+        gm.goodsListManager.swapBottomGoods(fromSlot, toSlot),
       swapEquipSlots: (from, to) =>
         gm.goodsListManager.exchangeListItem(slotNameToIndex(from), slotNameToIndex(to)),
     },

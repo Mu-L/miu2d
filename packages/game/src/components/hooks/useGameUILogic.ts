@@ -244,7 +244,7 @@ export function useGameUILogic({ engine }: UseGameUILogicOptions) {
     // 装备
     type EquipSlots = Partial<Record<EquipSlotType, { good: UIGoodData; count: number } | null>>;
     const equips: EquipSlots = {};
-    const equipIndices = [201, 202, 203, 204, 205, 206, 207];
+    const equipIndices = [501, 502, 503, 504, 505, 506, 507];
     const equipSlots: EquipSlotType[] = ["head", "neck", "body", "back", "hand", "wrist", "foot"];
 
     equipIndices.forEach((index, i) => {
@@ -603,7 +603,7 @@ export function useGameUILogic({ engine }: UseGameUILogicOptions) {
   );
 
   const handleEquipDragStart = useCallback((slot: EquipSlotType, good: UIGoodData) => {
-    const slotIndex = slotTypeToEquipPosition(slot) + 200;
+    const slotIndex = slotTypeToEquipPosition(slot) + 500;
     setDragData({
       type: "equip",
       index: slotIndex,
@@ -663,12 +663,10 @@ export function useGameUILogic({ engine }: UseGameUILogicOptions) {
         return;
       }
 
-      const targetIndex = 221 + targetBottomSlot;
-
       if (dragData.type === "goods") {
-        dispatch({ type: "SWAP_ITEMS", fromIndex: dragData.index, toIndex: targetIndex });
+        dispatch({ type: "MOVE_BAG_TO_BOTTOM", bagIndex: dragData.index, bottomSlot: targetBottomSlot });
       } else if (dragData.type === "bottom") {
-        dispatch({ type: "SWAP_ITEMS", fromIndex: dragData.index, toIndex: targetIndex });
+        dispatch({ type: "SWAP_BOTTOM_GOODS", fromSlot: dragData.index, toSlot: targetBottomSlot });
       }
 
       setDragData(null);
@@ -680,13 +678,11 @@ export function useGameUILogic({ engine }: UseGameUILogicOptions) {
     (bottomSlot: number) => {
       if (!engine) return;
       const goodsManager = engine.getGoodsListManager();
-
-      const actualIndex = 221 + bottomSlot;
-      const entry = goodsManager.getItemInfo(actualIndex);
+      const entry = goodsManager.getBottomItemAtSlot(bottomSlot);
       if (entry?.good) {
         setDragData({
           type: "bottom",
-          index: actualIndex,
+          index: bottomSlot,
           good: entry.good,
         });
       }

@@ -7,9 +7,9 @@
 
 /** 武功列表索引常量 */
 export const MAGIC_LIST_CONFIG = {
-  maxMagic: 60, // 武功面板最大槽位（1-60）
-  storeIndexBegin: 1, // 存储区起始索引（向后兼容 ui-bridge.ts）
-  storeIndexEnd: 60, // 存储区结束索引（向后兼容 ui-bridge.ts）
-  bottomSlotCount: 5, // 快捷栏槽位数
-  xiuLianIndex: 61, // 修炼武功虚拟索引（向后兼容 ui-bridge.ts / engine-ui-bridge-factory.ts）
+  maxMagic: 500, // 武功面板最大槽位（1-500）
+  storeIndexBegin: 1, // 存储区起始索引
+  storeIndexEnd: 500, // 存储区结束索引
+  bottomSlotCount: 5, // 快捷栏槽位数（独立，不占用面板索引）
+  xiuLianIndex: 501, // 修炼武功虚拟索引（仅 ui-bridge / engine-ui-bridge-factory 内部使用）
 };

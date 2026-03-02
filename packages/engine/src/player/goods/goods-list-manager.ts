@@ -8,19 +8,17 @@ import { logger } from "../../core/logger";
 import { EquipPosition, Good, GoodKind, getGood } from "./good";
 
 // ============= Constants =============
-export const MAX_GOODS = 223;
+export const MAX_GOODS = 507;
 export const LIST_INDEX_BEGIN = 1;
-export const LIST_INDEX_END = 223;
+export const LIST_INDEX_END = 507;
 export const STORE_INDEX_BEGIN = 1;
-export const STORE_INDEX_END = 198;
-export const EQUIP_INDEX_BEGIN = 201;
-export const EQUIP_INDEX_END = 207;
-export const BOTTOM_INDEX_BEGIN = 221;
-export const BOTTOM_INDEX_END = 223;
+export const STORE_INDEX_END = 500;
+export const EQUIP_INDEX_BEGIN = 501;
+export const EQUIP_INDEX_END = 507;
 export const BOTTOM_ITEMS_COUNT = 3;
 
-// Equipment slot indices (201-207)
-// 201 = Head, 202 = Neck, 203 = Body, 204 = Back, 205 = Hand, 206 = Wrist, 207 = Foot
+// Equipment slot indices (501-507)
+// 501 = Head, 502 = Neck, 503 = Body, 504 = Back, 505 = Hand, 506 = Wrist, 507 = Foot
 export function getEquipSlotIndex(position: EquipPosition): number {
   switch (position) {
     case EquipPosition.Head:
@@ -124,13 +122,6 @@ export class GoodsListManager {
   }
 
   /**
-   * Check if index is in bottom goods (hotbar) range
-   */
-  isInBottomGoodsRange(index: number): boolean {
-    return index >= BOTTOM_INDEX_BEGIN && index <= BOTTOM_INDEX_END;
-  }
-
-  /**
    * Apply equipment effects from loaded list
    */
   applyEquipSpecialEffectFromList(): void {
@@ -162,30 +153,15 @@ export class GoodsListManager {
 
   /**
    * Get item info at index
-   * Bottom range (221-223) routes to the independent bottomItems array
    */
   getItemInfo(index: number): GoodsItemInfo | null {
-    if (this.isInBottomGoodsRange(index)) {
-      return this.bottomItems[index - BOTTOM_INDEX_BEGIN];
-    }
     return this.indexInRange(index) ? this.goodsList[index] : null;
   }
 
   /**
    * Set item at specific index (for loading saves)
-   * Bottom range (221-223) routes to bottomItems array
    */
   setItemAtIndex(index: number, fileName: string, count: number = 1): boolean {
-    if (this.isInBottomGoodsRange(index)) {
-      const good = getGood(fileName);
-      if (!good) {
-        logger.warn(`[GoodsListManager] Failed to load good: ${fileName}`);
-        return false;
-      }
-      this.bottomItems[index - BOTTOM_INDEX_BEGIN] = { good, count, remainColdMilliseconds: 0 };
-      return true;
-    }
-
     if (!this.indexInRange(index)) return false;
 
     const good = getGood(fileName);
@@ -416,14 +392,10 @@ export class GoodsListManager {
   }
 
   /**
-   * 内部：直接写入物品（支持背包、装备、底栏分区路由）
+   * 内部：直接写入物品
    */
   private _setItemRaw(index: number, item: GoodsItemInfo | null): void {
-    if (this.isInBottomGoodsRange(index)) {
-      this.bottomItems[index - BOTTOM_INDEX_BEGIN] = item;
-    } else {
-      this.goodsList[index] = item;
-    }
+    this.goodsList[index] = item;
   }
 
   /**
@@ -644,21 +616,42 @@ export class GoodsListManager {
    * @param player Player instance
    * @param forEachPartner Callback to iterate partners
    */
-  async useBottomSlot(
+  useBottomSlot(
     slotIndex: number,
     player: { level: number; useDrug: (good: Good) => void },
     forEachPartner: (fn: (partner: { useDrug: (good: Good) => void }) => void) => void
-  ): Promise<void> {
-    const actualIndex = BOTTOM_INDEX_BEGIN + slotIndex;
-    const info = this.getItemInfo(actualIndex);
+  ): void {
+    const info = this.getBottomItemAtSlot(slotIndex);
     if (!info?.good) return;
 
-    const success = await this.usingGood(actualIndex, player.level);
-    if (success && info.good.kind === GoodKind.Drug) {
-      player.useDrug(info.good);
-      if (info.good.followPartnerHasDrugEffect > 0) {
+    const good = info.good;
+    const level = player.level;
+    // Use the item directly from bottom slot
+    const minLevel = good.minLevel;
+    if (minLevel > 0 && level < minLevel) {
+      return;
+    }
+    if (info.remainColdMilliseconds > 0) return;
+    if (good.kind === GoodKind.Drug) {
+      const coldMilliseconds = good.coldTime * 1000;
+      info.remainColdMilliseconds = coldMilliseconds;
+      // Also apply cold to same-item slots in the list
+      for (let i = LIST_INDEX_BEGIN; i <= LIST_INDEX_END; i++) {
+        const slot = this.goodsList[i];
+        if (slot && slot.good.fileName.toLowerCase() === good.fileName.toLowerCase()) {
+          slot.remainColdMilliseconds = coldMilliseconds;
+        }
+      }
+      // Decrement count
+      info.count -= 1;
+      if (info.count <= 0) {
+        this.bottomItems[slotIndex] = null;
+      }
+      this.onUpdateView?.();
+      player.useDrug(good);
+      if (good.followPartnerHasDrugEffect > 0) {
         forEachPartner((partner) => {
-          partner.useDrug(info.good);
+          partner.useDrug(good);
         });
       }
     }
@@ -668,7 +661,7 @@ export class GoodsListManager {
    * Equip a good from inventory
    */
   equipGood(goodListIndex: number): boolean {
-    if (!this.isInStoreRange(goodListIndex) && !this.isInBottomGoodsRange(goodListIndex)) {
+    if (!this.isInStoreRange(goodListIndex)) {
       return false;
     }
 
@@ -757,10 +750,6 @@ export class GoodsListManager {
   getImagePath(index: number): string | null {
     const info = this.getItemInfo(index);
     if (!info) return null;
-    // Use icon for bottom bar items
-    if (this.isInBottomGoodsRange(index)) {
-      return info.good.iconPath;
-    }
     return info.good.imagePath;
   }
 
@@ -770,6 +759,7 @@ export class GoodsListManager {
   setBottomItemAtSlot(slot: number, item: GoodsItemInfo | null): void {
     if (slot >= 0 && slot < BOTTOM_ITEMS_COUNT) {
       this.bottomItems[slot] = item;
+      this.onUpdateView?.();
     }
   }
 
@@ -781,5 +771,48 @@ export class GoodsListManager {
       return this.bottomItems[slot];
     }
     return null;
+  }
+
+  /**
+   * Move a bag item into a bottom slot (item stays in bag AND bottom slot)
+   */
+  moveBagToBottom(bagIndex: number, bottomSlot: number): void {
+    if (!this.isInStoreRange(bagIndex) || bottomSlot < 0 || bottomSlot >= BOTTOM_ITEMS_COUNT) return;
+    const info = this.goodsList[bagIndex];
+    if (!info) return;
+    this.bottomItems[bottomSlot] = { ...info };
+    this.goodsList[bagIndex] = null;
+    this.onUpdateView?.();
+  }
+
+  /**
+   * Move a bottom slot item back to bag
+   */
+  moveBottomToBag(bottomSlot: number, bagIndex?: number): void {
+    if (bottomSlot < 0 || bottomSlot >= BOTTOM_ITEMS_COUNT) return;
+    const item = this.bottomItems[bottomSlot];
+    if (!item) return;
+    if (bagIndex !== undefined && this.isInStoreRange(bagIndex) && this.goodsList[bagIndex] === null) {
+      this.goodsList[bagIndex] = item;
+    } else {
+      this.addGoodToListWithCount(item.good.fileName, item.count);
+    }
+    this.bottomItems[bottomSlot] = null;
+    this.onUpdateView?.();
+  }
+
+  /**
+   * Swap two bottom slots
+   */
+  swapBottomGoods(fromSlot: number, toSlot: number): void {
+    if (
+      fromSlot < 0 || fromSlot >= BOTTOM_ITEMS_COUNT ||
+      toSlot < 0 || toSlot >= BOTTOM_ITEMS_COUNT ||
+      fromSlot === toSlot
+    ) return;
+    const tmp = this.bottomItems[fromSlot];
+    this.bottomItems[fromSlot] = this.bottomItems[toSlot];
+    this.bottomItems[toSlot] = tmp;
+    this.onUpdateView?.();
   }
 }

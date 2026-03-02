@@ -15,8 +15,6 @@ import type { NpcManager } from "../npc";
 import type { ObjManager } from "../obj";
 import type { GoodsListManager } from "../player/goods";
 import {
-  BOTTOM_INDEX_BEGIN,
-  BOTTOM_INDEX_END,
   EQUIP_INDEX_BEGIN,
 } from "../player/goods/goods-list-manager";
 import { getGood } from "../player/goods/good";
@@ -70,17 +68,12 @@ export async function loadPlayerFromJSON(data: PlayerSaveData, player: Player): 
 /**
  * 从 JSON 加载武功列表（旧格式兼容）
  * 参考 PlayerMagicInventory.LoadList
- *
- * 旧存档兼容：
- * - 旧版快捷栏占用 magicList[40..44]，加载时保留在原 store 索引并重建 bottomSlots
- * - xiuLianIndex=49 在新设计中仍为有效 store 索引（1..60），自动兼容
- * - index=61 的武功会被 visibleMagics 过滤掉；修炼武功由最后的 setXiuLianIndex 调用设置
+ * 用于新游戏初始化（从 API 数据加载初始武功）
  */
 export async function loadMagicsFromJSON(
   magics: MagicItemData[],
   xiuLianIndex: number,
   magicInventory: PlayerMagicInventory,
-  bottomSlots?: (number | null)[]
 ): Promise<void> {
   // 清空列表
   magicInventory.renewList();
@@ -120,37 +113,13 @@ export async function loadMagicsFromJSON(
     );
   }
 
-  // 设置修炼武功（setXiuLianIndex 将面板武功物理移出并设为修炼；index=0 表示清空修炼武功）
+  // 设置修炼武功（index=0 表示不设修炼武功）
   magicInventory.setXiuLianIndex(xiuLianIndex);
-
-  // 恢复快捷栏（物理移动面板武功到快捷栏）
-  if (bottomSlots) {
-    // 新存档：storeIndex 指向面板中的武功
-    for (let s = 0; s < Math.min(bottomSlots.length, MAGIC_LIST_CONFIG.bottomSlotCount); s++) {
-      const idx = bottomSlots[s];
-      if (idx !== null && idx !== undefined) {
-        magicInventory.assignMagicToBottomSlot(idx, s);
-      }
-    }
-  } else {
-    // 旧存档兼容：index 40-44 的武功推断为快捷栏绑定
-    const LEGACY_BOTTOM_INDEX_BEGIN = 40;
-    const LEGACY_BOTTOM_INDEX_END = 44;
-    for (let i = 0; i < results.length; i++) {
-      const origIndex = visibleMagics[i].index ?? -1;
-      if (origIndex >= LEGACY_BOTTOM_INDEX_BEGIN && origIndex <= LEGACY_BOTTOM_INDEX_END) {
-        const slotNum = origIndex - LEGACY_BOTTOM_INDEX_BEGIN;
-        const [success, storeIdx] = results[i];
-        if (success && storeIdx > 0) {
-          magicInventory.assignMagicToBottomSlot(storeIdx, slotNum);
-        }
-      }
-    }
-  }
 }
 
 /**
  * 从 JSON 加载物品列表
+ * 用于新游戏初始化（从 API 数据加载初始物品）
  */
 export function loadGoodsFromJSON(
   goods: GoodsItemData[],
@@ -160,19 +129,9 @@ export function loadGoodsFromJSON(
   // 清空列表
   goodsListManager.renewList();
 
-  // 加载背包物品和快捷栏物品
+  // 加载背包物品：自动分配位置
   for (const item of goods) {
-    if (
-      item.index !== undefined &&
-      item.index >= BOTTOM_INDEX_BEGIN &&
-      item.index <= BOTTOM_INDEX_END
-    ) {
-      // 快捷栏物品：使用指定索引
-      goodsListManager.setItemAtIndex(item.index, item.fileName, item.count);
-    } else {
-      // 背包物品：自动分配位置
-      goodsListManager.addGoodToListWithCount(item.fileName, item.count);
-    }
+    goodsListManager.addGoodToListWithCount(item.fileName, item.count);
   }
 
   // 加载装备

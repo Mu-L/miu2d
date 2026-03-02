@@ -529,20 +529,11 @@ export class Loader {
           const t = performance.now();
           magicInventory.stopReplace();
           magicInventory.clearReplaceList();
-          // 新格式优先，否则回退到旧格式
-          if (data.magicContainer) {
-            await loadMagicContainer(data.magicContainer, magicInventory);
-          } else {
-            await loadMagicsFromJSON(data.magics ?? [], data.xiuLianIndex ?? 0, magicInventory, data.bottomSlots);
-          }
+          await loadMagicContainer(data.magicContainer, magicInventory);
           if (data.replaceMagicLists) {
             await magicInventory.deserializeReplaceLists(data.replaceMagicLists);
           }
-          if (data.goodsContainer) {
-            loadGoodsContainer(data.goodsContainer, goodsListManager);
-          } else {
-            loadGoodsFromJSON(data.goods ?? [], data.equips ?? [], goodsListManager);
-          }
+          loadGoodsContainer(data.goodsContainer, goodsListManager);
           if (data.memo) {
             memoListManager.renewList();
             memoListManager.bulkLoadItems(data.memo.items);

@@ -27,8 +27,6 @@ import type { MemoListManager } from "../gui/memo-list-manager";
 import type { MagicItemInfo } from "../magic/types";
 import { MAGIC_LIST_CONFIG } from "../player/magic/magic-list-config";
 import {
-  BOTTOM_INDEX_BEGIN,
-  BOTTOM_INDEX_END,
   EQUIP_INDEX_BEGIN,
   type GoodsItemInfo,
   type GoodsListManager,
@@ -121,6 +119,10 @@ export interface UIGoodsActions {
   unequipItem: (slot: string) => void;
   swapItems: (fromIndex: number, toIndex: number) => void;
   useBottomItem: (slotIndex: number) => void;
+  sellBottomGoods: (slotIndex: number) => void;
+  moveBagToBottom: (bagIndex: number, bottomSlot: number) => void;
+  moveBottomToBag: (bottomSlot: number, bagIndex: number) => void;
+  swapBottomGoods: (fromSlot: number, toSlot: number) => void;
   swapEquipSlots: (fromSlot: string, toSlot: string) => void;
 }
 
@@ -421,10 +423,11 @@ export class UIBridgeImpl implements UIBridge {
       }
     }
 
-    // 底栏物品 (BOTTOM_INDEX_BEGIN-BOTTOM_INDEX_END)
+    // 底栏物品（独立 bottomItems 数组）
     const bottomGoods: (UIGoodsSlot | null)[] = [];
-    for (let i = BOTTOM_INDEX_BEGIN; i <= BOTTOM_INDEX_END; i++) {
-      const info = goodsManager.getItemInfo(i);
+    const bottomCount = goodsManager.getBottomItems().length;
+    for (let i = 0; i < bottomCount; i++) {
+      const info = goodsManager.getBottomItemAtSlot(i);
       bottomGoods.push(info?.good ? convertGoodsItemToSlot(info, i) : null);
     }
 
@@ -575,6 +578,18 @@ export class UIBridgeImpl implements UIBridge {
         break;
       case "USE_BOTTOM_ITEM":
         this.deps.goods.useBottomItem(action.slotIndex);
+        break;
+      case "SELL_BOTTOM_GOODS":
+        this.deps.goods.sellBottomGoods(action.slotIndex);
+        break;
+      case "MOVE_BAG_TO_BOTTOM":
+        this.deps.goods.moveBagToBottom(action.bagIndex, action.bottomSlot);
+        break;
+      case "MOVE_BOTTOM_TO_BAG":
+        this.deps.goods.moveBottomToBag(action.bottomSlot, action.bagIndex);
+        break;
+      case "SWAP_BOTTOM_GOODS":
+        this.deps.goods.swapBottomGoods(action.fromSlot, action.toSlot);
         break;
       case "SWAP_EQUIP_SLOTS":
         this.deps.goods.swapEquipSlots(action.fromSlot, action.toSlot);

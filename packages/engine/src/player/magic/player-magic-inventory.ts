@@ -217,7 +217,7 @@ export class PlayerMagicInventory {
   /**
    * 同步放置武功到列表（不做任何 I/O）
    * 用于批量加载时先全部放置，再统一预加载
-   * 注意：index === xiuLianIndex (61) 时直接设置修炼武功，不写入面板列表
+   * 注意：index === xiuLianIndex (501) 时直接设置修炼武功，不写入面板列表
    */
   private _placeMagicItemSync(
     index: number,
@@ -308,7 +308,7 @@ export class PlayerMagicInventory {
 
   /**
    * 获取武功项信息
-   * 特殊：index === xiuLianIndex (61) 返回修炼武功；否则从面板获取
+   * 特殊：index === xiuLianIndex (501) 返回修炼武功；否则从面板获取
    */
   getItemInfo(index: number): MagicItemInfo | null {
     if (index === MAGIC_LIST_CONFIG.xiuLianIndex) {
@@ -376,7 +376,7 @@ export class PlayerMagicInventory {
       // 确定目标位置
       let index: number;
       if (targetIndex !== undefined && targetIndex > 0) {
-        // 特殊处理：xiuLianIndex (61) 允许直接放置为修炼武功
+        // 特殊处理：xiuLianIndex (501) 允许直接放置为修炼武功
         if (targetIndex === MAGIC_LIST_CONFIG.xiuLianIndex) {
           index = targetIndex;
         } else if (!this.indexInRange(targetIndex)) {
@@ -725,7 +725,7 @@ export class PlayerMagicInventory {
    * 设置修炼武功（通过索引）
    * - index === 0: 清除修炼武功
    * - index in 1..maxMagic: 将面板[index]的武功物理移到修炼区
-   * - index === xiuLianIndex (61): 已在修炼区，不操作（旧存档兼容）
+   * - index === xiuLianIndex (501): 已在修炼区，不操作（旧存档兼容）
    */
   setXiuLianIndex(index: number): void {
     if (index === 0) {

@@ -431,6 +431,10 @@ export type UIAction =
   | { type: "UNEQUIP_ITEM"; slot: UIEquipSlotName }
   | { type: "SWAP_ITEMS"; fromIndex: number; toIndex: number }
   | { type: "USE_BOTTOM_ITEM"; slotIndex: number }
+  | { type: "SELL_BOTTOM_GOODS"; slotIndex: number }
+  | { type: "MOVE_BAG_TO_BOTTOM"; bagIndex: number; bottomSlot: number }
+  | { type: "MOVE_BOTTOM_TO_BAG"; bottomSlot: number; bagIndex: number }
+  | { type: "SWAP_BOTTOM_GOODS"; fromSlot: number; toSlot: number }
   | { type: "SWAP_EQUIP_SLOTS"; fromSlot: UIEquipSlotName; toSlot: UIEquipSlotName }
   // 武功
   | { type: "USE_MAGIC"; magicIndex: number }
