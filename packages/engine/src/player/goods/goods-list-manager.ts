@@ -612,7 +612,7 @@ export class GoodsListManager {
    * Consolidates logic from InputHandler.useBottomGood() and UIBridge.useBottomItem().
    * Handles: consume item → apply drug to player → apply drug to partners.
    *
-   * @param slotIndex 0-2 (maps to bottom indices 221-223)
+   * @param slotIndex 0-2 (bottom slot index)
    * @param player Player instance
    * @param forEachPartner Callback to iterate partners
    */
