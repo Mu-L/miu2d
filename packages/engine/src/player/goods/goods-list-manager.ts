@@ -627,13 +627,13 @@ export class GoodsListManager {
     const good = info.good;
     const level = player.level;
     // Use the item directly from bottom slot
-    const minLevel = good.minLevel;
+    const minLevel = good.minUserLevel;
     if (minLevel > 0 && level < minLevel) {
       return;
     }
     if (info.remainColdMilliseconds > 0) return;
     if (good.kind === GoodKind.Drug) {
-      const coldMilliseconds = good.coldTime * 1000;
+      const coldMilliseconds = good.coldMilliSeconds;
       info.remainColdMilliseconds = coldMilliseconds;
       // Also apply cold to same-item slots in the list
       for (let i = LIST_INDEX_BEGIN; i <= LIST_INDEX_END; i++) {
