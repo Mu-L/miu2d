@@ -93,8 +93,12 @@ export function useTouchDropHandlers(logic: Pick<GameUILogic, "dispatch" | "engi
           toIndex: targetStoreIndex,
         });
       } else if (touchData.type === "magic" && touchData.bottomSlot !== undefined) {
-        // 从快捷栏拖回技能栏：清除快捷栏引用
-        dispatch({ type: "CLEAR_BOTTOM_SLOT", bottomSlot: touchData.bottomSlot - 3 });
+        // 从快捷栏拖回技能栏：物理移动到目标面板槽位（互换）
+        dispatch({
+          type: "MOVE_BOTTOM_TO_PANEL",
+          bottomSlot: touchData.bottomSlot - 3,
+          panelIndex: targetStoreIndex,
+        });
       }
     },
     [dispatch]

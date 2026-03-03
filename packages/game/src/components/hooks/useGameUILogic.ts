@@ -722,8 +722,12 @@ export function useGameUILogic({ engine }: UseGameUILogicOptions) {
       if (source && source.storeIndex > 0) {
         dispatch({ type: "SWAP_MAGIC", fromIndex: source.storeIndex, toIndex: targetStoreIndex });
       } else if (bottomMagicDragData) {
-        // 从快捷栏拖回技能栏：清除快捷栏引用，武功留在原 store 位置
-        dispatch({ type: "CLEAR_BOTTOM_SLOT", bottomSlot: bottomMagicDragData.bottomSlot });
+        // 从快捷栏拖回技能栏：物理移动到目标面板槽位（互换）
+        dispatch({
+          type: "MOVE_BOTTOM_TO_PANEL",
+          bottomSlot: bottomMagicDragData.bottomSlot,
+          panelIndex: targetStoreIndex,
+        });
       }
       setMagicDragData(null);
       setBottomMagicDragData(null);

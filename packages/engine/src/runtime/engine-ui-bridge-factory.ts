@@ -96,6 +96,8 @@ export function createEngineUIBridge(
       assignMagicToBottom: (src, slot) => callbacks.handleMagicDrop(src, slot),
       swapBottomSlots: (fromSlot, toSlot) => gm.magicInventory.swapBottomSlots(fromSlot, toSlot),
       clearBottomSlot: (slot) => gm.magicInventory.assignMagicToBottomSlot(0, slot),
+      moveBottomToPanel: (bottomSlot, panelIndex) =>
+        gm.magicInventory.moveBottomToPanelAt(bottomSlot, panelIndex),
       setXiuLianMagic: (i) => {
         if (i === 0) {
           // 清除修炼武功

@@ -445,6 +445,7 @@ export type UIAction =
   | { type: "ASSIGN_MAGIC_TO_BOTTOM"; magicIndex: number; bottomSlot: number }
   | { type: "SWAP_BOTTOM_SLOTS"; fromSlot: number; toSlot: number }
   | { type: "CLEAR_BOTTOM_SLOT"; bottomSlot: number }
+  | { type: "MOVE_BOTTOM_TO_PANEL"; bottomSlot: number; panelIndex: number }
   | { type: "SET_XIULIAN_MAGIC"; magicIndex: number }
   | { type: "SET_XIULIAN_FROM_BOTTOM"; bottomSlot: number }
   // 商店

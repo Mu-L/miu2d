@@ -895,7 +895,20 @@ export class PlayerMagicInventory {
   }
 
   /**
-   * 交换两个快捷栏槽位引用（仅移动引用，不移动武功数据）
+   * 将快捷栏[bottomSlot]武功物理移动到面板[panelIndex]（互换）
+   */
+  moveBottomToPanelAt(bottomSlot: number, panelIndex: number): void {
+    if (bottomSlot < 0 || bottomSlot >= MAGIC_LIST_CONFIG.bottomSlotCount) return;
+    if (!this.indexInRange(panelIndex)) return;
+    const activeList = this.getActiveMagicList();
+    const tmp = activeList[panelIndex];
+    activeList[panelIndex] = this.bottomSlots[bottomSlot];
+    this.bottomSlots[bottomSlot] = tmp;
+    this.updateView();
+  }
+
+  /**
+   * 交换两个快捷栏槽位
    */
   swapBottomSlots(fromSlot: number, toSlot: number): void {
     if (
