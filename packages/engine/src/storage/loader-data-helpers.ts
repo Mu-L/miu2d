@@ -14,10 +14,19 @@ import type { MapBase } from "../map/map-base";
 import type { NpcManager } from "../npc";
 import type { ObjManager } from "../obj";
 import type { GoodsListManager } from "../player/goods";
-import {
-  EQUIP_INDEX_BEGIN,
-} from "../player/goods/goods-list-manager";
+import { EquipPosition } from "../player/goods/good";
 import { getGood } from "../player/goods/good";
+
+// Equipment slot positions in order (Head=0..Foot=6), matches GoodsContainerSave.equipItems order
+const EQUIP_POSITION_ORDER = [
+  EquipPosition.Head,
+  EquipPosition.Neck,
+  EquipPosition.Body,
+  EquipPosition.Back,
+  EquipPosition.Hand,
+  EquipPosition.Wrist,
+  EquipPosition.Foot,
+] as const;
 import { MAGIC_LIST_CONFIG } from "../player/magic/magic-list-config";
 import type { PlayerMagicInventory } from "../player/magic/player-magic-inventory";
 import type { Player } from "../player/player";
@@ -134,12 +143,18 @@ export function loadGoodsFromJSON(
     goodsListManager.addGoodToListWithCount(item.fileName, item.count);
   }
 
-  // 加载装备
+  // 加载装备（按 EquipPosition 顺序：Head=1..Foot=7）
   for (let i = 0; i < equips.length; i++) {
     const equipItem = equips[i];
     if (equipItem) {
-      const slotIndex = EQUIP_INDEX_BEGIN + i;
-      goodsListManager.setItemAtIndex(slotIndex, equipItem.fileName, 1);
+      const good = getGood(equipItem.fileName);
+      if (good) {
+        goodsListManager.setEquipAtPosition(EQUIP_POSITION_ORDER[i], {
+          good,
+          count: 1,
+          remainColdMilliseconds: 0,
+        });
+      }
     }
   }
 }
@@ -333,11 +348,18 @@ export function loadGoodsContainer(
     manager.addGoodToListWithCount(item.fileName, item.count);
   }
 
-  // 加载装备
+  // 加载装备（独立 equipSlots，0=Head..6=Foot）
   for (let i = 0; i < container.equipItems.length; i++) {
     const item = container.equipItems[i];
     if (item) {
-      manager.setItemAtIndex(EQUIP_INDEX_BEGIN + i, item.fileName, item.count);
+      const good = getGood(item.fileName);
+      if (good) {
+        manager.setEquipAtPosition(EQUIP_POSITION_ORDER[i], {
+          good,
+          count: 1,
+          remainColdMilliseconds: 0,
+        });
+      }
     }
   }
 

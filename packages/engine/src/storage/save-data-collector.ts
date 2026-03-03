@@ -1,8 +1,7 @@
 import { extractFlatDataFromCharacter } from "../character/character-config";
 import {
   BOTTOM_ITEMS_COUNT,
-  EQUIP_INDEX_BEGIN,
-  EQUIP_INDEX_END,
+  EQUIP_SLOT_COUNT,
   type GoodsListManager,
   STORE_INDEX_BEGIN,
   STORE_INDEX_END,
@@ -88,10 +87,10 @@ export class SaveDataCollector {
       }
     }
 
-    // 装备槽
+    // 装备槽（独立 equipSlots 数组，0=Head..6=Foot）
     const equipItems: (GoodsSaveItem | null)[] = [];
-    for (let i = EQUIP_INDEX_BEGIN; i <= EQUIP_INDEX_END; i++) {
-      const info = goodsListManager.getItemInfo(i);
+    for (let i = 0; i < EQUIP_SLOT_COUNT; i++) {
+      const info = goodsListManager.getEquipAtSlotIndex(i);
       equipItems.push(info?.good ? { fileName: info.good.fileName, count: 1 } : null);
     }
 

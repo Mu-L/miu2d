@@ -9,6 +9,7 @@ import type { MemoListManager } from "../gui/memo-list-manager";
 import { type UIBridgeDeps, UIBridgeImpl } from "../gui/ui-bridge";
 import type { GuiManagerState, UIBridge } from "../gui/ui-types";
 import { MAGIC_LIST_CONFIG } from "../player/magic/magic-list-config";
+import { EquipPosition } from "../player/goods/good";
 import { pixelToTile } from "../utils";
 import type { GameManager } from "./game-manager";
 import type { TimerManager } from "./timer-manager";
@@ -20,18 +21,18 @@ export interface UIBridgeEngineCallbacks {
   handleMagicDrop: (sourceStoreIndex: number, targetBottomSlot: number) => void;
 }
 
-const EQUIP_SLOT_MAP: Record<string, number> = {
-  head: 501,
-  neck: 502,
-  body: 503,
-  back: 504,
-  hand: 505,
-  wrist: 506,
-  foot: 507,
+const EQUIP_SLOT_MAP: Record<string, EquipPosition> = {
+  head: EquipPosition.Head,
+  neck: EquipPosition.Neck,
+  body: EquipPosition.Body,
+  back: EquipPosition.Back,
+  hand: EquipPosition.Hand,
+  wrist: EquipPosition.Wrist,
+  foot: EquipPosition.Foot,
 };
 
-function slotNameToIndex(slot: string): number {
-  return EQUIP_SLOT_MAP[slot] ?? 501;
+function slotNameToPosition(slot: string): EquipPosition {
+  return EQUIP_SLOT_MAP[slot] ?? EquipPosition.Head;
 }
 
 /**
@@ -63,8 +64,8 @@ export function createEngineUIBridge(
     goods: {
       useItem: (index) => gm.handleUseItem(index),
       equipItem: (from, slot) =>
-        gm.goodsListManager.exchangeListItemAndEquiping(from, slotNameToIndex(slot)),
-      unequipItem: (slot) => gm.goodsListManager.unEquipGood(slotNameToIndex(slot)),
+        gm.goodsListManager.exchangeListItemAndEquiping(from, slotNameToPosition(slot)),
+      unequipItem: (slot) => gm.goodsListManager.unEquipGood(slotNameToPosition(slot)),
       swapItems: (from, to) => gm.goodsListManager.exchangeListItem(from, to),
       useBottomItem: (slot) =>
         gm.goodsListManager.useBottomSlot(slot, gm.player, (fn) =>
@@ -85,7 +86,7 @@ export function createEngineUIBridge(
       swapBottomGoods: (fromSlot, toSlot) =>
         gm.goodsListManager.swapBottomGoods(fromSlot, toSlot),
       swapEquipSlots: (from, to) =>
-        gm.goodsListManager.exchangeListItem(slotNameToIndex(from), slotNameToIndex(to)),
+        gm.goodsListManager.swapEquipSlots(slotNameToPosition(from), slotNameToPosition(to)),
     },
     magic: {
       useMagic: async (i) => gm.handleMagicRightClick(i),

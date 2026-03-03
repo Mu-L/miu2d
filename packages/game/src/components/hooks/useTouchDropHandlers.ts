@@ -10,7 +10,6 @@ import { GoodKind } from "@miu2d/engine/player/goods";
 import { useCallback } from "react";
 import type { TouchDragData } from "../../contexts";
 import type { EquipSlotType } from "../ui/classic";
-import { slotTypeToEquipPosition } from "../ui/classic";
 import { equipSlotToUISlot } from "./useGameUILogic";
 import type { GameUILogic } from "./useGameUILogic";
 
@@ -77,8 +76,12 @@ export function useTouchDropHandlers(logic: Pick<GameUILogic, "dispatch" | "engi
       } else if (touchData.type === "goods" && touchData.bottomSlot !== undefined) {
         dispatch({ type: "MOVE_BOTTOM_TO_BAG", bottomSlot: touchData.bottomSlot, bagIndex: targetIndex });
       } else if (touchData.type === "equip" && touchData.equipSlot) {
-        const fromIndex = slotTypeToEquipPosition(touchData.equipSlot as EquipSlotType) + 500;
-        dispatch({ type: "SWAP_ITEMS", fromIndex, toIndex: targetIndex });
+        // 从装备槽拖到背包槽：将目标背包位置物品与装备槽互换
+        dispatch({
+          type: "EQUIP_ITEM",
+          fromIndex: targetIndex,
+          toSlot: equipSlotToUISlot(touchData.equipSlot as EquipSlotType),
+        });
       }
     },
     [dispatch]

@@ -27,7 +27,7 @@ import type { MemoListManager } from "../gui/memo-list-manager";
 import type { MagicItemInfo } from "../magic/types";
 import { MAGIC_LIST_CONFIG } from "../player/magic/magic-list-config";
 import {
-  EQUIP_INDEX_BEGIN,
+  EQUIP_SLOT_COUNT,
   type GoodsItemInfo,
   type GoodsListManager,
   STORE_INDEX_BEGIN,
@@ -364,7 +364,7 @@ export class UIBridgeImpl implements UIBridge {
       items.push(convertGoodsItemToSlot(info, i));
     }
 
-    // 装备 (201-207)
+    // 装备（独立 equipSlots 数组，0=Head..6=Foot）
     const equipSlots: (keyof UIEquipSlots)[] = [
       "head",
       "neck",
@@ -392,11 +392,12 @@ export class UIBridgeImpl implements UIBridge {
       wrist: null,
       foot: null,
     };
-    for (let i = 0; i < 7; i++) {
-      const info = goodsManager.getItemInfo(EQUIP_INDEX_BEGIN + i);
+    for (let i = 0; i < EQUIP_SLOT_COUNT; i++) {
+      const info = goodsManager.getEquipAtSlotIndex(i);
       if (info?.good) {
         const slotName = equipSlots[i];
-        const slot = convertGoodsItemToSlot(info, EQUIP_INDEX_BEGIN + i);
+        // Use slot order index (0-based) + 1 = EquipPosition (1-7) as the UI slot identifier
+        const slot = convertGoodsItemToSlot(info, i + 1);
         // Type-safe assignment using switch
         switch (slotName) {
           case "head":

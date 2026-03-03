@@ -241,18 +241,17 @@ export function useGameUILogic({ engine }: UseGameUILogicOptions) {
       }
     }
 
-    // 装备
+    // 装备（独立 equipSlots，0=Head..6=Foot）
     type EquipSlots = Partial<Record<EquipSlotType, { good: UIGoodData; count: number } | null>>;
     const equips: EquipSlots = {};
-    const equipIndices = [501, 502, 503, 504, 505, 506, 507];
     const equipSlots: EquipSlotType[] = ["head", "neck", "body", "back", "hand", "wrist", "foot"];
 
-    equipIndices.forEach((index, i) => {
-      const entry = goodsManager.getItemInfo(index);
+    for (let i = 0; i < equipSlots.length; i++) {
+      const entry = goodsManager.getEquipAtSlotIndex(i);
       if (entry?.good) {
         equips[equipSlots[i]] = { good: entry.good, count: entry.count };
       }
-    });
+    }
 
     const playerMoney = engine.player.money;
     return { items, equips, bottomGoods, money: playerMoney };
@@ -603,10 +602,9 @@ export function useGameUILogic({ engine }: UseGameUILogicOptions) {
   );
 
   const handleEquipDragStart = useCallback((slot: EquipSlotType, good: UIGoodData) => {
-    const slotIndex = slotTypeToEquipPosition(slot) + 500;
     setDragData({
       type: "equip",
-      index: slotIndex,
+      index: slotTypeToEquipPosition(slot), // EquipPosition (1-7) as identifier
       good,
       sourceSlot: slot,
     });
