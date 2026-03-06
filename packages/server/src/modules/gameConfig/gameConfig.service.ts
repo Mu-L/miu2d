@@ -1,6 +1,7 @@
 import type { GameConfig, GameConfigData, UpdateGameConfigInput } from "@miu2d/types";
 import { createDefaultGameConfig, GameConfigDataSchema } from "@miu2d/types";
 import type { GameConfig as PrismaGameConfig } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { db } from "../../db/client";
 import type { Language } from "../../i18n";
 import { verifyGameAccess } from "../../utils/gameAccess";
@@ -39,7 +40,7 @@ export class GameConfigService {
     // 不存在则创建默认配置
     const defaultData = createDefaultGameConfig();
     const newRow = await db.gameConfig.create({
-      data: { gameId, data: defaultData },
+      data: { gameId, data: defaultData as unknown as Prisma.InputJsonValue },
     });
 
     return this.toGameConfig(newRow);
@@ -60,14 +61,14 @@ export class GameConfigService {
     if (existing) {
       const updated = await db.gameConfig.update({
         where: { gameId: input.gameId },
-        data: { data: input.data as Record<string, unknown>, updatedAt: new Date() },
+        data: { data: input.data as unknown as Prisma.InputJsonValue, updatedAt: new Date() },
       });
       return this.toGameConfig(updated);
     }
 
     // 不存在则创建
     const newRow = await db.gameConfig.create({
-      data: { gameId: input.gameId, data: input.data as Record<string, unknown> },
+      data: { gameId: input.gameId, data: input.data as unknown as Prisma.InputJsonValue },
     });
 
     return this.toGameConfig(newRow);

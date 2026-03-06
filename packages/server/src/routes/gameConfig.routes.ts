@@ -13,6 +13,7 @@ import { createDefaultGameConfig, GameConfigDataSchema } from "@miu2d/types";
 import { Hono } from "hono";
 import { stream } from "hono/streaming";
 import sharp from "sharp";
+import type { Prisma } from "@prisma/client";
 import { db } from "../db/client";
 import { gameConfigService } from "../modules/gameConfig/gameConfig.service";
 import * as s3 from "../storage/s3";
@@ -306,14 +307,14 @@ gameConfigRoutes.post(":gameSlug/api/logo", async (c) => {
         const data = GameConfigDataSchema.parse(merged);
         await db.gameConfig.update({
           where: { gameId: game.id },
-          data: { data, updatedAt: new Date() },
+          data: { data: data as unknown as Prisma.InputJsonValue, updatedAt: new Date() },
         });
       } else {
         const data = GameConfigDataSchema.parse({
           ...createDefaultGameConfig(),
           logoUrl,
         });
-        await db.gameConfig.create({ data: { gameId: game.id, data } });
+        await db.gameConfig.create({ data: { gameId: game.id, data: data as unknown as Prisma.InputJsonValue } });
       }
     } catch (dbError) {
       // DB 写入失败：回滚 S3 上传，避免产生孤立文件
@@ -373,7 +374,7 @@ gameConfigRoutes.delete(":gameSlug/api/logo", async (c) => {
       const data = GameConfigDataSchema.parse(merged);
       await db.gameConfig.update({
         where: { gameId: game.id },
-        data: { data, updatedAt: new Date() },
+        data: { data: data as unknown as Prisma.InputJsonValue, updatedAt: new Date() },
       });
     }
 

@@ -1,6 +1,7 @@
 import type { UserSettings } from "@miu2d/types";
 import { TRPCError } from "@trpc/server";
 import type { User } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { db } from "../../db/client";
 import { getMessage, type Language } from "../../i18n";
 import { hashPassword, verifyPassword } from "../../utils/password";
@@ -58,14 +59,14 @@ export class UserService {
     const dbUpdates: {
       name?: string;
       email?: string;
-      settings?: Record<string, unknown> | null;
+      settings?: Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue;
     } = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name.trim();
     if (updates.email !== undefined) dbUpdates.email = updates.email.trim();
 
     if (updates.settings !== undefined) {
       if (updates.settings === null) {
-        dbUpdates.settings = null;
+        dbUpdates.settings = Prisma.JsonNull;
       } else {
         const current = await db.user.findFirst({
           where: { id: userId },

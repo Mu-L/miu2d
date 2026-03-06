@@ -25,7 +25,7 @@ export function toFileNodeOutput(dbFile: PrismaFile, path?: string): FileNode {
     gameId: dbFile.gameId,
     parentId: dbFile.parentId,
     name: dbFile.name,
-    type: dbFile.type,
+    type: dbFile.type as "file" | "folder",
     path: path ?? `/${dbFile.name}`,
     storageKey: dbFile.storageKey,
     size: dbFile.size,

@@ -26,6 +26,7 @@
     "@hono/trpc-server": "^0.4.2",
     "@miu2d/shared": "workspace:*",
     "@miu2d/types": "workspace:*",
+    "@prisma/adapter-pg": "^7.4.2",
     "@prisma/client": "^7.4.2",
     "@react-email/components": "^1.0.7",
     "@trpc/server": "^11.0.0",
