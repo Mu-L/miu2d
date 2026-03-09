@@ -24,9 +24,10 @@ export function PWAUpdatePrompt() {
   const handleUpdate = () => {
     if (isUpdating) return;
     setIsUpdating(true);
-    // 先直接 reload，不等待 SW 异步回调，避免用户感知延迟
+    // updateServiceWorker(true) 会发送 SKIP_WAITING 给 SW，
+    // 并在 controllerchange 事件触发后自动 reload，无需手动提前 reload。
+    // 提前 reload 会导致新 SW 还未接管时页面就刷新，出现黑屏。
     updateServiceWorker(true);
-    window.location.reload();
   };
 
   return (
