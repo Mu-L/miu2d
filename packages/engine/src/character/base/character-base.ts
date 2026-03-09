@@ -396,6 +396,15 @@ export abstract class CharacterBase extends Sprite implements CharacterInstance 
     return this.relation === RelationType.None && this.kind === CharacterKind.Fighter;
   }
 
+  /**
+   * True for Fighter NPCs with Neutral relation — they act as independent combatants
+   * that attack the player (e.g., arena opponents), matching original C++ behavior
+   * where relation != nrFriendly triggered attack logic.
+   */
+  get isNeutralFighter(): boolean {
+    return this.relation === RelationType.Neutral && this.kind === CharacterKind.Fighter;
+  }
+
   get isFighterFriend(): boolean {
     return (
       (this.kind === CharacterKind.Fighter || this.kind === CharacterKind.Follower) &&

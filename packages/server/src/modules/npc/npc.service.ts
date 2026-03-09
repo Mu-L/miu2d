@@ -531,9 +531,11 @@ export class NpcService {
         case "ExpBonus":
           result.expBonus = parseInt(value, 10) || 0;
           break;
-        case "WalkSpeed":
-          result.walkSpeed = parseInt(value, 10) || 1;
+        case "WalkSpeed": {
+          const parsed = parseInt(value, 10);
+          result.walkSpeed = Number.isNaN(parsed) ? 1 : parsed;
           break;
+        }
         case "Dir":
           result.dir = parseInt(value, 10) || 0;
           break;
