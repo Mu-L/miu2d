@@ -68,8 +68,10 @@ export class MapBase {
   private _viewHeight: number = 600;
 
   // ============= 陷阱系统（实例字段） =============
-  /** 地图陷阱配置 mapName -> (trapIndex -> scriptFile) */
+  /** 地图陷阱配置 mapName -> (trapIndex -> scriptFile)，MMF + 脚本增量的合并结果 */
   private _traps: Map<string, Map<number, string>> = new Map();
+  /** 脚本通过 SetTrap/SetMapTrap 设置的增量（仅此部分落入存档，空字符串表示删除） */
+  private _trapsDelta: Map<string, Map<number, string>> = new Map();
   /** 已忽略（已触发）的陷阱索引 */
   private _ignoredTrapsIndex: Set<number> = new Set();
   /** 是否正在执行陷阱脚本 */
@@ -484,30 +486,39 @@ export class MapBase {
    * @param mapName 当前地图名（不含扩展名）
    */
   initTrapsFromMapData(mapName: string): void {
-    // 清空已忽略的陷阱列表（与 engine-map-loader 中的 clearIgnoredTraps 一致）
-    this._ignoredTrapsIndex.clear();
+    // 注意：不清空 _ignoredTrapsIndex —— 与 C# 一致，忽略列表跨地图持久保留，
+    // 只在 resetTrapState()（新游戏/读档）时才清空。
 
-    // 如果该地图的陷阱数据已存在（首次初始化后可能被 SetMapTrap 修改过），
-    // 不再从 MMF 覆盖，保留运行时修改。对应 C# _traps 跨地图切换持久化的行为。
-    if (this._traps.has(mapName)) {
-      logger.log(`[MapBase] Trap data for "${mapName}" already initialized, skipping MMF overwrite`);
-      return;
-    }
-
-    if (!this._mapData || this._mapData.trapTable.length === 0) {
-      return;
-    }
-
+    // MMF 基础数据
     const trapMapping = new Map<number, string>();
-    for (const entry of this._mapData.trapTable) {
-      trapMapping.set(entry.trapIndex, entry.scriptPath);
+    if (this._mapData && this._mapData.trapTable.length > 0) {
+      for (const entry of this._mapData.trapTable) {
+        trapMapping.set(entry.trapIndex, entry.scriptPath);
+      }
+    }
+
+    // 叠加脚本增量（存档恢复或运行时 SetTrap 修改，优先级高于 MMF）
+    const delta = this._trapsDelta.get(mapName);
+    if (delta) {
+      for (const [idx, script] of delta) {
+        if (!script) {
+          trapMapping.delete(idx);
+        } else {
+          trapMapping.set(idx, script);
+        }
+      }
     }
 
     if (trapMapping.size > 0) {
       this._traps.set(mapName, trapMapping);
+    } else {
+      this._traps.delete(mapName);
     }
 
-    logger.log(`[MapBase] Initialized ${trapMapping.size} traps from MMF for map "${mapName}"`);
+    logger.log(
+      `[MapBase] Initialized traps for "${mapName}": ${trapMapping.size} entries` +
+        (delta ? ` (${delta.size} delta)` : "")
+    );
   }
 
   /**
@@ -567,19 +578,22 @@ export class MapBase {
       this._ignoredTrapsIndex.delete(index);
     }
 
-    // 获取或创建陷阱映射
+    // 更新合并后的运行时陷阱映射
     if (!this._traps.has(targetMap)) {
       this._traps.set(targetMap, new Map());
     }
     const traps = this._traps.get(targetMap)!;
-
     if (!trapFileName) {
-      // 移除陷阱
       traps.delete(index);
     } else {
-      // 设置/更新陷阱
       traps.set(index, trapFileName);
     }
+
+    // 记录脚本增量（空字符串表示删除，也需要落入存档）
+    if (!this._trapsDelta.has(targetMap)) {
+      this._trapsDelta.set(targetMap, new Map());
+    }
+    this._trapsDelta.get(targetMap)!.set(index, trapFileName);
   }
 
   /**
@@ -919,30 +933,46 @@ export class MapBase {
    * @param snapshot 陷阱快照（已触发的陷阱索引列表）
    */
   loadTrapsFromSave(
-    groups: Record<string, Record<number, string>> | undefined,
+    delta: Record<string, Record<number, string>> | undefined,
     snapshot: number[]
   ): void {
-    // 恢复陷阱分组配置
-    if (groups) {
-      this._traps.clear();
-      for (const mapName in groups) {
-        const trapObj = groups[mapName];
-        const traps = new Map<number, string>();
+    // 从存档重建脚本增量
+    this._trapsDelta.clear();
+    if (delta) {
+      for (const mapName in delta) {
+        const trapObj = delta[mapName];
+        const deltaMap = new Map<number, string>();
         for (const trapIndexStr in trapObj) {
-          const trapIndex = parseInt(trapIndexStr, 10);
-          const scriptFile = trapObj[trapIndexStr];
-          if (scriptFile) {
-            traps.set(trapIndex, scriptFile);
-          }
+          // 保留空字符串（表示删除）
+          deltaMap.set(parseInt(trapIndexStr, 10), trapObj[trapIndexStr]);
         }
-        if (traps.size > 0) {
-          this._traps.set(mapName, traps);
+        if (deltaMap.size > 0) {
+          this._trapsDelta.set(mapName, deltaMap);
         }
       }
-      logger.debug(`[MapBase] Restored trap groups for ${this._traps.size} maps`);
+      logger.debug(`[MapBase] Restored trap delta for ${this._trapsDelta.size} maps`);
     }
 
-    // 恢复陷阱快照（已触发的陷阱索引）
+    // 将当前地图的增量叠加到 _traps（Phase 2 loadMap 后 MMF 数据已就绪）
+    const currentMap = this._mapFileNameWithoutExtension;
+    if (currentMap) {
+      const currentDelta = this._trapsDelta.get(currentMap);
+      if (currentDelta) {
+        if (!this._traps.has(currentMap)) {
+          this._traps.set(currentMap, new Map());
+        }
+        const traps = this._traps.get(currentMap)!;
+        for (const [idx, script] of currentDelta) {
+          if (!script) {
+            traps.delete(idx);
+          } else {
+            traps.set(idx, script);
+          }
+        }
+      }
+    }
+
+    // 恢复已触发的陷阱索引
     this._ignoredTrapsIndex.clear();
     for (const index of snapshot) {
       this._ignoredTrapsIndex.add(index);
@@ -958,17 +988,29 @@ export class MapBase {
     ignoreList: number[];
     mapTraps: Record<string, Record<number, string>>;
   } {
+    // 只落入脚本增量，不含 MMF 基础数据（读档时 MMF 由服务端重新加载提供）
     const mapTraps: Record<string, Record<number, string>> = {};
-    for (const [mapName, traps] of this._traps) {
-      const trapObj: Record<number, string> = {};
-      for (const [trapIndex, scriptFile] of traps) {
-        trapObj[trapIndex] = scriptFile;
+    for (const [mapName, delta] of this._trapsDelta) {
+      if (delta.size > 0) {
+        const trapObj: Record<number, string> = {};
+        for (const [trapIndex, scriptFile] of delta) {
+          trapObj[trapIndex] = scriptFile;
+        }
+        mapTraps[mapName] = trapObj;
       }
-      mapTraps[mapName] = trapObj;
     }
 
     const ignoreList = Array.from(this._ignoredTrapsIndex);
 
     return { mapTraps, ignoreList };
+  }
+
+  /**
+   * 重置所有陷阱状态（新游戏/读档时在 Phase 1 调用）
+   */
+  resetTrapState(): void {
+    this._traps.clear();
+    this._trapsDelta.clear();
+    this._ignoredTrapsIndex.clear();
   }
 }

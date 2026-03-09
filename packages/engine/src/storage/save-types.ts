@@ -283,7 +283,8 @@ export interface ParallelScriptItem {
 /**
  * 陷阱分组数据的值类型
  * 地图名 -> { trapIndex -> scriptFile }
- * 通过 SetMapTrap 命令添加/修改的陷阱会覆盖 Traps.ini 中的配置
+ * 只包含脚本通过 SetTrap/SetMapTrap 修改过的陷阱增量（不含 MMF 基础数据）
+ * 空字符串表示该陷阱被脚本删除
  */
 export type TrapGroupValue = Record<number, string>;
 
@@ -455,7 +456,8 @@ export interface SaveGroups {
   npc?: Record<string, NpcSaveItem[]>;
   /** SaveObj() 按文件名存储 (如 "map033_obj.obj" → Obj[]) */
   obj?: Record<string, ObjSaveItem[]>;
-  /** SetMapTrap() 按地图名存储 (如 "m01" → { index → script }) */
+  /** SetTrap()/SetMapTrap() 脚本增量，按地图名存储 (如 "m01" → { index → script })
+   * 不含 MMF 基础数据，读档时叠加在 MMF 之上 */
   trap?: Record<string, TrapGroupValue>;
 }
 

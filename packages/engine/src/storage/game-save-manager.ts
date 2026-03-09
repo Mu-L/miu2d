@@ -254,6 +254,8 @@ export class Loader {
     logger.log(`[Loader] ────── loadGame(${index}) ──────`);
 
     try {
+      this.deps.map.resetTrapState();
+
       // ── Phase 1: 读取配置 ──
       this.reportProgress(0, "读取游戏配置...");
       const tConfig = performance.now();
@@ -482,6 +484,7 @@ export class Loader {
       this.characterMemoryStore.clear();
       npcManager.clearNpcGroups();
       objManager.clearObjGroups();
+      this.deps.map.resetTrapState();
       time("Reset", tReset);
 
       // ── Phase 2: 加载地图 (2% → 65%) ──
@@ -582,14 +585,10 @@ export class Loader {
         );
       }
 
-      // Task E: 陷阱恢复
+      // Task E: 陷阱恢复（delta 叠加到 Phase 2 已加载的 MMF 基础数据上）
       parallelTasks.push(
         (async () => {
-          if (data.groups?.trap) {
-            loadTrapsFromSave(data.snapshot.trap, data.groups.trap, this.deps.map);
-          } else if (data.snapshot?.trap) {
-            loadTrapsFromSave(data.snapshot.trap, undefined, this.deps.map);
-          }
+          loadTrapsFromSave(data.snapshot?.trap ?? [], data.groups?.trap, this.deps.map);
         })()
       );
 

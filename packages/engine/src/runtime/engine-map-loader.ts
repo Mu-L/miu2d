@@ -102,8 +102,8 @@ export async function handleMapChange(
           .pop()
           ?.replace(/\.(map|mmf)$/i, "") || "";
 
-      // 加载新地图时清空已触发的陷阱列表
-      map.clearIgnoredTraps();
+      // 加载新地图时不清空已触发的陷阱列表（与 C# 一致，忽略列表跨地图持久保留）
+      // _ignoredTrapsIndex 只在 resetTrapState()（新游戏/读档）时清空
 
       // 让 GameManager 在摄像机计算前就拥有 mapData
       const gm = getGameManager();
