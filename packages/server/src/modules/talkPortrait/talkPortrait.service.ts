@@ -48,14 +48,11 @@ export class TalkPortraitService {
     await verifyGameAccess(input.gameId, userId, language);
 
     const sorted = [...input.entries].sort((a, b) => a.idx - b.idx);
-
-    const existing = await db.talkPortrait.findFirst({ where: { gameId: input.gameId } });
-
-    if (existing) {
-      await db.talkPortrait.update({ where: { id: existing.id }, data: { data: sorted as unknown as Prisma.InputJsonValue, updatedAt: new Date() } });
-    } else {
-      await db.talkPortrait.create({ data: { gameId: input.gameId, data: sorted as unknown as Prisma.InputJsonValue } });
-    }
+    await db.talkPortrait.upsert({
+      where: { gameId: input.gameId },
+      create: { gameId: input.gameId, data: sorted as unknown as Prisma.InputJsonValue },
+      update: { data: sorted as unknown as Prisma.InputJsonValue, updatedAt: new Date() },
+    });
 
     return { gameId: input.gameId, entries: sorted };
   }
@@ -70,16 +67,13 @@ export class TalkPortraitService {
   ): Promise<{ gameId: string; entries: PortraitEntry[] }> {
     await verifyGameAccess(input.gameId, userId, language);
 
-    const entries = parsePortraitIni(input.iniContent);
-
-    return this.update(
-      {
-        gameId: input.gameId,
-        entries,
-      },
-      userId,
-      language
-    );
+    const sorted = parsePortraitIni(input.iniContent).sort((a, b) => a.idx - b.idx);
+    await db.talkPortrait.upsert({
+      where: { gameId: input.gameId },
+      create: { gameId: input.gameId, data: sorted as unknown as Prisma.InputJsonValue },
+      update: { data: sorted as unknown as Prisma.InputJsonValue, updatedAt: new Date() },
+    });
+    return { gameId: input.gameId, entries: sorted };
   }
 
   /**

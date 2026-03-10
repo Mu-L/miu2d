@@ -18,11 +18,14 @@ COPY packages/types/src ./packages/types/src
 # 复制 shared 包配置和源代码（server 依赖 shared/locales）
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/shared/tsconfig.json ./packages/shared/
+COPY packages/shared/tsconfig.locales.json ./packages/shared/
 COPY packages/shared/src ./packages/shared/src
 
 # 复制 server 包配置
 COPY packages/server/package.json ./packages/server/
 COPY packages/server/tsconfig.json ./packages/server/
+COPY packages/server/tsconfig.build.json ./packages/server/
+COPY packages/server/rollup.config.mjs ./packages/server/
 
 # 安装所有依赖（包括 devDependencies，构建时需要）
 RUN pnpm install --frozen-lockfile
@@ -36,14 +39,13 @@ COPY packages/server/prisma ./packages/server/prisma
 WORKDIR /app/packages/types
 RUN pnpm build
 
-# 构建应用
+# 编译 shared/locales 为 JS（rollup 打包时从 default 条件加载）
+WORKDIR /app/packages/shared
+RUN pnpm build:locales
+
+# 构建应用（rollup 打包，@miu2d/* 工作区包全部内联）
 WORKDIR /app/packages/server
 RUN pnpm build
-
-# 编译 shared/locales 为 JS（生产阶段 Node.js 无法直接执行 .ts）
-WORKDIR /app/packages/shared
-RUN echo '{"compilerOptions":{"rootDir":"src","outDir":"dist","module":"nodenext","moduleResolution":"nodenext","target":"es2022","declaration":true,"strict":true,"skipLibCheck":true},"include":["src/locales/**/*"]}' > tsconfig.docker.json \
-    && npx tsc -p tsconfig.docker.json
 
 # 生产阶段
 FROM node:22-alpine AS runner
@@ -59,9 +61,7 @@ COPY packages/types/package.json ./packages/types/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/server/package.json ./packages/server/
 
-# 从构建阶段复制构建产物（在安装依赖前，避免 prepare 脚本运行）
-COPY --from=builder /app/packages/types/dist ./packages/types/dist
-COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+# 从构建阶段复制构建产物（@miu2d/* 已由 rollup 内联，无需 types/shared dist）
 COPY --from=builder /app/packages/server/dist ./packages/server/dist
 
 # 复制 prisma schema 和迁移文件
@@ -73,12 +73,6 @@ RUN pnpm install --prod --frozen-lockfile --ignore-scripts
 # 生成 Prisma Client（使用 WASM，无需 schema-engine 二进制）
 WORKDIR /app
 RUN packages/server/node_modules/.bin/prisma generate --schema=packages/server/prisma/schema.prisma
-
-# 安装后将 shared 的 exports 指向编译后的 JS（Node.js 无法执行 .ts）
-RUN node -e "const f='packages/shared/package.json';const p=JSON.parse(require('fs').readFileSync(f,'utf8'));p.exports={'./locales':'./dist/locales/index.js'};require('fs').writeFileSync(f,JSON.stringify(p,null,2))"
-
-# 将 types 的 exports 也指向编译后的 JS
-RUN node -e "const f='packages/types/package.json';const p=JSON.parse(require('fs').readFileSync(f,'utf8'));p.main='./dist/index.js';p.types='./dist/index.d.ts';p.exports={'.':'./dist/index.js','./*':'./dist/*'};require('fs').writeFileSync(f,JSON.stringify(p,null,2))"
 
 # 设置工作目录
 WORKDIR /app/packages/server

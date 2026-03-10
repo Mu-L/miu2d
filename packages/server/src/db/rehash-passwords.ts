@@ -8,10 +8,13 @@
  *   docker exec miu2d-server node dist/db/rehash-passwords.js
  */
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { hashPassword, isBcryptHash } from "../utils/password";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
 

@@ -15,8 +15,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { Pool } from "pg";
+import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
+import { Pool } from "pg";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 dotenv.config({ path: path.resolve(__dirname, "../../../../.env") });
 

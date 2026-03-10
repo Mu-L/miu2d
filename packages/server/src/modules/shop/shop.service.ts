@@ -137,14 +137,15 @@ export class ShopService {
   async update(input: UpdateShopInput, userId: string, language: Language): Promise<Shop> {
     await verifyGameAccess(input.gameId, userId, language);
 
-    // 检查是否存在
-    const existing = await this.get(input.gameId, input.id, userId, language);
-    if (!existing) {
+    // 检查是否存在（直接查 DB，避免重复触发 verifyGameAccess）
+    const existingRow = await db.shop.findFirst({ where: { id: input.id, gameId: input.gameId } });
+    if (!existingRow) {
       throw new TRPCError({
         code: "NOT_FOUND",
         message: getMessage(language, "errors.common.notFound"),
       });
     }
+    const existing = this.toShop(existingRow);
 
     // 合并更新
     const { id, gameId, createdAt, updatedAt, ...inputData } = input;
