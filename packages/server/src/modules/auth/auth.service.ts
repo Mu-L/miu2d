@@ -108,11 +108,10 @@ export class AuthService {
     sessionId: string
   ) {
     if (!res) return;
-    const cookieSecure = env.cookieSecure;
     res.setCookie(SESSION_COOKIE_NAME, sessionId, {
       httpOnly: true,
-      sameSite: "lax",
-      secure: cookieSecure,
+      sameSite: "none",
+      secure: true,
       maxAge: SESSION_COOKIE_MAX_AGE,
       path: "/",
     });
@@ -122,11 +121,10 @@ export class AuthService {
     res: { deleteCookie: (name: string, options: Record<string, unknown>) => void } | undefined
   ) {
     if (!res) return;
-    const cookieSecure = env.cookieSecure;
     res.deleteCookie(SESSION_COOKIE_NAME, {
       httpOnly: true,
-      sameSite: "lax",
-      secure: cookieSecure,
+      sameSite: "none",
+      secure: true,
       path: "/",
     });
   }
