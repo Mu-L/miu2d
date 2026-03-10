@@ -85,6 +85,17 @@ export class TalkService {
   }
 
   /**
+   * 内部：直接写入已排序的 entries（无 auth 校验），使用 upsert 避免 findFirst + create/update
+   */
+  private async writeEntries(gameId: string, sorted: TalkEntry[]): Promise<void> {
+    await db.talk.upsert({
+      where: { gameId },
+      create: { gameId, data: sorted as unknown as Prisma.InputJsonValue },
+      update: { data: sorted as unknown as Prisma.InputJsonValue, updatedAt: new Date() },
+    });
+  }
+
+  /**
    * 更新对话数据（全量替换，upsert）
    */
   async update(
@@ -95,14 +106,7 @@ export class TalkService {
     await verifyGameAccess(input.gameId, userId, language);
 
     const sorted = [...input.entries].sort((a, b) => a.id - b.id);
-
-    const existing = await db.talk.findFirst({ where: { gameId: input.gameId } });
-
-    if (existing) {
-      await db.talk.update({ where: { id: existing.id }, data: { data: sorted as unknown as Prisma.InputJsonValue, updatedAt: new Date() } });
-    } else {
-      await db.talk.create({ data: { gameId: input.gameId, data: sorted as unknown as Prisma.InputJsonValue } });
-    }
+    await this.writeEntries(input.gameId, sorted);
 
     return { gameId: input.gameId, entries: sorted };
   }
@@ -134,7 +138,8 @@ export class TalkService {
     entries.push(entry);
     entries.sort((a, b) => a.id - b.id);
 
-    return this.update({ gameId, entries }, userId, language);
+    await this.writeEntries(gameId, entries);
+    return { gameId, entries };
   }
 
   /**
@@ -167,7 +172,8 @@ export class TalkService {
     }
 
     entries[idx] = entry;
-    return this.update({ gameId, entries }, userId, language);
+    await this.writeEntries(gameId, entries);
+    return { gameId, entries };
   }
 
   /**
@@ -191,7 +197,8 @@ export class TalkService {
     }
 
     const entries = (row.data as TalkEntry[]).filter((e) => e.id !== id);
-    return this.update({ gameId, entries }, userId, language);
+    await this.writeEntries(gameId, entries);
+    return { gameId, entries };
   }
 
   /**
@@ -204,8 +211,9 @@ export class TalkService {
   ): Promise<{ gameId: string; entries: TalkEntry[] }> {
     await verifyGameAccess(input.gameId, userId, language);
 
-    const parsed = parseTalkIndexTxt(input.content);
-    return this.update({ gameId: input.gameId, entries: parsed }, userId, language);
+    const sorted = parseTalkIndexTxt(input.content).sort((a, b) => a.id - b.id);
+    await this.writeEntries(input.gameId, sorted);
+    return { gameId: input.gameId, entries: sorted };
   }
 
   /**

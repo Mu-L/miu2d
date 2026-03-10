@@ -117,16 +117,14 @@ export class NpcService {
     const resourceMap = new Map<string, { icon: string | null; key: string }>();
 
     if (resourceIds.length > 0) {
-      const resources = await db.npcResource.findMany({ where: { gameId: input.gameId } });
+      const resources = await db.npcResource.findMany({ where: { id: { in: resourceIds } } });
 
       for (const res of resources) {
-        if (resourceIds.includes(res.id)) {
-          const data = res.data as { resources?: NpcResource };
-          resourceMap.set(res.id, {
-            icon: data.resources?.stand?.image ?? null,
-            key: res.key,
-          });
-        }
+        const data = res.data as { resources?: NpcResource };
+        resourceMap.set(res.id, {
+          icon: data.resources?.stand?.image ?? null,
+          key: res.key,
+        });
       }
     }
 
@@ -185,14 +183,15 @@ export class NpcService {
   async update(input: UpdateNpcInput, userId: string, language: Language): Promise<Npc> {
     await verifyGameAccess(input.gameId, userId, language);
 
-    // 检查是否存在
-    const existing = await this.get(input.gameId, input.id, userId, language);
-    if (!existing) {
+    // 检查是否存在（直接查 DB，避免重复触发 verifyGameAccess）
+    const existingRow = await db.npc.findFirst({ where: { id: input.id, gameId: input.gameId } });
+    if (!existingRow) {
       throw new TRPCError({
         code: "NOT_FOUND",
         message: getMessage(language, "errors.npc.notFound"),
       });
     }
+    const existing = this.toNpc(existingRow);
 
     // 合并更新
     const { id, gameId, ...inputData } = input;

@@ -95,16 +95,14 @@ export class ObjService {
     const resourceMap = new Map<string, { icon: string | null; key: string }>();
 
     if (resourceIds.length > 0) {
-      const resources = await db.objResource.findMany({ where: { gameId: input.gameId } });
+      const resources = await db.objResource.findMany({ where: { id: { in: resourceIds } } });
 
       for (const res of resources) {
-        if (resourceIds.includes(res.id)) {
-          const data = res.data as { resources?: ObjResource };
-          resourceMap.set(res.id, {
-            icon: data.resources?.common?.image ?? null,
-            key: res.key,
-          });
-        }
+        const data = res.data as { resources?: ObjResource };
+        resourceMap.set(res.id, {
+          icon: data.resources?.common?.image ?? null,
+          key: res.key,
+        });
       }
     }
 
@@ -159,14 +157,15 @@ export class ObjService {
   async update(input: UpdateObjInput, userId: string, language: Language): Promise<Obj> {
     await verifyGameAccess(input.gameId, userId, language);
 
-    // 检查是否存在
-    const existing = await this.get(input.gameId, input.id, userId, language);
-    if (!existing) {
+    // 检查是否存在（直接查 DB，避免重复触发 verifyGameAccess）
+    const existingRow = await db.obj.findFirst({ where: { id: input.id, gameId: input.gameId } });
+    if (!existingRow) {
       throw new TRPCError({
         code: "NOT_FOUND",
         message: getMessage(language, "errors.obj.notFound"),
       });
     }
+    const existing = this.toObj(existingRow);
 
     // 合并更新
     const { id, gameId, ...inputData } = input;

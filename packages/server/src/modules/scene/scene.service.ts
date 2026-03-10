@@ -123,7 +123,8 @@ export class SceneService {
   async update(input: UpdateSceneInput, userId: string, language: Language): Promise<Scene> {
     await verifyGameAccess(input.gameId, userId, language);
 
-    const existing = await this.get(input.gameId, input.id, userId, language);
+    // 检查是否存在（直接查 DB，避免重复触发 verifyGameAccess）
+    const existing = await db.scene.findFirst({ where: { id: input.id, gameId: input.gameId }, select: { id: true } });
     if (!existing) {
       throw new TRPCError({
         code: "NOT_FOUND",

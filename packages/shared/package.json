@@ -7,13 +7,17 @@
   "exports": {
     ".": "./src/index.ts",
     "./i18n": "./src/i18n/index.ts",
-    "./locales": "./src/locales/index.ts",
+    "./locales": {
+      "types": "./src/locales/index.ts",
+      "default": "./dist/locales/index.js"
+    },
     "./lib/game-api": "./src/lib/game-api.ts",
     "./lib/monaco/jxqyScriptLanguage": "./src/lib/monaco/jxqyScriptLanguage.ts",
     "./lib/monaco/luaLanguage": "./src/lib/monaco/luaLanguage.ts",
     "./*": "./src/*"
   },
   "scripts": {
+    "build:locales": "tsc -p tsconfig.locales.json",
     "tsc": "tsc -b",
     "lint": "biome lint .",
     "format": "biome format --write .",

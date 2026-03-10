@@ -154,13 +154,15 @@ export class LevelConfigService {
   ): Promise<LevelConfig> {
     await verifyGameAccess(input.gameId, userId, language);
 
-    const existing = await this.get(input.gameId, input.id, userId, language);
-    if (!existing) {
+    // 检查是否存在（直接查 DB，避免重复触发 verifyGameAccess）
+    const existingRow = await db.levelConfig.findFirst({ where: { id: input.id, gameId: input.gameId } });
+    if (!existingRow) {
       throw new TRPCError({
         code: "NOT_FOUND",
         message: "等级配置不存在",
       });
     }
+    const existing = this.toLevelConfig(existingRow);
 
     // 如果修改了 key，检查是否冲突
     if (input.key && input.key !== existing.key) {

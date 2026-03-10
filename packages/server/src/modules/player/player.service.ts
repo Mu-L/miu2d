@@ -150,13 +150,15 @@ export class PlayerService {
   async update(input: UpdatePlayerInput, userId: string, language: Language): Promise<Player> {
     await verifyGameAccess(input.gameId, userId, language);
 
-    const existing = await this.get(input.gameId, input.id, userId, language);
-    if (!existing) {
+    // 检查是否存在（直接查 DB，避免重复触发 verifyGameAccess）
+    const existingRow = await db.player.findFirst({ where: { id: input.id, gameId: input.gameId } });
+    if (!existingRow) {
       throw new TRPCError({
         code: "NOT_FOUND",
         message: getMessage(language, "errors.npc.notFound"),
       });
     }
+    const existing = this.toPlayer(existingRow);
 
     const { id, gameId, ...inputData } = input;
     const merged = { ...existing, ...inputData };

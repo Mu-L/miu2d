@@ -1,5 +1,5 @@
-import { TRPCError } from "@trpc/server";
 import type { Game } from "@prisma/client";
+import { TRPCError } from "@trpc/server";
 import { db } from "../../db/client";
 import { getMessage, type Language } from "../../i18n";
 
@@ -107,7 +107,7 @@ export class GameService {
     userId: string,
     language: Language
   ) {
-    const game = await this.getById(id);
+    const [game, isOwner] = await Promise.all([this.getById(id), this.isOwner(id, userId)]);
     if (!game) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -115,7 +115,7 @@ export class GameService {
       });
     }
 
-    if (!(await this.isOwner(id, userId))) {
+    if (!isOwner) {
       throw new TRPCError({
         code: "FORBIDDEN",
         message: getMessage(language, "errors.game.onlyOwnerCanUpdate"),
@@ -152,7 +152,7 @@ export class GameService {
   }
 
   async delete(id: string, userId: string, language: Language) {
-    const game = await this.getById(id);
+    const [game, isOwner] = await Promise.all([this.getById(id), this.isOwner(id, userId)]);
     if (!game) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -160,7 +160,7 @@ export class GameService {
       });
     }
 
-    if (!(await this.isOwner(id, userId))) {
+    if (!isOwner) {
       throw new TRPCError({
         code: "FORBIDDEN",
         message: getMessage(language, "errors.game.onlyOwnerCanDelete"),
@@ -184,7 +184,11 @@ export class GameService {
     currentUserId: string,
     language: Language
   ) {
-    const game = await this.getById(id);
+    const [game, isCurrentOwner, targetUser] = await Promise.all([
+      this.getById(id),
+      this.isOwner(id, currentUserId),
+      db.user.findFirst({ where: { id: newOwnerId }, select: { id: true } }),
+    ]);
     if (!game) {
       throw new TRPCError({
         code: "NOT_FOUND",
@@ -192,18 +196,12 @@ export class GameService {
       });
     }
 
-    if (!(await this.isOwner(id, currentUserId))) {
+    if (!isCurrentOwner) {
       throw new TRPCError({
         code: "FORBIDDEN",
         message: getMessage(language, "errors.game.onlyOwnerCanTransfer"),
       });
     }
-
-    // 验证新所有者存在
-    const targetUser = await db.user.findFirst({
-      where: { id: newOwnerId },
-      select: { id: true },
-    });
 
     if (!targetUser) {
       throw new TRPCError({
