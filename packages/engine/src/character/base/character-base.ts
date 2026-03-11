@@ -116,6 +116,18 @@ export abstract class CharacterBase extends Sprite implements CharacterInstance 
   isJumpDisabled: boolean = false;
 
   // =============================================
+  // === Jump State (three-phase jump tracking) ===
+  // =============================================
+  /** Elapsed time in the current jump animation (ms). 0 = not jumping. */
+  protected _jumpElapsedMs: number = 0;
+  /** Total animation duration of the current jump (ms). */
+  protected _jumpTotalMs: number = 0;
+  /** Jump phase: 0=jsUp(蓄势), 1=jsJumping(飞行), 2=jsDown(落地) */
+  protected _jumpPhase: 0 | 1 | 2 = 0;
+  /** Destination pixel position for current jump. */
+  protected _jumpDestPixel: Vector2 = { x: 0, y: 0 };
+
+  // =============================================
   // === AI ===
   // =============================================
   idle: number = 0;

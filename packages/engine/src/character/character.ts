@@ -28,7 +28,6 @@ import {
 } from "../sprite/sprite";
 import {
   distance,
-  distanceFromDelta,
   getDirectionFromVector,
   pixelToTile,
   tileToPixel,
@@ -230,64 +229,83 @@ export abstract class Character extends CharacterCombat {
   }
 
   protected jumpAlongPath(deltaTime: number): void {
-    if (!this.path) {
+    if (!this.path || this.path.length < 2) {
       this.standingImmediately();
       return;
     }
 
-    if (this.path.length === 2) {
-      const from = this.path[0];
-      const to = this.path[1];
-      const totalDistance = distanceFromDelta(to.x - from.x, to.y - from.y);
+    const deltaMs = deltaTime * 1000;
+    this._jumpElapsedMs += deltaMs;
 
-      let isOver = false;
-      const dirX = to.x - from.x;
-      const dirY = to.y - from.y;
-      const nextTile = this.findNeighborInDirection(this.tilePosition, { x: dirX, y: dirY });
-      const destTile = pixelToTile(to.x, to.y);
+    const totalMs = this._jumpTotalMs > 0 ? this._jumpTotalMs : 1;
+    const phase1End = totalMs / 3;       // [0,   T/3)  jsUp   – 原地蓄势
+    const phase2End = (2 * totalMs) / 3; // [T/3, 2T/3) jsJumping – 空中飞行
+    //                                   // [2T/3, T]   jsDown  – 落地
 
-      const engine = this.engine;
-      const mapService = engine.map;
-      const npcManager = engine.npcManager;
+    const from = this.path[0];
+    const to = this._jumpDestPixel;
+    const dirX = to.x - from.x;
+    const dirY = to.y - from.y;
 
-      const isMapObstacleForJump = mapService.isObstacleForJump(nextTile.x, nextTile.y);
-      const hasTrapScript = mapService.hasTrapScript(this.tilePosition);
-      const hasEventer = npcManager.getEventer(nextTile) !== null;
+    const engine = this.engine;
+    const mapService = engine.map;
+    const npcManager = engine.npcManager;
+    const nextTile = this.findNeighborInDirection(this.tilePosition, { x: dirX, y: dirY });
+    const destTile = pixelToTile(to.x, to.y);
 
-      if (isMapObstacleForJump) {
-        this.correctPositionToCurrentTile();
-        isOver = true;
-      } else if (
+    const isMapObstacleForJump = mapService.isObstacleForJump(nextTile.x, nextTile.y);
+    const hasTrapScript = mapService.hasTrapScript(this.tilePosition);
+    const hasEventer = npcManager.getEventer(nextTile) !== null;
+
+    // Obstacle / trap: abort immediately and snap back to current tile
+    if (isMapObstacleForJump || hasEventer) {
+      this.correctPositionToCurrentTile();
+      this.path.shift();
+    } else if (hasTrapScript) {
+      // Trap: let animation finish but don't move further
+      this.path.shift();
+    } else if (this._jumpElapsedMs < phase1End) {
+      // Phase 0 – jsUp: 原地蓄势，不移动
+      this._jumpPhase = 0;
+    } else if (this._jumpElapsedMs < phase2End) {
+      // Phase 1 – jsJumping: 空中飞行
+      // Speed = totalDistance / (T/3) so the character arrives exactly at 2T/3
+      if (this._jumpPhase < 1) {
+        this._jumpPhase = 1;
+      }
+
+      // Guard: abort if destination tile now has an obstacle
+      if (
         nextTile.x === destTile.x &&
         nextTile.y === destTile.y &&
         this.hasObstacle(nextTile)
       ) {
         this.correctPositionToCurrentTile();
-        isOver = true;
-      } else if (hasTrapScript) {
-        isOver = true;
-      } else if (hasEventer) {
-        this.correctPositionToCurrentTile();
-        isOver = true;
+        this.path.shift();
       } else {
-        const JUMP_SPEED_FOLD = 8;
-        this.moveToVector({ x: dirX, y: dirY }, deltaTime * JUMP_SPEED_FOLD);
+        const flyDuration = phase1End; // T/3 seconds (in ms)
+        const speed = flyDuration > 0 ? 1 / flyDuration : 0; // fraction per ms
+        const moveX = dirX * speed * deltaMs;
+        const moveY = dirY * speed * deltaMs;
+        this._positionInWorld = {
+          x: this._positionInWorld.x + moveX,
+          y: this._positionInWorld.y + moveY,
+        };
+        const tile = pixelToTile(this._positionInWorld.x, this._positionInWorld.y);
+        this._rawSetTileCoords(tile.x, tile.y);
       }
-
-      const DISTANCE_OFFSET = 1;
-      if (this.movedDistance >= totalDistance - DISTANCE_OFFSET && !isOver) {
-        this.movedDistance = 0;
+    } else {
+      // Phase 2 – jsDown: 落地，snap 到目的地
+      if (this._jumpPhase < 2) {
+        this._jumpPhase = 2;
         this._positionInWorld = { x: to.x, y: to.y };
         const tile = pixelToTile(to.x, to.y);
         this._rawSetTileCoords(tile.x, tile.y);
-        isOver = true;
-      }
-
-      if (isOver) {
-        this.path.shift();
+        this.movedDistance = 0;
       }
     }
 
+    // When animation ends, transition to standing
     if (this.isPlayCurrentDirOnceEnd()) {
       this.standingImmediately();
     }
