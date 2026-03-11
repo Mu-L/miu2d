@@ -252,7 +252,7 @@ export class Npc extends Character {
    * 预加载 NPC 的所有武功（唯一的异步入口）
    * Magic objects are loaded when Character is constructed
    *
-   * 使用 NpcMagicCache 模块管理，参考 Player 的 PlayerMagicInventory.addMagic 模式
+   * 使用 NpcMagicCache 模块管理
    */
   async loadAllMagics(): Promise<void> {
     return this._magicCache.loadAll(

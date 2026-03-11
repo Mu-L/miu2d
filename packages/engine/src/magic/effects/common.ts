@@ -65,9 +65,9 @@ export function deductCost(ctx: CastContext): void {
  *
  * + MagicManager.GetEffectAmount
  * 使用 Character.takeDamageFromMagic 来处理：
- * - 命中率计算 (基于闪避)
  * - 多类型伤害 (damage, damage2, damage3, damageMana)
  * - 最小伤害 (MinimalDamage = 5)
+ * 注意：命中率（闪避）已在 characterHited() 的 magicHitsTarget() 中统一处理
  */
 export function dealDamage(ctx: ApplyContext): number {
   const { caster, target, magic, sprite } = ctx;
@@ -99,7 +99,7 @@ export function dealDamage(ctx: ApplyContext): number {
   }
 
   // 使用 Character.takeDamageFromMagic 来处理完整的伤害计算
-  // 包括命中率、防御减免、最小伤害等
+  // 包括防御减免、最小伤害等（命中率已在外层 characterHited 处理）
   const actualDamage = targetChar.takeDamageFromMagic(
     damage,
     damage2,

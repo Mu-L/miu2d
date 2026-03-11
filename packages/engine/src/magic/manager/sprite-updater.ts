@@ -22,6 +22,7 @@ import {
   getPosition as getCharPosition,
   getEffect,
 } from "../effects";
+import { calcMagicHit } from "../../combat/effect-calc";
 import { resolveMagic } from "../magic-config-loader";
 import type { WorkItem } from "../magic-sprite";
 import { type MagicSprite, MINIMAL_DAMAGE } from "../magic-sprite";
@@ -859,7 +860,9 @@ export class SpriteUpdater {
 
         // if (BelongMagic.RangeDamage > 0) { CharacterHited(...); AddDestroySprite(...); }
         if (magic.rangeDamage > 0) {
-          // 使用简化的伤害计算
+          // 有闪避检查
+          if (!calcMagicHit(enemy, belongCharacter)) continue;
+          // 使用简化的伤害计算（防御减免已在此处理，护盾减免由 takeDamage 处理）
           const damage = Math.max(magic.rangeDamage - enemy.realDefend, MINIMAL_DAMAGE);
           enemy.takeDamage(damage, belongCharacter);
 

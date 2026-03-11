@@ -197,13 +197,13 @@ export abstract class Character extends CharacterCombat {
   private handlePoisonExp(poisonKillerName: string): void {
     const player = this.engine.player;
     if (player && poisonKillerName === player.name) {
-      const exp = getCharacterDeathExp(this);
+      const exp = getCharacterDeathExp(this, player);
       player.addExp(exp, true);
     } else {
       const npcManager = this.engine.npcManager;
       const poisoner = npcManager.getNpc(poisonKillerName);
       if (poisoner && poisoner.canLevelUp > 0) {
-        const exp = getCharacterDeathExp(this);
+        const exp = getCharacterDeathExp(this, poisoner);
         poisoner.addExp(exp);
       }
     }

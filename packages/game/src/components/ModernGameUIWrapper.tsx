@@ -34,6 +34,7 @@ import {
   TopBar,
   XiuLianPanel,
 } from "./ui/modern";
+import { EngineWatermark } from "./common/EngineWatermark";
 
 interface ModernGameUIWrapperProps {
   logic: GameUILogic;
@@ -445,21 +446,7 @@ export const ModernGameUIWrapper: React.FC<ModernGameUIWrapperProps> = ({
       {/* 视频播放器 */}
 
       {/* Engine Watermark */}
-      <div
-        style={{
-          position: "absolute",
-          right: 8,
-          bottom: 4,
-          fontSize: 10,
-          color: "rgba(255, 255, 255, 0.25)",
-          pointerEvents: "none",
-          userSelect: "none",
-          fontFamily: "sans-serif",
-          letterSpacing: 0.5,
-        }}
-      >
-        Powered by Miu2D Engine · v{__APP_VERSION__} · #{__COMMIT_HASH__}
-      </div>
+      <EngineWatermark />
     </div>
     </GameUIContext.Provider>
   );

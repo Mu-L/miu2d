@@ -12,6 +12,7 @@ import { ResourcePath, getResourceRoot, getResourceUrl } from "@miu2d/engine/res
 import type { ButtonConfig, TitleGuiConfig } from "@miu2d/engine/gui/ui-settings";
 import type React from "react";
 import { useCallback, useEffect, useInsertionEffect, useMemo, useRef, useState } from "react";
+import { EngineWatermark } from "../../common/EngineWatermark";
 import { getAsfFrameDataUrl, playUiSound, useAsfImage } from "./hooks";
 import { useTitleGuiConfig } from "./useUISettings";
 import { VideoPlayer } from "./VideoPlayer";
@@ -269,21 +270,7 @@ const ClassicTitle: React.FC<TitleGuiProps & { config: TitleGuiConfig }> = ({
       <VideoPlayer engine={null} controlledVideoUrl={creditsVideoUrl} onControlledEnd={handleCreditsClose} />
 
       {/* Version Badge */}
-      <div
-        style={{
-          position: "absolute",
-          right: 8,
-          bottom: 4,
-          fontSize: 10,
-          color: "rgba(255, 255, 255, 0.25)",
-          pointerEvents: "none",
-          userSelect: "none",
-          fontFamily: "sans-serif",
-          letterSpacing: 0.5,
-        }}
-      >
-        Powered by Miu2D Engine · v{__APP_VERSION__} · #{__COMMIT_HASH__}
-      </div>
+      <EngineWatermark />
     </div>
   );
 };
@@ -815,22 +802,7 @@ const ModernTitle: React.FC<TitleGuiProps> = ({ gameName, logoUrl, onNewGame, on
       />
 
       {/* Version Badge */}
-      <div
-        style={{
-          position: "absolute",
-          right: 8,
-          bottom: 4,
-          fontSize: 10,
-          color: "rgba(255, 255, 255, 0.2)",
-          pointerEvents: "none",
-          userSelect: "none",
-          fontFamily: "sans-serif",
-          letterSpacing: 0.5,
-          zIndex: 10,
-        }}
-      >
-        Powered by Miu2D Engine · v{__APP_VERSION__} · #{__COMMIT_HASH__}
-      </div>
+      <EngineWatermark zIndex={10} />
     </div>
   );
 };

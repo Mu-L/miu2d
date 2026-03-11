@@ -21,7 +21,7 @@ import {
   findDistanceTileInDirection,
   findNeighborInDirection,
 } from "../../utils/path-finder";
-import { getCharacterDeathExp } from "../../combat/effect-calc";
+import { calcMagicHit, getCharacterDeathExp } from "../../combat/effect-calc";
 import {
   type ApplyContext,
   applyStatusEffect,
@@ -315,6 +315,13 @@ export class MagicCollisionHandler implements CollisionHandler {
     // 特殊效果
     this.applySpecialKindEffects(sprite, character, magic, belongCharacter);
 
+    // 命中率检查（闪避）
+    // Parasitic bypasses the check (always hits)
+    const isParasitic = sprite.parasitiferCharacterId !== null;
+    if (!isParasitic && !calcMagicHit(character, belongCharacter)) {
+      return shouldDestroy;
+    }
+
     // 调用 apply（伤害计算）
     const effect = getEffect(sprite.magic.moveKind);
     let actualDamage = 0;
@@ -564,7 +571,7 @@ export class MagicCollisionHandler implements CollisionHandler {
 
     if (isKill) {
       if (isPlayerCaster || isPartner || isSummonedByPlayerOrPartner || isControledByPlayer) {
-        const exp = getCharacterDeathExp(target);
+        const exp = getCharacterDeathExp(target, this.player);
         logger.log(`[CollisionHandler] Kill! Player gains ${exp} exp`);
         this.player.addExp(exp, true);
 
@@ -580,7 +587,7 @@ export class MagicCollisionHandler implements CollisionHandler {
             shouldGiveNpcExp = summoner?.isPartner ?? false;
           }
           if (shouldGiveNpcExp) {
-            const npcExp = getCharacterDeathExp(target);
+            const npcExp = getCharacterDeathExp(target, belongCharacter);
             belongCharacter.addExp(npcExp);
             logger.log(
               `[CollisionHandler] Partner/Summon ${belongCharacter.name} gains ${npcExp} exp`

@@ -501,6 +501,14 @@ export abstract class CharacterMovement extends CharacterBase {
       return false;
     }
 
+    // 修剪路径：如果终点是动态障碍物（NPC/Obj 占据），去掉该终点
+    // WASM A* 总是将终点加入路径（find_valid_neighbors 对 destination 不检查动态障碍），
+    // 否则 moveAlongPath 后续会触发 standingImmediately() 并清空 _destinationAttackTilePosition。
+    // 路径停在可通行的最近相邻瓦片，由 onReachedDestination() 触发攻击。
+    if (path.length >= 2 && this.hasObstacle(path[path.length - 1])) {
+      path = path.slice(0, -1);
+    }
+
     this.path = path.slice(1);
     this._destinationMoveTilePosition = { ...actualDestTile };
     return true;
@@ -725,12 +733,19 @@ export abstract class CharacterMovement extends CharacterBase {
   moveAwayTarget(targetPixelPosition: Vector2, awayTileDistance: number, isRun: boolean): boolean {
     if (awayTileDistance < 1) return false;
 
-    const myPixel = this.pixelPosition;
-    const awayDirX = myPixel.x - targetPixelPosition.x;
-    const awayDirY = myPixel.y - targetPixelPosition.y;
+    // Use tile-to-tile direction instead of pixel-to-pixel.
+    // While the NPC is mid-walk its pixel position changes continuously, causing
+    // getDirectionFromVector to return a slightly different octant each frame and
+    // therefore a different retreat tile every idle period → infinite repath loop.
+    // Tile coordinates are stable until the character crosses a tile boundary,
+    // so WalkTo() doesn't repath while walking.
+    const myTile = this.tilePosition;
+    const targetTile = pixelToTile(targetPixelPosition.x, targetPixelPosition.y);
+    const awayDirX = myTile.x - targetTile.x;
+    const awayDirY = myTile.y - targetTile.y;
 
     const neighbor = this.findDistanceTileInDirection(
-      this.tilePosition,
+      myTile,
       { x: awayDirX, y: awayDirY },
       awayTileDistance
     );
@@ -942,7 +957,6 @@ export abstract class CharacterMovement extends CharacterBase {
   /**
    * 检查从 startTile 到 endTile 是否有视线（无墙壁阻挡）
    *
-   * 匹配 C# PathFinder.CanViewTarget() 实现：
    * 贪心最优先搜索，沿途检查地图障碍物（墙壁），
    * 如果中途遇到障碍则返回 false（不可视）
    */
@@ -954,11 +968,11 @@ export abstract class CharacterMovement extends CharacterBase {
 
     if (startTile.x === endTile.x && startTile.y === endTile.y) return true;
 
-    // C# 使用 IsObstacleForMagic 检查终点（仅硬障碍物阻挡视线，TRANS 不阻挡）
+    // IsObstacleForMagic 检查终点（仅硬障碍物阻挡视线，TRANS 不阻挡）
     if (this.engine.map.isObstacleForMagic(endTile.x, endTile.y)) return false;
 
     // 贪心最优先搜索：从起点向终点逐格行走，检查墙壁
-    // 每步选择距离终点最近的邻居（像素距离，匹配 C# GetTilePositionCost）
+    // 每步选择距离终点最近的邻居（像素距离）
     const endPixel = tileToPixel(endTile.x, endTile.y);
     let currentX = startTile.x;
     let currentY = startTile.y;
@@ -966,7 +980,7 @@ export abstract class CharacterMovement extends CharacterBase {
     for (let step = 0; step < effectiveSteps; step++) {
       if (currentX === endTile.x && currentY === endTile.y) return true;
 
-      // C# 使用 IsObstacle 检查中间瓦片（仅 OBSTACLE 标志，TRANS 不阻挡视线）
+      // IsObstacle 检查中间瓦片（仅 OBSTACLE 标志，TRANS 不阻挡视线）
       if (this.engine.map.isObstacle(currentX, currentY)) return false;
 
       // 选择距终点最近的邻居（贪心）
