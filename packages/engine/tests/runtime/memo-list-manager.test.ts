@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { MemoListManager } from "../../src/data/memo-list-manager";
+import { MemoListManager } from "../../src/gui/memo-list-manager";
 
 // Mock logger
 vi.mock("../../src/core/logger", () => ({

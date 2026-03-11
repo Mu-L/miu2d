@@ -53,6 +53,7 @@
     "@types/nodemailer": "^7.0.9",
     "@types/pg": "^8.11.14",
     "@types/react": "^19.2.10",
+    "chokidar": "^5.0.0",
     "rollup": "^4.54.0",
     "ts-morph": "^27.0.2",
     "tsx": "^4.19.2",

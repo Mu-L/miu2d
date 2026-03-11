@@ -78,3 +78,15 @@ export class TypedEventEmitter<EventMap extends object> {
     delete this.listeners[event];
   }
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyRecord = Record<string, unknown>;
+
+/**
+ * 非泛型事件发射器，供测试和内部简单场景使用
+ */
+export class EventEmitter extends TypedEventEmitter<AnyRecord> {
+  override emit<K extends keyof AnyRecord>(event: K, data?: AnyRecord[K]): void {
+    super.emit(event, data);
+  }
+}

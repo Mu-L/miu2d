@@ -4,7 +4,7 @@ import {
   addMagicEffect,
   getCharacterDeathExp,
   type EffectCharacter,
-} from "../../src/magic/effect-calc";
+} from "../../src/combat/effect-calc";
 
 function makeCharacter(overrides: Partial<EffectCharacter> = {}): EffectCharacter {
   return {
