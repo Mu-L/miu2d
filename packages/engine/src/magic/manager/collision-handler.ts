@@ -1,8 +1,6 @@
 /**
  * Collision Handler - 碰撞检测和伤害处理
  * 从 MagicSpriteManager 提取
- *
- * Reference: MagicSprite.CollisionDetaction(), CharacterHited()
  */
 
 import type { CharacterBase } from "../../character/base";
@@ -91,7 +89,6 @@ export class MagicCollisionHandler implements CollisionHandler {
 
   /**
    * 检查地图障碍物碰撞
-   * Reference: MagicSprite.CheckDestroyForObstacleInMap()
    */
   checkMapObstacle(sprite: MagicSprite): boolean {
     if (sprite.magic.passThroughWall > 0) return false;
@@ -139,7 +136,6 @@ export class MagicCollisionHandler implements CollisionHandler {
 
   /**
    * 检查敌人碰撞并调用 apply
-   * Reference: MagicSprite.CollisionDetaction()
    */
   checkCollision(sprite: MagicSprite): boolean {
     if (sprite.isInDestroy) {
@@ -503,10 +499,12 @@ export class MagicCollisionHandler implements CollisionHandler {
 
     // SpecialKind 效果
     if (magic.specialKind >= 1 && magic.specialKind <= 3) {
-      const seconds =
+      const baseSecs =
         magic.specialKindMilliSeconds > 0
           ? magic.specialKindMilliSeconds / 1000
           : magic.effectLevel + 1;
+      const seconds =
+        magic.specialKind === 1 && character.isPlayer ? baseSecs * 0.5 : baseSecs;
       applyStatusEffect(magic.specialKind, character, seconds, showEffect, belongCharacter);
     }
 
@@ -566,7 +564,7 @@ export class MagicCollisionHandler implements CollisionHandler {
 
     if (isKill) {
       if (isPlayerCaster || isPartner || isSummonedByPlayerOrPartner || isControledByPlayer) {
-        const exp = getCharacterDeathExp(this.player, target);
+        const exp = getCharacterDeathExp(target);
         logger.log(`[CollisionHandler] Kill! Player gains ${exp} exp`);
         this.player.addExp(exp, true);
 
@@ -582,7 +580,7 @@ export class MagicCollisionHandler implements CollisionHandler {
             shouldGiveNpcExp = summoner?.isPartner ?? false;
           }
           if (shouldGiveNpcExp) {
-            const npcExp = getCharacterDeathExp(belongCharacter, target);
+            const npcExp = getCharacterDeathExp(target);
             belongCharacter.addExp(npcExp);
             logger.log(
               `[CollisionHandler] Partner/Summon ${belongCharacter.name} gains ${npcExp} exp`

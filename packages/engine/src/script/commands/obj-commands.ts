@@ -154,6 +154,18 @@ const setObjOfsCommand: CommandHandler = (params, _result, helpers) => {
 };
 
 /**
+ * SetObjPos - Set object tile position (repositions on map)
+ * SetObjPos(name, x, y)
+ */
+const setObjPosCommand: CommandHandler = (params, _result, helpers) => {
+  const objName = helpers.resolveString(params[0] || "");
+  const x = helpers.resolveNumber(params[1] || "0");
+  const y = helpers.resolveNumber(params[2] || "0");
+  helpers.api.obj.setPosition(objName, x, y);
+  return true;
+};
+
+/**
  * ClearBody - Clear dead bodies
  */
 const clearBodyCommand: CommandHandler = (_params, _result, helpers) => {
@@ -206,6 +218,7 @@ export function registerObjCommands(registry: CommandRegistry): void {
   registry.set("setobjkind", setObjKindCommand);
   registry.set("saveobj", saveObjCommand);
   registry.set("setobjofs", setObjOfsCommand);
+  registry.set("setobjpos", setObjPosCommand);
   registry.set("clearbody", clearBodyCommand);
 
   // Traps

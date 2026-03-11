@@ -134,6 +134,7 @@ export function registerLuaAPIBindings(
   setGlobal("DeleteMagic", (magicFile: string) => api.magic.delete(magicFile));
   setGlobal("SetMagicLevel", (magicFile: string, level: number) => api.magic.setLevel(magicFile, level));
   setGlobal("GetMagicLevel", (magicFile: string) => api.magic.getLevel(magicFile));
+  setGlobal("AddMagicExp", (magicFile: string, amount: number) => api.magic.addExp(magicFile, amount));
   setGlobal("ClearMagic", () => api.magic.clear());
   setGlobal("HasMagicFreeSpace", () => api.magic.hasFreeSpace());
   setGlobal("UseMagic", (magicFile: string, x?: number, y?: number) => api.magic.use(magicFile, x, y));
@@ -143,6 +144,7 @@ export function registerLuaAPIBindings(
   setGlobal("DeleteMemo", (text: string) => api.memo.delete(text));
   setGlobal("AddMemoById", (id: number) => api.memo.addById(id));
   setGlobal("DeleteMemoById", (id: number) => api.memo.deleteById(id));
+  setGlobal("ClearMemo", () => api.memo.clear());
 
   // ===== Map =====
   setGlobal("LoadMap", (mapName: string) => api.map.load(mapName));
@@ -165,6 +167,7 @@ export function registerLuaAPIBindings(
   setGlobal("ClearBody", () => api.obj.clearBody());
   setGlobal("GetObjPos", (nameOrId: string) => api.obj.getPosition(nameOrId));
   setGlobal("SetObjOffset", (objName: string, x: number, y: number) => api.obj.setOffset(objName, x, y));
+  setGlobal("SetObjPos", (name: string, x: number, y: number) => api.obj.setPosition(name, x, y));
   setGlobal("SetObjKind", (objName: string, kind: number) => api.obj.setKind(objName, kind));
 
   // ===== Camera =====
@@ -180,6 +183,7 @@ export function registerLuaAPIBindings(
   setGlobal("PlaySound", (file: string) => api.audio.playSound(file));
   setGlobal("StopSound", () => api.audio.stopSound());
   setGlobal("PlayMovie", (file: string) => api.audio.playMovie(file));
+  setGlobal("StopMovie", () => api.audio.stopMovie());
 
   // ===== Effects =====
   setGlobal("FadeIn", () => api.effects.fadeIn());
@@ -188,6 +192,7 @@ export function registerLuaAPIBindings(
   setGlobal("ChangeSpriteColor", (r: number, g: number, b: number) => api.effects.changeSpriteColor(r, g, b));
   setGlobal("BeginRain", (fileName: string) => api.effects.beginRain(fileName));
   setGlobal("EndRain", () => api.effects.endRain());
+  setGlobal("ShowRain", (level: number) => api.effects.showRain(level));
   setGlobal("ShowSnow", (show: boolean) => api.effects.showSnow(show));
   setGlobal("ShowRandomSnow", () => api.effects.showRandomSnow());
   setGlobal("SetMainLum", (level: number) => api.effects.setMainLum(level));
@@ -251,11 +256,9 @@ export function registerLuaAPIBindings(
   setGlobal("SetShowMapPos", (show: boolean) => api.script.setShowMapPos(show));
   setGlobal("ShowMouseCursor", () => api.script.showMouseCursor());
   setGlobal("HideMouseCursor", () => api.script.hideMouseCursor());
-  setGlobal("CheckYear", () => {
-    const now = new Date();
-    const month = now.getMonth() + 1;
-    const day = now.getDate();
-    return (month === 1 && day >= 20) || (month === 2 && day <= 20) ? 1 : 0;
+  setGlobal("CheckYear", (varName: string) => {
+    api.variables.checkYear(varName);
+    return api.variables.get(varName);
   });
 
   // ===== Dialog Extended =====
@@ -268,16 +271,8 @@ export function registerLuaAPIBindings(
     const results = await api.dialog.chooseMultiple(columns, rows, varPrefix, message, optionObjects);
     return results;
   });
-  setGlobal("Select", async (messageId: number, optionAId: number, optionBId: number) => {
-    const talkTextList = api.dialog.talkTextList;
-    const messageDetail = talkTextList.getTextDetail(messageId);
-    const optionADetail = talkTextList.getTextDetail(optionAId);
-    const optionBDetail = talkTextList.getTextDetail(optionBId);
-    const message = messageDetail?.text || `[Text ${messageId}]`;
-    const selectA = optionADetail?.text || `[Text ${optionAId}]`;
-    const selectB = optionBDetail?.text || `[Text ${optionBId}]`;
-    return api.dialog.showSelection(message, selectA, selectB);
-  });
+  setGlobal("Select", (messageId: number, optionAId: number, optionBId: number) =>
+    api.dialog.selectByIds(messageId, optionAId, optionBId));
 
   // ===== DSL-compatible aliases =====
   // These match original DSL command names so scripts can use either convention.
@@ -303,11 +298,9 @@ export function registerLuaAPIBindings(
   setGlobal("EnableJump", () => api.player.setJumpEnabled(true));
   setGlobal("DisableRun", () => api.player.setRunEnabled(false));
   setGlobal("EnableRun", () => api.player.setRunEnabled(true));
-  setGlobal("AddRandMoney", (min: number, max: number) => {
-    const amount = min + Math.floor(Math.random() * (max - min + 1));
-    api.player.addMoney(amount);
-  });
+  setGlobal("AddRandMoney", (min: number, max: number) => api.player.addRandMoney(min, max));
   setGlobal("SavePlayer", (key: string) => api.player.saveSnapshot(key ?? "default"));
+  setGlobal("LoadPlayer", (index: number) => api.player.change(index ?? 0));
   setGlobal("PlayerAddEmotion", (_amount: number) => undefined); // stub – no engine support yet
   setGlobal("PlayerAddJustice", (_amount: number) => undefined); // stub – no engine support yet
 
@@ -420,16 +413,8 @@ export function registerLuaAPIBindings(
 
   // --- Memo aliases ---
   setGlobal("Memo", (text: string) => api.memo.add(text));
-  setGlobal("AddToMemo", (textOrId: string | number) => {
-    const n = Number(textOrId);
-    if (!Number.isNaN(n) && String(textOrId).trim() !== "") return api.memo.addById(n);
-    api.memo.add(String(textOrId));
-  });
-  setGlobal("DelMemo", (textOrId: string | number) => {
-    const n = Number(textOrId);
-    if (!Number.isNaN(n) && String(textOrId).trim() !== "") return api.memo.deleteById(n);
-    api.memo.delete(String(textOrId));
-  });
+  setGlobal("AddToMemo", (textOrId: string | number) => api.memo.addFlexible(textOrId));
+  setGlobal("DelMemo", (textOrId: string | number) => api.memo.deleteFlexible(textOrId));
 
   // --- Variable aliases ---
   setGlobal("GetPartnerIdx", () => api.variables.getPartnerIndex());
@@ -452,7 +437,7 @@ export function registerLuaAPIBindings(
   setGlobal("RunScirpt", (scriptFile: string) => api.script.run(scriptFile)); // typo alias
   setGlobal("RandRun", async (probability: number, script1: string, script2: string) => {
     const rand = Math.floor(Math.random() * 100);
-    return api.script.run(rand < probability ? script1 : script2);
+    return api.script.run(rand <= probability ? script1 : script2);
   });
   setGlobal("Gamble", (cost: number, npcType: number) => api.script.showGamble(cost, npcType));
 }

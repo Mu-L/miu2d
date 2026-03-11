@@ -70,6 +70,14 @@ const playMovieCommand: CommandHandler = async (params, _result, helpers) => {
 };
 
 /**
+ * StopMovie - Stop currently playing video
+ */
+const stopMovieCommand: CommandHandler = (_params, _result, helpers) => {
+  helpers.api.audio.stopMovie();
+  return true;
+};
+
+/**
  * StopSound - Stop all sounds
  */
 const stopSoundCommand: CommandHandler = (_params, _result, helpers) => {
@@ -82,5 +90,6 @@ export function registerAudioCommands(registry: CommandRegistry): void {
   registry.set("stopmusic", stopMusicCommand);
   registry.set("playsound", playSoundCommand);
   registry.set("playmovie", playMovieCommand);
+  registry.set("stopmovie", stopMovieCommand);
   registry.set("stopsound", stopSoundCommand);
 }

@@ -37,7 +37,7 @@ export const IS_USE_THEW_WHEN_NORMAL_RUN = false;
 export const SITTING_MANA_RESTORE_INTERVAL = 150;
 
 // Restore percentages from Player.cs
-export const LIFE_RESTORE_PERCENT = 0.01;
+export const LIFE_RESTORE_PERCENT = 0.002;
 export const THEW_RESTORE_PERCENT = 0.03;
 export const MANA_RESTORE_PERCENT = 0.02;
 // Restore interval (ms) - every 1 second

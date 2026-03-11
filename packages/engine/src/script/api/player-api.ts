@@ -177,6 +177,10 @@ export function createPlayerAPI(ctx: ScriptCommandContext, resolver: BlockingRes
     addMoney: (amount) => {
       player.addMoney(amount);
     },
+    addRandMoney: (min, max) => {
+      const amount = min + Math.floor(Math.random() * (max - min + 1));
+      player.addMoney(amount);
+    },
     getExp: () => player.exp,
     addExp: (amount) => {
       player.addExp(amount);

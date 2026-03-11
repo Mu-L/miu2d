@@ -559,6 +559,8 @@ export class Loader {
       );
 
       // Task C: NPC + 伙伴
+      // 2 屏阈值（约 40 瓦片）内的 NPC 立即并行加载并上报进度；
+      // 超出范围的 NPC 在游戏启动后后台静默加载，不阻塞进度条。
       const allNpcs = [...(data.snapshot.npc ?? []), ...(data.snapshot.partner ?? [])];
       if (allNpcs.length > 0) {
         parallelTasks.push(
@@ -566,8 +568,24 @@ export class Loader {
             const t = performance.now();
             npcManager.clearAllNpc();
             if (state.npc) npcManager.setFileName(state.npc);
-            await loadNpcsFromJSON(allNpcs, npcManager);
-            time(`NPCs(${allNpcs.length})`, t);
+            let nearCount = allNpcs.length; // 初值：未分流时视为全部近距离
+            await loadNpcsFromJSON(allNpcs, npcManager, {
+              playerTile: { x: data.player.mapX, y: data.player.mapY },
+              nearThreshold: 40,
+              onProgress: (done, nearTotal) => {
+                nearCount = nearTotal;
+                // 将近距离 NPC 进度映射到内部 68 → 85%
+                this.reportProgress(
+                  Math.round(68 + (done / Math.max(nearTotal, 1)) * 17),
+                  "加载游戏数据...",
+                );
+              },
+            });
+            const farCount = allNpcs.length - nearCount;
+            time(
+              farCount > 0 ? `NPCs(${nearCount}near+${farCount}bg)` : `NPCs(${allNpcs.length})`,
+              t,
+            );
           })()
         );
       }

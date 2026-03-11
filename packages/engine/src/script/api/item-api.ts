@@ -138,6 +138,15 @@ export function createMagicAPI(ctx: ScriptCommandContext): MagicAPI {
       const info = player.getPlayerMagicInventory().getMagicByFileName(magicFile);
       return info?.level || 0;
     },
+    addExp: (magicFile, amount) => {
+      const inventory = player.getPlayerMagicInventory();
+      const info = inventory.getMagicByFileName(magicFile);
+      if (info) {
+        inventory.addMagicExp(info, amount);
+      } else {
+        logger.warn(`[MagicAPI] addExp: magic not found: ${magicFile}`);
+      }
+    },
     clear: () => {
       player.getPlayerMagicInventory().renewList();
     },
@@ -179,6 +188,37 @@ export function createMemoAPI(ctx: ScriptCommandContext): MemoAPI {
     deleteById: async (id) => {
       await memoListManager.delMemoById(id);
       guiManager.updateMemoView();
+    },
+    clear: () => {
+      memoListManager.renewList();
+      guiManager.updateMemoView();
+    },
+    addFlexible: async (textOrId) => {
+      const asNum =
+        typeof textOrId === "number"
+          ? textOrId
+          : /^[0-9]+$/.test(String(textOrId).trim())
+            ? parseInt(String(textOrId), 10)
+            : Number.NaN;
+      if (!Number.isNaN(asNum)) {
+        await guiManager.addToMemo(asNum);
+      } else {
+        guiManager.addMemo(String(textOrId));
+      }
+    },
+    deleteFlexible: async (textOrId) => {
+      const asNum =
+        typeof textOrId === "number"
+          ? textOrId
+          : /^[0-9]+$/.test(String(textOrId).trim())
+            ? parseInt(String(textOrId), 10)
+            : Number.NaN;
+      if (!Number.isNaN(asNum)) {
+        await memoListManager.delMemoById(asNum);
+        guiManager.updateMemoView();
+      } else {
+        guiManager.delMemo(String(textOrId));
+      }
     },
   };
 }

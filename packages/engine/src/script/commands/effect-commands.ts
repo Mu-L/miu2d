@@ -68,6 +68,17 @@ const beginRainCommand: CommandHandler = (params, _result, helpers) => {
 };
 
 /**
+ * ShowRain - Toggle rain by level (0 = stop, non-zero = start)
+ * ShowRain(level)
+ * Distinct from BeginRain(fileName) which takes a config file name.
+ */
+const showRainCommand: CommandHandler = (params, _result, helpers) => {
+  const level = helpers.resolveNumber(params[0] || "0");
+  helpers.api.effects.showRain(level);
+  return true;
+};
+
+/**
  * EndRain - Stop rain effect
  */
 const endRainCommand: CommandHandler = (_params, _result, helpers) => {
@@ -225,6 +236,7 @@ export function registerEffectCommands(registry: CommandRegistry): void {
   // Weather
   registry.set("beginrain", beginRainCommand);
   registry.set("endrain", endRainCommand);
+  registry.set("showrain", showRainCommand);
   registry.set("showsnow", showSnowCommand);
   registry.set("showrandomsnow", showRandomSnowCommand);
 

@@ -97,7 +97,6 @@ export abstract class CharacterCombat extends CharacterMovement {
 
     this.exp += amount;
     if (this.exp > this.levelUpExp) {
-      // Reference: GuiManager.ShowMessage(Name + "的等级提升了");
       const gui = this.engine.guiManager as { showMessage?: (msg: string) => void };
       gui.showMessage?.(`${this.name}的等级提升了`);
       this.toLevelByExp(this.exp);
@@ -187,26 +186,19 @@ export abstract class CharacterCombat extends CharacterMovement {
     return this.life <= 0;
   }
 
-  private calculateHitRate(attackerEvade: number, defenderEvade: number): number {
-    const maxOffset = 100;
-    const baseHitRatio = 0.05;
-    const belowRatio = 0.5;
-    const upRatio = 0.45;
-
-    let hitRatio = baseHitRatio;
-    if (defenderEvade >= attackerEvade) {
-      if (defenderEvade > 0) {
-        hitRatio += (attackerEvade / defenderEvade) * belowRatio;
-      } else {
-        hitRatio += belowRatio;
-      }
-    } else {
-      let upOffsetRatio = (attackerEvade - defenderEvade) / maxOffset;
-      if (upOffsetRatio > 1) upOffsetRatio = 1;
-      hitRatio += belowRatio + upOffsetRatio * upRatio;
+  /**
+   * 命中判定
+   */
+  private isHit(attackerEvade: number, defenderEvade: number): boolean {
+    if (this.isPlayer) {
+      // 玩家受击保护：evd 不低于 0，随机范围上限 evd+50（最大 100）
+      const evd = Math.max(0, defenderEvade - attackerEvade);
+      const range = Math.min(100, evd + 50);
+      return Math.floor(Math.random() * range) > evd;
     }
-
-    return hitRatio;
+    // NPC: getRand(100) > (defEvade - atkEvade)
+    const evd = defenderEvade - attackerEvade;
+    return Math.floor(Math.random() * 100) > evd;
   }
 
   // =============================================
@@ -238,10 +230,7 @@ export abstract class CharacterCombat extends CharacterMovement {
     // 命中率计算
     const defenderEvade = this.realEvade;
     const attackerEvade = (attacker as CharacterCombat)?.realEvade ?? 0;
-    const hitRatio = this.calculateHitRate(attackerEvade, defenderEvade);
-
-    const roll = Math.random();
-    if (roll > hitRatio) {
+    if (!this.isHit(attackerEvade, defenderEvade)) {
       logger.log(`[Character] ${attacker?.name || "Unknown"} missed ${this.name}`);
       return;
     }
@@ -259,7 +248,7 @@ export abstract class CharacterCombat extends CharacterMovement {
       }
     }
 
-    const minimalDamage = 5;
+    const minimalDamage = this.isPlayer ? 10 : 50;
     if (actualDamage < minimalDamage) {
       actualDamage = minimalDamage;
     }
@@ -282,14 +271,14 @@ export abstract class CharacterCombat extends CharacterMovement {
       if (attacker && (attacker.isPlayer || attacker.isFighterFriend)) {
         const player = this.engine.player;
         if (player) {
-          const exp = getCharacterDeathExp(player, this);
+          const exp = getCharacterDeathExp(this);
           player.addExp(exp, true);
         }
       }
 
       this.death(attacker as CharacterCombat | null);
     } else {
-      this.hurting();
+      this.hurting(true);
     }
   }
 
@@ -323,10 +312,7 @@ export abstract class CharacterCombat extends CharacterMovement {
     // 命中率计算
     const defenderEvade = this.realEvade;
     const attackerEvade = (attacker as CharacterCombat)?.realEvade ?? 0;
-    const hitRatio = this.calculateHitRate(attackerEvade, defenderEvade);
-
-    const roll = Math.random();
-    if (roll > hitRatio) {
+    if (!this.isHit(attackerEvade, defenderEvade)) {
       logger.log(`[Character] ${attacker?.name || "Unknown"} magic missed ${this.name}`);
       return 0;
     }
@@ -353,7 +339,7 @@ export abstract class CharacterCombat extends CharacterMovement {
     if (effect3 > 0) totalEffect += effect3;
     if (effect2 > 0) totalEffect += effect2;
 
-    if (totalEffect < 5) totalEffect = 5;
+    if (totalEffect < 10) totalEffect = 10;
     if (totalEffect > this.life) totalEffect = this.life;
 
     this.life -= totalEffect;
@@ -380,11 +366,25 @@ export abstract class CharacterCombat extends CharacterMovement {
 
   /**
    * 播放受伤动画
+   * @param isDirect - true=直接攻击，false=魔法攻击
    */
-  hurting(): void {
-    const maxRandValue = 4;
-    if (Math.floor(Math.random() * maxRandValue) !== 0) {
-      return;
+  hurting(isDirect = false): void {
+    const evadeValue = this.realEvade;
+    if (isDirect) {
+      // 直接攻击：高闪避角色更难被击退
+      if (Math.floor(Math.random() * 100) <= evadeValue) {
+        return;
+      }
+    } else if (this.isPlayer) {
+      // 玩家受魔法：Player::hurt() — getRand(100) > getEvade()
+      if (Math.floor(Math.random() * 100) <= evadeValue) {
+        return;
+      }
+    } else {
+      // NPC 受魔法：NPC::hurt() — getRand(20+evade) >= evade
+      if (Math.floor(Math.random() * (20 + evadeValue)) < evadeValue) {
+        return;
+      }
     }
 
     if (this.petrifiedSeconds > 0) {
@@ -426,7 +426,6 @@ export abstract class CharacterCombat extends CharacterMovement {
 
   /**
    * 角色死亡处理
-   * Reference: Character.Death()
    */
   death(killer: CharacterCombat | null = null): void {
     if (this.isDeathInvoked) return;
@@ -489,7 +488,6 @@ export abstract class CharacterCombat extends CharacterMovement {
     if (this.isStateImageOk(CharacterState.Death)) {
       this.state = CharacterState.Death;
 
-      // Reference: Character.Death() - 状态效果死亡动画
       // 冰冻死亡 -> 冰碎动画
       if (this.isFrozen && this.isFrozenVisualEffect) {
         this.applySpecialDeathAnimation("frozen");
