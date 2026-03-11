@@ -9,10 +9,7 @@ import { RegisterPage } from "./pages/RegisterPage";
 import { LandingPage } from "./pages/landing";
 
 const GameScreen = lazy(async () => {
-  const [m] = await Promise.all([
-    import("@miu2d/game"),
-    import("./monaco-setup"), // Monaco Editor 本地化（仅在 game 加载时初始化）
-  ]);
+  const m = await import("@miu2d/game");
   return { default: m.GameScreen };
 });
 const DashboardApp = lazy(async () => {
