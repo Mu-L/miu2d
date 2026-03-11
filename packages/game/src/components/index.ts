@@ -8,7 +8,9 @@ export { PWAInstallPrompt } from "./PWAInstallPrompt";
 export * from "./adapters";
 export { ClassicGameUI } from "./ClassicGameUI";
 // Common components
-export { DebugPanel } from "./common/DebugPanel";
+// Note: DebugPanel is intentionally NOT exported here — it contains Monaco Editor
+// and must be lazy-loaded via React.lazy in GamePlaying.tsx to avoid eagerly
+// bundling ~4MB of Monaco into the game chunk.
 export type {
   DebugPanelProps,
   LoadedResources,
