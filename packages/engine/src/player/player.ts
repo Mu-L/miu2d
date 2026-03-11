@@ -289,8 +289,11 @@ export class Player extends PlayerCombat {
    * Reference: Player.SetNpcIni() - 当通过 SetNpcRes 脚本命令改变玩家资源时，
    * 需要更新 NpcIniIndex 和刷新修炼武功的 SpecialAttackTexture
    */
-  override async loadSpritesFromNpcIni(npcIni?: string): Promise<boolean> {
-    const result = await super.loadSpritesFromNpcIni(npcIni);
+  override async loadSpritesFromNpcIni(
+    npcIni?: string,
+    options?: { deferKeys?: Set<keyof import("../sprite/sprite").SpriteSet> },
+  ): Promise<boolean> {
+    const result = await super.loadSpritesFromNpcIni(npcIni, options);
 
     if (result && npcIni) {
       // 调用 setNpcIni 来更新 _npcIniIndex 和刷新 SpecialAttackTexture

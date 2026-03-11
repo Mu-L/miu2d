@@ -571,7 +571,7 @@ export class Loader {
             let nearCount = allNpcs.length; // 初值：未分流时视为全部近距离
             await loadNpcsFromJSON(allNpcs, npcManager, {
               playerTile: { x: data.player.mapX, y: data.player.mapY },
-              nearThreshold: 40,
+              nearThreshold: 20,
               onProgress: (done, nearTotal) => {
                 nearCount = nearTotal;
                 // 将近距离 NPC 进度映射到内部 68 → 85%

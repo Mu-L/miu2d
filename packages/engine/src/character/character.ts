@@ -521,7 +521,18 @@ export abstract class Character extends CharacterCombat {
     this._updateTextureForState(this._state);
   }
 
-  async loadSpritesFromNpcIni(npcIni?: string): Promise<boolean> {
+  /**
+   * 从 NpcRes ini 加载精灵动画集
+   *
+   * @param npcIni - NPC 资源文件路径（省略则使用 this.npcIni）
+   * @param options.deferKeys - 这些状态的 ASF 后台静默加载，不阻塞返回。
+   *   适合玩家角色：先加载 stand/walk/fightStand/fightWalk/hurt，
+   *   将 attack/magic/run/death 等后台加载减少初始等待时间。
+   */
+  async loadSpritesFromNpcIni(
+    npcIni?: string,
+    options?: { deferKeys?: Set<keyof SpriteSet> },
+  ): Promise<boolean> {
     const iniFile = npcIni || this.npcIni;
     if (!iniFile) {
       logger.warn(`[Character] No npcIni specified for loadSpritesFromNpcIni`);
@@ -535,7 +546,9 @@ export abstract class Character extends CharacterCombat {
     }
 
     const spriteSet = createEmptySpriteSet();
-    const loadPromises: Promise<void>[] = [];
+    const priorityPromises: Promise<void>[] = [];
+    const deferredPromises: Promise<void>[] = [];
+    const deferKeys = options?.deferKeys;
 
     const stateToKey: Record<number, keyof SpriteSet> = {
       [CharacterState.Stand]: "stand",
@@ -564,14 +577,18 @@ export abstract class Character extends CharacterCombat {
             spriteSet[key] = asf;
           }
         });
-        loadPromises.push(promise);
+        if (deferKeys?.has(key)) {
+          deferredPromises.push(promise);
+        } else {
+          priorityPromises.push(promise);
+        }
       }
       if (info.soundPath) {
         this._stateSounds.set(state, info.soundPath);
       }
     }
 
-    await Promise.all(loadPromises);
+    await Promise.all(priorityPromises);
 
     if (!spriteSet.stand && !spriteSet.walk) {
       logger.warn(`[Character] No basic animations loaded for npcIni: ${iniFile}`);
@@ -593,6 +610,13 @@ export abstract class Character extends CharacterCombat {
       } catch (err) {
         logger.warn(`[Character] Failed to load BodyIni ${this.bodyIni}:`, err);
       }
+    }
+
+    // 后台加载非关键动画状态（攻击、武功、奔跑、死亡等）
+    if (deferredPromises.length > 0) {
+      Promise.all(deferredPromises).catch((err: unknown) => {
+        logger.warn(`[Character] Background sprite load failed for ${iniFile}:`, err);
+      });
     }
 
     logger.debug(`[Character] Loaded sprites from NpcRes: ${iniFile}`);
