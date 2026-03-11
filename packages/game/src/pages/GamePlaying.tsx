@@ -15,10 +15,10 @@ import { setUiTheme, type UiTheme } from "@miu2d/engine/gui/ui-settings";
 import { resourceLoader } from "@miu2d/engine/resource/resource-loader";
 import type { SaveData } from "@miu2d/engine/storage";
 import { useAuth } from "@miu2d/shared";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type React from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GameHandle, ToolbarButton } from "../components";
 import {
-  DebugPanel,
   DockedPanel,
   Game,
   GameCursor,
@@ -26,10 +26,16 @@ import {
   MobileControls,
   TouchDragIndicator,
 } from "../components";
+import type { DebugPanelProps } from "../components/common/DebugPanel";
 import type { MenuTab } from "../components/GameMenuPanel";
 import type { UITheme } from "../components/ui";
 import { VideoPlayer } from "../components/ui/classic";
 import { reloadUIConfigs } from "../components/ui/classic/useUISettings";
+
+// DebugPanel 含 Monaco Editor，按需加载（仅当调试面板首次打开时引入）
+const DebugPanel = lazy<React.ComponentType<DebugPanelProps>>(() =>
+  import("../components/common/DebugPanel").then((m) => ({ default: m.DebugPanel }))
+);
 
 // 当前展开的面板类型（不含调试面板，调试面板独立管理）
 type ActivePanel = "none" | "menu";
@@ -373,6 +379,7 @@ export function GamePlaying({
           defaultWidth={420}
           onWidthChange={setDebugPanelWidth}
         >
+          <Suspense fallback={null}>
           <DebugPanel
             isGodMode={debugManager?.isGodMode() ?? false}
             playerStats={debugManager?.getPlayerStats() ?? undefined}
@@ -426,6 +433,7 @@ export function GamePlaying({
               reloadUIConfigs();
             }}
           />
+          </Suspense>
         </DockedPanel>
 
         {/* 游戏区域 */}
