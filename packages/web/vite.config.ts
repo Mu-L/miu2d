@@ -141,33 +141,14 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id: string) {
-          // @miu2d/engine — game engine core (large, changes independently)
-          if (id.includes("/packages/engine/src/")) return "engine";
-          // DebugPanel + ScriptEditor — lazy-loaded by React.lazy, must NOT be
-          // forced into the "game" chunk or Monaco would load eagerly.
-          // Returning undefined lets Rolldown honour the dynamic import boundary.
-          if (
-            id.includes("/packages/game/src/components/common/DebugPanel/") ||
-            id.includes("/packages/game/src/components/common/ScriptEditor/")
-          )
-            return undefined;
-          // @miu2d/game — game runtime / GameScreen
-          if (id.includes("/packages/game/src/")) return "game";
-          // @miu2d/dashboard — admin / dashboard
-          if (id.includes("/packages/dashboard/src/")) return "dashboard";
-          // @miu2d/shared + @miu2d/ui + @miu2d/types — shared utilities
-          if (
-            id.includes("/packages/shared/src/") ||
-            id.includes("/packages/ui/src/") ||
-            id.includes("/packages/types/src/")
-          )
-            return "shared";
-          // Monaco editor (shared by game and dashboard)
-          if (
-            id.includes("node_modules/monaco-editor/") ||
-            id.includes("node_modules/@monaco-editor/")
-          )
-            return "monaco";
+          // @miu2d/engine, @miu2d/game, @miu2d/dashboard, @miu2d/shared, @miu2d/ui, @miu2d/types:
+          // No explicit rule — Rolldown creates lazy auto-chunks for game and dashboard
+          // based on the React.lazy() dynamic import boundaries in App.tsx.
+          // Explicitly naming these caused Rolldown to absorb @miu2d/shared into the
+          // named chunk (making it statically preloaded with the entry).
+          // Monaco editor: no explicit rule — it's only used by the dashboard
+          // (via ScriptEditor, lazy-loaded). Rolldown will auto-chunk it with
+          // the dashboard chunk based on the dynamic import boundary.
           // React ecosystem
           if (
             id.includes("node_modules/react/") ||
@@ -175,10 +156,42 @@ export default defineConfig({
             id.includes("node_modules/react-router") ||
             id.includes("node_modules/scheduler/")
           )
-            return "vendor-react";
+            return "LibsReact";
+          // tRPC + TanStack React Query — loaded at startup via TRPCProvider
+          // Must be extracted from "dashboard" so dashboard remains lazy
+          if (
+            id.includes("node_modules/@trpc/") ||
+            id.includes("node_modules/@tanstack/") ||
+            id.includes("node_modules/use-sync-external-store/")
+          )
+            return "LibsTrpc";
+          // i18n — loaded at startup; keep separate for cache granularity
+          if (
+            id.includes("node_modules/i18next") ||
+            id.includes("node_modules/react-i18next")
+          )
+            return "LibsI18n";
+          // Zod — used by @miu2d/types which is in the shared chunk
+          if (id.includes("node_modules/zod/")) return "LibsZod";
+          // framer-motion — used by @miu2d/ui + landing pages at startup
+          if (
+            id.includes("node_modules/framer-motion/") ||
+            id.includes("node_modules/motion-dom/") ||
+            id.includes("node_modules/motion-utils/")
+          )
+            return "LibsMotion";
+          // react-icons — used by landing pages at startup
+          if (id.includes("node_modules/react-icons/")) return "LibsIcons";
         },
       },
     },
+  },
+  optimizeDeps: {
+    // Exclude from pre-bundling so Rolldown processes them as raw modules.
+    // This allows manualChunks to route them to dedicated chunks,
+    // preventing them from being bundled into "dashboard" and causing
+    // the entry to preload the whole dashboard chunk at startup.
+    exclude: ["framer-motion", "react-icons"],
   },
   resolve: {
     alias: {

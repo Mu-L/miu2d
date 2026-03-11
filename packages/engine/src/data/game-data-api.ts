@@ -11,6 +11,7 @@
  */
 
 import type { Good, Player, Shop } from "@miu2d/types";
+import type { SceneManifest } from "@miu2d/types";
 import { logger } from "../core/logger";
 
 // ==================== 从 shared 导入并 re-export ====================
@@ -412,6 +413,28 @@ export async function loadSceneObjEntries(
     return await fetchGameApi<Record<string, unknown>[]>(
       state.slug,
       `scenes/obj/${encodeURIComponent(sceneKey)}/${encodeURIComponent(fileName)}`
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 从 Scene API 加载场景资源清单
+ *
+ * 返回 tiles（瓦片路径）和 missing（已知 404 精灵路径），
+ * 客户端用 missing 列表预先填充 failedPaths 缓存以跳过无效请求。
+ */
+export async function loadSceneManifest(sceneKey: string): Promise<SceneManifest | null> {
+  if (!state.slug) {
+    logger.warn(`[GameDataApi] loadSceneManifest failed: game slug is empty`);
+    return null;
+  }
+
+  try {
+    return await fetchGameApi<SceneManifest>(
+      state.slug,
+      `scenes/${encodeURIComponent(sceneKey)}/manifest`
     );
   } catch {
     return null;

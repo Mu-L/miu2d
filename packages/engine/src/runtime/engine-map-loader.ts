@@ -12,7 +12,7 @@
 import type { TypedEventEmitter } from "../events/event-emitter";
 import type { GameEventMap } from "../events/game-events";
 import { logger } from "../core/logger";
-import { getGameSlug, loadSceneMapMmf } from "../data/game-data-api";
+import { getGameSlug, loadSceneManifest, loadSceneMapMmf } from "../data/game-data-api";
 import type { MapBase } from "../map";
 import type { MapRenderer } from "../map/map-renderer";
 import { loadMapMpcs, releaseMapTextures } from "../map/map-renderer";
@@ -21,6 +21,7 @@ import type { Renderer } from "../renderer/renderer";
 import type { ScreenEffects } from "../renderer/screen-effects";
 import { parseMMF } from "../resource/format/mmf";
 import { ResourcePath } from "../resource/resource-paths";
+import { resourceLoader } from "../resource/resource-loader";
 import { initWasmPathfinder, syncStaticObstacles } from "../wasm/wasm-path-finder";
 import type { EngineCamera } from "./engine-camera";
 import type { GameEngineState } from "./game-engine";
@@ -180,10 +181,12 @@ export async function handleMapChange(
 }
 
 /**
- * 从 Scene API 加载 MMF 地图二进制数据
+ * 从 Scene API 加载 MMF 地图二进制数据，并并发请求资源清单
  *
  * 从地图路径提取 sceneKey（如 "map_003_武当山下"），
  * 请求 /game/:gameSlug/api/scenes/:sceneKey/mmf
+ * 同时请求 /game/:gameSlug/api/scenes/:sceneKey/manifest，
+ * 将 manifest.missing 预置到 resourceLoader.failedPaths，消除无效 404 请求。
  */
 async function loadMapFromSceneApi(fullMapPath: string): Promise<MiuMapData | null> {
   const gameSlug = getGameSlug();
@@ -194,7 +197,20 @@ async function loadMapFromSceneApi(fullMapPath: string): Promise<MiuMapData | nu
   if (!sceneKey) return null;
 
   try {
-    const buffer = await loadSceneMapMmf(sceneKey);
+    // 并发请求 MMF 二进制和资源清单
+    const [buffer, manifest] = await Promise.all([
+      loadSceneMapMmf(sceneKey),
+      loadSceneManifest(sceneKey),
+    ]);
+
+    // 将已知缺失路径写入失败缓存（跳过无效 404 网络请求）
+    if (manifest?.missing && manifest.missing.length > 0) {
+      resourceLoader.prewarmMissing(manifest.missing);
+      logger.log(
+        `[EngineMapLoader] Manifest: ${manifest.tiles.length} tiles, ${manifest.missing.length} missing sprites prewarmed`
+      );
+    }
+
     if (!buffer) return null;
 
     const mapData = parseMMF(buffer, fullMapPath);

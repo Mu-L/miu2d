@@ -862,6 +862,32 @@ class ResourceLoaderImpl {
   }
 
   /**
+   * 预置已知缺失路径到失败缓存（来自 SceneManifest.missing）
+   *
+   * 将相对资源路径（如 "asf/character/x.msf"）按各资源类型的 cacheKey 格式
+   * 写入 failedPaths，使后续 loadAsf/loadParsedBinary 调用立即返回 null，
+   * 跳过无效的网络请求。
+   *
+   * 注意：路径必须是相对资源根目录的路径（与 normalizePath 输出一致），
+   * 此方法内部会调用 normalizePath 确保格式一致。
+   */
+  prewarmMissing(relativePaths: string[]): void {
+    for (const p of relativePaths) {
+      const normalized = this.normalizePath(p);
+      // loadParsedBinary (asf/mpc) 使用 "${type}:${normalizedPath}" 作为 cacheKey
+      if (normalized.endsWith(".msf")) {
+        // asf 和 mpc 是两种解析类型，都可能用到 .msf 文件
+        this.failedPaths.add(`asf:${normalized}`);
+        this.failedPaths.add(`mpc:${normalized}`);
+      } else {
+        // 对其他类型（text/binary）也标记 normalizedPath
+        this.failedPaths.add(normalized);
+      }
+    }
+    logger.debug(`[ResourceLoader] Prewarmed ${relativePaths.length} missing paths`);
+  }
+
+  /**
    * 清除特定类型的缓存
    * 支持按类型精确清除，不会影响其他类型的缓存
    */
