@@ -873,7 +873,13 @@ class ResourceLoaderImpl {
    */
   prewarmMissing(relativePaths: string[]): void {
     for (const p of relativePaths) {
-      const normalized = this.normalizePath(p);
+      // 对每个路径段做 URL 编码以匹配 loadCharacterAsf 等使用 encodeURIComponent 的加载路径
+      // 例如 "asf/character/c01-老板-die.msf" → "asf/character/c01-%E8%80%81%E6%9D%BF-die.msf"
+      const encodedPath = p
+        .split("/")
+        .map((seg) => encodeURIComponent(seg))
+        .join("/");
+      const normalized = this.normalizePath(encodedPath);
       // loadParsedBinary (asf/mpc) 使用 "${type}:${normalizedPath}" 作为 cacheKey
       if (normalized.endsWith(".msf")) {
         // asf 和 mpc 是两种解析类型，都可能用到 .msf 文件
