@@ -612,22 +612,22 @@ export const MagicPanel: React.FC<MagicPanelProps> = ({
           >
             ▲
           </button>
-          <div style={{ display: "flex", gap: spacing.xs }}>
-            {Array.from({ length: maxScrollRow + 1 }).map((_, i) => (
-              <div
-                key={`page-dot-${i}`}
-                style={{
-                  width: 8,
-                  height: 8,
-                  borderRadius: borderRadius.round,
-                  background: i === scrollOffset ? wuxiaAccent.gold : modernColors.border.glass,
-                  transition: transitions.fast,
-                  cursor: "pointer",
-                }}
-                onClick={() => setScrollOffset(i)}
-              />
-            ))}
-          </div>
+          <span
+            style={{
+              fontSize: typography.fontSize.xs,
+              color: modernColors.text.secondary,
+              minWidth: 56,
+              textAlign: "center",
+              letterSpacing: "0.08em",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            <span style={{ color: wuxiaAccent.gold, fontWeight: typography.fontWeight.semibold }}>
+              {scrollOffset + 1}
+            </span>
+            {" / "}
+            {maxScrollRow + 1}
+          </span>
           <button
             onClick={() => setScrollOffset((p) => Math.min(maxScrollRow, p + 1))}
             disabled={scrollOffset === maxScrollRow}

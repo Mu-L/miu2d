@@ -93,7 +93,6 @@ export async function loadPlayerFromJSON(data: PlayerSaveData, player: Player): 
 
 /**
  * 从 JSON 加载武功列表（旧格式兼容）
- * 参考 PlayerMagicInventory.LoadList
  * 用于新游戏初始化（从 API 数据加载初始武功）
  */
 export async function loadMagicsFromJSON(
@@ -192,7 +191,7 @@ export function loadTrapsFromSave(
 /**
  * 从 JSON 存档数据创建所有 NPC
  *
- * 工作流程（参考NpcManager.Load）：
+ * 工作流程：
  * 1. 调用前已清空 npcManager
  * 2. 遍历存档数据，为每个 NPC 创建实例
  * 3. 加载对应的资源（npcres -> asf）

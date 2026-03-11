@@ -8,6 +8,7 @@
 import { logger } from "@miu2d/engine/core/logger";
 import type React from "react";
 import { useEffect } from "react";
+import { EngineWatermark } from "./common/EngineWatermark";
 import { GameUIContext } from "../contexts";
 import { useBuildGameUIContextValue, useTouchDropHandlers } from "./hooks";
 import type { GameUILogic } from "./hooks";
@@ -458,21 +459,7 @@ export const ClassicGameUI: React.FC<ClassicGameUIProps> = ({ logic, width, heig
       {/* Video Player */}
 
       {/* Engine Watermark */}
-      <div
-        style={{
-          position: "absolute",
-          right: 8,
-          bottom: 4,
-          fontSize: 10,
-          color: "rgba(255, 255, 255, 0.25)",
-          pointerEvents: "none",
-          userSelect: "none",
-          fontFamily: "sans-serif",
-          letterSpacing: 0.5,
-        }}
-      >
-        Powered by Miu2D Engine · v{__APP_VERSION__} · #{__COMMIT_HASH__}
-      </div>
+      <EngineWatermark />
     </GameUIContext.Provider>
   );
 };

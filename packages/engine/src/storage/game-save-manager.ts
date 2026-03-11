@@ -9,11 +9,6 @@
  * 3. loadGameFromJSON(data) - 从 JSON 数据加载存档
  * 4. collectSaveData() - 收集当前游戏状态用于云端保存
  *
- * 参考实现：
- * - JxqyHD/Engine/Storage/Loader.cs
- * - JxqyHD/Engine/Storage/Saver.cs
- * - JxqyHD/Engine/Storage/StorageBase.cs
- *
  * Loader 不负责：
  * - 游戏逻辑更新（由 GameManager 处理）
  * - 渲染和游戏循环（由 GameEngine 处理）
@@ -797,7 +792,7 @@ export class Loader {
         scriptShowMapPos: this.deps.isScriptShowMapPos(),
       },
 
-      // 选项 - 参考Saver.cs [Option] section
+      // 选项
       option: {
         mapTime: getMapTime(),
         snowShow: weatherState.isSnowing,
@@ -811,7 +806,7 @@ export class Loader {
         fadeLum: screenEffects.getFadeLum(),
       },
 
-      // 计时器 - 参考Saver.cs [Timer] section
+      // 计时器
       timer: {
         isOn: timerState.isOn,
         totalSecond: timerState.totalSecond,

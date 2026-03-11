@@ -82,9 +82,43 @@ export function addMagicEffect(belongCharacter: EffectCharacter, effect: number)
 }
 
 /**
- * 计算击杀经验
+ * 命中率检查（基于闪避值）
+ *
+ * hitRatio 范围 5%~100%
+ * - 攻方闪避 <= 守方闪避：hitRatio = 5% + (攻/守) × 50%
+ * - 攻方闪避 >  守方闪避：hitRatio = 55% + min(差值/100, 1) × 45%
  */
-export function getCharacterDeathExp(dead: { exp: number }): number {
-  const reward = Math.round(dead.exp * 3.0);
-  return reward < 1 ? 1 : reward;
+export function calcMagicHit(
+  target: { realEvade: number },
+  attacker: { realEvade: number } | null
+): boolean {
+  const targetEvade = target.realEvade;
+  const attackerEvade = attacker?.realEvade ?? 0;
+  const MAX_OFFSET = 100;
+  const BASE_HIT_RATIO = 0.05;
+  const BELOW_RATIO = 0.5;
+  const UP_RATIO = 0.45;
+  let hitRatio = BASE_HIT_RATIO;
+  if (targetEvade >= attackerEvade) {
+    hitRatio += targetEvade > 0 ? (attackerEvade / targetEvade) * BELOW_RATIO : BELOW_RATIO;
+  } else {
+    const upOffsetRatio = Math.min(1, (attackerEvade - targetEvade) / MAX_OFFSET);
+    hitRatio += BELOW_RATIO + upOffsetRatio * UP_RATIO;
+  }
+  return Math.floor(Math.random() * 101) <= Math.floor(hitRatio * 100);
+}
+
+/**
+ * 计算击杀经验
+ * Reference: Utils.GetCharacterDeathExp(dead, killer)
+ * 奖励 = max(dead.level × killer.level, 4) + dead.expBonus（Boss 额外奖励）
+ * 任一参数为 null 时返回最低值 1。
+ */
+export function getCharacterDeathExp(
+  dead: { level: number; expBonus?: number } | null,
+  killer: { level: number } | null
+): number {
+  if (!dead || !killer) return 1;
+  const exp = killer.level * dead.level + (dead.expBonus ?? 0);
+  return exp < 4 ? 4 : exp;
 }

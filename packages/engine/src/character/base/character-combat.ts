@@ -186,22 +186,8 @@ export abstract class CharacterCombat extends CharacterMovement {
     return this.life <= 0;
   }
 
-  /**
-   * 命中判定
-   */
-  private isHit(attackerEvade: number, defenderEvade: number): boolean {
-    if (this.isPlayer) {
-      // 玩家受击保护：evd 不低于 0，随机范围上限 evd+50（最大 100）
-      const evd = Math.max(0, defenderEvade - attackerEvade);
-      const range = Math.min(100, evd + 50);
-      return Math.floor(Math.random() * range) > evd;
-    }
-    // NPC: getRand(100) > (defEvade - atkEvade)
-    const evd = defenderEvade - attackerEvade;
-    return Math.floor(Math.random() * 100) > evd;
-  }
-
   // =============================================
+  // REMOVED: isHit() — 所有攻击经 characterHited() → calcMagicHit() 处理
   // === Damage Methods ===
   // =============================================
 
@@ -226,14 +212,6 @@ export abstract class CharacterCombat extends CharacterMovement {
     }
 
     this._lastAttacker = attacker as CharacterCombat | null;
-
-    // 命中率计算
-    const defenderEvade = this.realEvade;
-    const attackerEvade = (attacker as CharacterCombat)?.realEvade ?? 0;
-    if (!this.isHit(attackerEvade, defenderEvade)) {
-      logger.log(`[Character] ${attacker?.name || "Unknown"} missed ${this.name}`);
-      return;
-    }
 
     // 计算伤害
     let actualDamage = Math.max(0, damage - this.realDefend);
@@ -271,14 +249,14 @@ export abstract class CharacterCombat extends CharacterMovement {
       if (attacker && (attacker.isPlayer || attacker.isFighterFriend)) {
         const player = this.engine.player;
         if (player) {
-          const exp = getCharacterDeathExp(this);
+          const exp = getCharacterDeathExp(this, player);
           player.addExp(exp, true);
         }
       }
 
       this.death(attacker as CharacterCombat | null);
     } else {
-      this.hurting(true);
+      this.hurting();
     }
   }
 
@@ -309,13 +287,8 @@ export abstract class CharacterCombat extends CharacterMovement {
       }
     }
 
-    // 命中率计算
-    const defenderEvade = this.realEvade;
-    const attackerEvade = (attacker as CharacterCombat)?.realEvade ?? 0;
-    if (!this.isHit(attackerEvade, defenderEvade)) {
-      logger.log(`[Character] ${attacker?.name || "Unknown"} magic missed ${this.name}`);
-      return 0;
-    }
+    // 命中率由 characterHited() 的 magicHitsTarget() 统一处理
+    // 此处不重复检查，避免二重闪避判定
 
     // 多类型伤害
     let effect = damage - this.realDefend;
@@ -365,26 +338,12 @@ export abstract class CharacterCombat extends CharacterMovement {
   }
 
   /**
-   * 播放受伤动画
-   * @param isDirect - true=直接攻击，false=魔法攻击
+   * 播放受伤动画（25% 概率触发）
    */
-  hurting(isDirect = false): void {
-    const evadeValue = this.realEvade;
-    if (isDirect) {
-      // 直接攻击：高闪避角色更难被击退
-      if (Math.floor(Math.random() * 100) <= evadeValue) {
-        return;
-      }
-    } else if (this.isPlayer) {
-      // 玩家受魔法：Player::hurt() — getRand(100) > getEvade()
-      if (Math.floor(Math.random() * 100) <= evadeValue) {
-        return;
-      }
-    } else {
-      // NPC 受魔法：NPC::hurt() — getRand(20+evade) >= evade
-      if (Math.floor(Math.random() * (20 + evadeValue)) < evadeValue) {
-        return;
-      }
+  hurting(): void {
+    // 闪避值已在命中判定中消费，此处不再使用
+    if (Math.floor(Math.random() * 4) !== 0) {
+      return;
     }
 
     if (this.petrifiedSeconds > 0) {
@@ -711,7 +670,7 @@ export abstract class CharacterCombat extends CharacterMovement {
   }
 
   protected buildFlyIniInfos(): void {
-    this._flyIniManager.build(this.attackRadius, this.name);
+    this._flyIniManager.build(this.getAttackRadius(), this.name);
   }
 
   addFlyIniReplace(magicFileName: string): void {

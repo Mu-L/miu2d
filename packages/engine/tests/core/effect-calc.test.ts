@@ -98,7 +98,7 @@ describe("getCharacterDeathExp", () => {
   });
 
   it("adds expBonus when present", () => {
-    expect(getCharacterDeathExp({ level: 10 }, { level: 5, expBonus: 100 })).toBe(150);
+    expect(getCharacterDeathExp({ level: 10, expBonus: 100 }, { level: 5 })).toBe(150);
   });
 
   it("returns minimum of 4", () => {

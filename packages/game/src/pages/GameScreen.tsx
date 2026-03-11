@@ -24,6 +24,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import type { ToolbarButton } from "../components";
 import { AuthModal, GameMenuPanel, GameTopBar, loadAudioSettings, loadUITheme, PWAInstallPrompt, saveAudioSettings, TitleGui } from "../components";
+import { DISCLAIMER_STORAGE_KEY, DisclaimerModal } from "../components/common/DisclaimerModal";
 import { resetCachedUIConfigs } from "../components/ui/classic/useUISettings";
 import type { MenuTab } from "../components/GameMenuPanel";
 import type { UITheme } from "../components/ui";
@@ -89,6 +90,19 @@ export default function GameScreen() {
 
   // 分辨率
   const [gameResolution, setGameResolution] = useState(getStoredResolution);
+
+  // 版权声明弹窗（首次访问时展示）
+  const [showDisclaimer, setShowDisclaimer] = useState(
+    () => localStorage.getItem(DISCLAIMER_STORAGE_KEY) !== "1"
+  );
+  const handleDisclaimerConfirm = useCallback(() => {
+    try {
+      localStorage.setItem(DISCLAIMER_STORAGE_KEY, "1");
+    } catch (e) {
+      logger.warn("[GameScreen] Failed to save disclaimer acceptance:", e);
+    }
+    setShowDisclaimer(false);
+  }, []);
 
   // 登录弹窗
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -577,6 +591,9 @@ export default function GameScreen() {
         {shareNotification && (
           <ShareToast notification={shareNotification} onDone={() => setShareNotification(null)} />
         )}
+
+        {/* 版权声明弹窗（首次访问，必须确认） */}
+        <DisclaimerModal visible={showDisclaimer} onConfirm={handleDisclaimerConfirm} />
 
         {/* 登录弹窗 */}
         <AuthModal visible={showAuthModal} onClose={() => setShowAuthModal(false)} />

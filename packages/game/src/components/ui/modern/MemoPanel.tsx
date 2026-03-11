@@ -201,6 +201,7 @@ export const MemoPanel: React.FC<MemoPanelProps> = ({ isVisible, memos, onClose 
       <div
         style={{
           flex: 1,
+          minHeight: 0,
           overflowY: "auto",
           padding: `${spacing.xs}px 0`,
         }}
