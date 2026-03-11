@@ -73,7 +73,6 @@ const chooseCommand: CommandHandler = async (params, _result, helpers) => {
  * Format: Select(messageId, optionAId, optionBId, $resultVar)
  */
 const selectCommand: CommandHandler = async (params, _result, helpers) => {
-  const talkTextList = helpers.api.dialog.talkTextList;
   const lastParam = params[params.length - 1] || "";
 
   if (!lastParam.startsWith("$") || params.length < 4) {
@@ -86,17 +85,8 @@ const selectCommand: CommandHandler = async (params, _result, helpers) => {
   const messageId = helpers.resolveNumber(params[0]);
   const optionAId = helpers.resolveNumber(params[1]);
   const optionBId = helpers.resolveNumber(params[2]);
-
-  const messageDetail = talkTextList.getTextDetail(messageId);
-  const optionADetail = talkTextList.getTextDetail(optionAId);
-  const optionBDetail = talkTextList.getTextDetail(optionBId);
-
-  const message = messageDetail?.text || `[Text ${messageId}]`;
-  const selectA = optionADetail?.text || `[Text ${optionAId}]`;
-  const selectB = optionBDetail?.text || `[Text ${optionBId}]`;
-
   const varName = lastParam.slice(1);
-  const result = await helpers.api.dialog.showSelection(message, selectA, selectB);
+  const result = await helpers.api.dialog.selectByIds(messageId, optionAId, optionBId);
   helpers.api.variables.set(varName, result);
   return true;
 };

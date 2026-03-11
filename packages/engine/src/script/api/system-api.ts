@@ -81,6 +81,17 @@ export function createDialogAPI(ctx: ScriptCommandContext, resolver: BlockingRes
     showSystemMessage: (msg, stayTime?) => {
       guiManager.showMessage(msg, stayTime || 3000);
     },
+    selectByIds: async (messageId, optionAId, optionBId) => {
+      const messageDetail = talkTextList.getTextDetail(messageId);
+      const optionADetail = talkTextList.getTextDetail(optionAId);
+      const optionBDetail = talkTextList.getTextDetail(optionBId);
+      const message = messageDetail?.text || `[Text ${messageId}]`;
+      const selectA = optionADetail?.text || `[Text ${optionAId}]`;
+      const selectB = optionBDetail?.text || `[Text ${optionBId}]`;
+      ctx.clearMouseInput?.();
+      guiManager.showDialogSelection(message, selectA, selectB);
+      return resolver.waitForEvent<number>(BlockingEvent.SELECTION_MADE);
+    },
     talkTextList,
   };
 }
@@ -116,6 +127,14 @@ export function createVariableAPI(ctx: ScriptCommandContext): VariableAPI {
         return partnerList.getIndex(partnerName);
       }
       return partnerList.getCount() + 1;
+    },
+    checkYear: (varName) => {
+      const now = new Date();
+      const month = now.getMonth() + 1;
+      const day = now.getDate();
+      const isNewYearsDay = month === 1 && day === 1;
+      const isSpringFestival = (month === 1 && day >= 20) || (month === 2 && day <= 20);
+      setVariable(varName, isNewYearsDay || isSpringFestival ? 1 : 0);
     },
   };
 }

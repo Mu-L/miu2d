@@ -8,6 +8,7 @@
 import type { Player as PlayerType } from "@miu2d/types";
 import { logger } from "../core/logger";
 import { getPlayersData } from "../data/game-data-api";
+import { getViewTileDistance } from "../utils";
 import { getMagic, getMagicAtLevel, preloadMagicAsf } from "../magic/magic-config-loader";
 import { createDefaultMagicItemInfo } from "../magic/types";
 import type { MagicItemInfo } from "../magic/types";
@@ -197,8 +198,22 @@ export function loadTrapsFromSave(
  * 3. 加载对应的资源（npcres -> asf）
  *
  * Web 版本直接从 JSON 恢复
+ *
+ * @param options.playerTile 玩家当前瓦片坐标，用于近/远 NPC 分流
+ * @param options.nearThreshold 近距离阈值（瓦片数），默认 40（约 2 屏）
+ * @param options.onProgress 近 NPC 每加载完一个时触发 (done, nearTotal)
  */
-export async function loadNpcsFromJSON(npcs: NpcSaveItem[], npcManager: NpcManager): Promise<void> {
+export async function loadNpcsFromJSON(
+  npcs: NpcSaveItem[],
+  npcManager: NpcManager,
+  options?: {
+    playerTile?: { x: number; y: number };
+    nearThreshold?: number;
+    onProgress?: (done: number, nearTotal: number) => void;
+  },
+): Promise<void> {
+  const { playerTile, nearThreshold = 40, onProgress } = options ?? {};
+
   // 过滤掉已完全死亡的 NPC
   const validNpcs = npcs.filter((npcData) => {
     if (npcData.isDeath && npcData.isDeathInvoked) {
@@ -208,21 +223,69 @@ export async function loadNpcsFromJSON(npcs: NpcSaveItem[], npcManager: NpcManag
     return true;
   });
 
-  // 并行创建所有 NPC（每个 NPC 的精灵加载互不依赖）
-  const results = await Promise.all(
-    validNpcs.map(async (npcData) => {
+  // 按距离分流：2 屏范围内立即加载，更远的后台静默加载
+  let nearNpcs = validNpcs;
+  let farNpcs: NpcSaveItem[] = [];
+
+  if (playerTile) {
+    nearNpcs = [];
+    for (const npcData of validNpcs) {
+      const dist = getViewTileDistance(playerTile, { x: npcData.mapX, y: npcData.mapY });
+      if (dist <= nearThreshold) {
+        nearNpcs.push(npcData);
+      } else {
+        farNpcs.push(npcData);
+      }
+    }
+    if (farNpcs.length > 0) {
+      logger.debug(
+        `[Loader] NPC split — near: ${nearNpcs.length}, background: ${farNpcs.length} (threshold: ${nearThreshold} tiles)`,
+      );
+    }
+  }
+
+  // 近距离 NPC：立即并行加载，每完成一个触发进度回调
+  let nearDone = 0;
+  const nearTotal = nearNpcs.length;
+
+  const nearResults = await Promise.all(
+    nearNpcs.map(async (npcData) => {
       try {
         await npcManager.createNpcFromData(npcData as unknown as Record<string, unknown>);
+        onProgress?.(++nearDone, nearTotal);
         return true;
       } catch (error) {
         logger.error(`[Loader] Failed to create NPC ${npcData.name}:`, error);
+        onProgress?.(++nearDone, nearTotal);
         return false;
       }
-    })
+    }),
   );
 
-  const loadedCount = results.filter(Boolean).length;
-  logger.debug(`[Loader] Created ${loadedCount} NPCs from JSON save data`);
+  logger.debug(`[Loader] Created ${nearResults.filter(Boolean).length}/${nearTotal} near NPCs`);
+
+  // 远距离 NPC：后台静默加载，不阻塞游戏启动
+  if (farNpcs.length > 0) {
+    Promise.all(
+      farNpcs.map(async (npcData) => {
+        try {
+          await npcManager.createNpcFromData(npcData as unknown as Record<string, unknown>);
+          return true;
+        } catch (error) {
+          logger.warn(`[Loader] Background NPC load failed for ${npcData.name}:`, error);
+          return false;
+        }
+      }),
+    )
+      .then((results) => {
+        logger.debug(
+          `[Loader] Background loaded ${results.filter(Boolean).length}/${farNpcs.length} far NPCs`,
+        );
+      })
+      .catch((err: unknown) => {
+        logger.warn(`[Loader] Background NPC loading error:`, err);
+      });
+  }
 }
 
 /**

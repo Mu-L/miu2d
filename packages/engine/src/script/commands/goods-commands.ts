@@ -83,6 +83,17 @@ const setMagicLevelCommand: CommandHandler = (params, _result, helpers) => {
 };
 
 /**
+ * AddMagicExp - Add experience to a specific magic
+ * AddMagicExp(magicFile, amount)
+ */
+const addMagicExpCommand: CommandHandler = (params, _result, helpers) => {
+  const magicFile = helpers.resolveString(params[0] || "");
+  const amount = helpers.resolveNumber(params[1] || "0");
+  helpers.api.magic.addExp(magicFile, amount);
+  return true;
+};
+
+/**
  * DelMagic - Delete magic from player
  */
 const delMagicCommand: CommandHandler = (params, _result, helpers) => {
@@ -226,6 +237,7 @@ export function registerGoodsCommands(registry: CommandRegistry): void {
   // Add/Remove magic
   registry.set("addmagic", addMagicCommand);
   registry.set("setmagiclevel", setMagicLevelCommand);
+  registry.set("addmagicexp", addMagicExpCommand);
   registry.set("delmagic", delMagicCommand);
 
   // Buy/Sell

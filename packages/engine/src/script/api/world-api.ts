@@ -75,6 +75,14 @@ export function createObjAPI(ctx: ScriptCommandContext): ObjAPI {
       const obj = objManager.getObj(nameOrId);
       return obj ? obj.tilePosition : null;
     },
+    setPosition: (name, x, y) => {
+      const obj = objManager.getObj(name) || objManager.getObjById(name);
+      if (obj) {
+        obj.setTilePosition(x, y);
+      } else {
+        logger.warn(`[ObjAPI] setPosition: obj not found: ${name}`);
+      }
+    },
     setOffset: (objName, x, y) => {
       const obj = objManager.getObj(objName) || objManager.getObjById(objName);
       if (obj) {
@@ -157,6 +165,9 @@ export function createAudioAPI(ctx: ScriptCommandContext, resolver: BlockingReso
         return false;
       });
     },
+    stopMovie: () => {
+      guiManager.forceEndMovie();
+    },
   };
 }
 
@@ -191,6 +202,13 @@ export function createEffectsAPI(
       screenEffects.setMapColor(255, 255, 255);
       screenEffects.setSpriteColor(255, 255, 255);
     },
+    showRain: (level) => {
+      if (level !== 0) {
+        weatherManager.beginRain("");
+      } else {
+        weatherManager.stopRain();
+      }
+    },
     showSnow: (show) => {
       weatherManager.showSnow(show);
     },
@@ -200,13 +218,10 @@ export function createEffectsAPI(
     },
     setMainLum: (level) => {
       // SetMainLum: dark overlay alpha = (255 - lum) / 255, lum = l>=31 ? 255 : (l+1)*7+32
-      // C++ ref: Weather::setLum() + engine->drawMask(dayMask)
       screenEffects.setMainLum(level);
       logger.log(`[EffectsAPI] SetMainLum: level=${level}`);
     },
     setPlayerLum: (level) => {
-      // SetPlayerLum: pure no-op in C++ reference.
-      // C++ ref: GameManager.h:222 — `void setPlayerLum(unsigned char lum) {}`
       // Value stored only; no visual effect.
       screenEffects.setPlayerLum(level);
     },

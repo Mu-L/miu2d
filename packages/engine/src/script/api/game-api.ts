@@ -57,6 +57,7 @@ export interface PlayerAPI {
   getMoney(): number;
   setMoney(amount: number): void;
   addMoney(amount: number): void;
+  addRandMoney(min: number, max: number): void;
   getExp(): number;
   addExp(amount: number): void;
   getStat(name: string): number;
@@ -169,6 +170,7 @@ export interface MagicAPI {
   delete(magicFile: string): void;
   setLevel(magicFile: string, level: number): void;
   getLevel(magicFile: string): number;
+  addExp(magicFile: string, amount: number): void;
   clear(): void;
   hasFreeSpace(): boolean;
   use(magicFile: string, x?: number, y?: number): void;
@@ -181,6 +183,9 @@ export interface MemoAPI {
   delete(text: string): void;
   addById(id: number): Promise<void>;
   deleteById(id: number): Promise<void>;
+  clear(): void;
+  addFlexible(textOrId: string | number): Promise<void>;
+  deleteFlexible(textOrId: string | number): Promise<void>;
 }
 
 // ===== Map =====
@@ -208,6 +213,7 @@ export interface ObjAPI {
   save(fileName?: string): Promise<void>;
   clearBody(): void;
   getPosition(nameOrId: string): Vector2 | null;
+  setPosition(name: string, x: number, y: number): void;
   setOffset(objName: string, x: number, y: number): void;
   setKind(objName: string, kind: number): void;
 }
@@ -230,6 +236,7 @@ export interface AudioAPI {
   playSound(file: string, emitterPosition?: Vector2): void;
   stopSound(): void;
   playMovie(file: string): Promise<void>;
+  stopMovie(): void;
 }
 
 // ===== Effects =====
@@ -241,6 +248,7 @@ export interface EffectsAPI {
   changeSpriteColor(r: number, g: number, b: number): void;
   beginRain(fileName: string): void;
   endRain(): void;
+  showRain(level: number): void;
   showSnow(show: boolean): void;
   showRandomSnow(): void;
   setMainLum(level: number): void;
@@ -275,6 +283,7 @@ export interface DialogAPI {
     options: Array<{ text: string; condition?: string }>
   ): Promise<number[]>;
   showSystemMessage(msg: string, stayTime?: number): void;
+  selectByIds(messageId: number, optionAId: number, optionBId: number): Promise<number>;
   /** Access to TalkTextList for Say/Talk commands */
   talkTextList: TalkTextListManager;
 }
@@ -295,6 +304,8 @@ export interface VariableAPI {
   set(name: string, value: number): void;
   clearAll(keepsVars?: string[]): void;
   getPartnerIndex(): number;
+  /** CheckYear: sets varName=1 if today is Jan 1st or Spring Festival (Jan 20–Feb 20), else 0 */
+  checkYear(varName: string): void;
 }
 
 // ===== Input =====

@@ -88,8 +88,7 @@ const addMoneyCommand: CommandHandler = (params, _result, helpers) => {
 const addRandMoneyCommand: CommandHandler = (params, _result, helpers) => {
   const min = helpers.resolveNumber(params[0] || "0");
   const max = helpers.resolveNumber(params[1] || "100");
-  const amount = min + Math.floor(Math.random() * (max - min + 1));
-  helpers.api.player.addMoney(amount);
+  helpers.api.player.addRandMoney(min, max);
   return true;
 };
 

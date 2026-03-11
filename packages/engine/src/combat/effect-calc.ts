@@ -84,11 +84,7 @@ export function addMagicEffect(belongCharacter: EffectCharacter, effect: number)
 /**
  * 计算击杀经验
  */
-export function getCharacterDeathExp(
-  killer: { level: number },
-  dead: { level: number; expBonus?: number }
-): number {
-  if (!killer || !dead) return 1;
-  const exp = killer.level * dead.level + (dead.expBonus ?? 0);
-  return exp < 4 ? 4 : exp;
+export function getCharacterDeathExp(dead: { exp: number }): number {
+  const reward = Math.round(dead.exp * 3.0);
+  return reward < 1 ? 1 : reward;
 }

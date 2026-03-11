@@ -26,20 +26,8 @@ const memoCommand: CommandHandler = (params, _result, helpers) => {
  * AddToMemo - Add memo from TalkTextList by ID, or directly as text if param is not numeric
  */
 const addToMemoCommand: CommandHandler = async (params, _result, helpers) => {
-  const param = params[0] || "";
-  if (/^[0-9]+$/.test(param.trim())) {
-    const memoId = parseInt(param, 10);
-    const talkTextList = helpers.api.dialog.talkTextList;
-    const detail = talkTextList.getTextDetail(memoId);
-    if (detail) {
-      logger.log(`[ScriptExecutor] AddToMemo ${memoId}: ${detail.text}`);
-    }
-    await helpers.api.memo.addById(memoId);
-  } else {
-    const memoText = helpers.resolveString(param);
-    logger.log(`[ScriptExecutor] AddToMemo (text): "${memoText}"`);
-    helpers.api.memo.add(memoText);
-  }
+  const param = helpers.resolveString(params[0] || "");
+  await helpers.api.memo.addFlexible(param);
   return true;
 };
 
@@ -47,16 +35,18 @@ const addToMemoCommand: CommandHandler = async (params, _result, helpers) => {
  * DelMemo - Delete memo
  */
 const delMemoCommand: CommandHandler = async (params, _result, helpers) => {
-  const param = params[0] || "";
-  if (/^[0-9]+$/.test(param.trim())) {
-    const textId = parseInt(param, 10);
-    logger.log(`[ScriptExecutor] DelMemo by ID: ${textId}`);
-    await helpers.api.memo.deleteById(textId);
-  } else {
-    const memoText = helpers.resolveString(param);
-    logger.log(`[ScriptExecutor] DelMemo: "${memoText}"`);
-    helpers.api.memo.delete(memoText);
-  }
+  const param = helpers.resolveString(params[0] || "");
+  await helpers.api.memo.deleteFlexible(param);
+  return true;
+};
+
+/**
+ * ClearMemo - Clear all memo entries
+ * ClearMemo()
+ */
+const clearMemoCommand: CommandHandler = (_params, _result, helpers) => {
+  helpers.api.memo.clear();
+  logger.log("[ScriptExecutor] ClearMemo");
   return true;
 };
 
@@ -150,22 +140,13 @@ const getPartnerIdxCommand: CommandHandler = (params, _result, helpers) => {
 // ============= Date / Season Commands =============
 
 /**
- * CheckYear - Check if current date is within Spring Festival (Chinese New Year) period.
+ * CheckYear - Check if today is in the New Year / Spring Festival period.
  * CheckYear($varName)
- * Sets variable to 1 if today is between Jan 20 and Feb 20 (Gregorian), 0 otherwise.
- * This matches the original JxqyHD implementation used to trigger the newyear intro movie.
  */
 const checkYearCommand: CommandHandler = (params, _result, helpers) => {
   const varName = (params[0] || "").replace("$", "");
-  const now = new Date();
-  const month = now.getMonth() + 1; // 1-based
-  const day = now.getDate();
-  // Spring Festival window: January 20 ~ February 20
-  const isSpringFestival = (month === 1 && day >= 20) || (month === 2 && day <= 20);
-  helpers.api.variables.set(varName, isSpringFestival ? 1 : 0);
-  logger.log(
-    `[ScriptExecutor] CheckYear: ${now.toLocaleDateString()} → ${varName}=${isSpringFestival ? 1 : 0}`
-  );
+  helpers.api.variables.checkYear(varName);
+  logger.log(`[ScriptExecutor] CheckYear: ${varName}=${helpers.api.variables.get(varName)}`);
   return true;
 };
 
@@ -281,8 +262,19 @@ const savePlayerCommand: CommandHandler = (params, _result, helpers) => {
 };
 
 /**
+ * LoadPlayer - Load player data from save slot
+ * LoadPlayer(index)
+ * Switches the active player to the one saved at the given index.
+ */
+const loadPlayerCommand: CommandHandler = async (params, _result, helpers) => {
+  const index = helpers.resolveNumber(params[0] ?? "0");
+  logger.log(`[ScriptExecutor] LoadPlayer: index=${index}`);
+  await helpers.api.player.change(index);
+  return true;
+};
+
+/**
  * SetFadeLum - Set fade luminance level (0-32)
- * C++ ref: gm->global.data.fadeLum via Weather::setFadeLum()
  * Formula: internalLum = l >= 31 ? 255 : l * 8
  * Controls the darkness level at start/end of FadeIn/FadeOut.
  */
@@ -336,6 +328,7 @@ export function registerMiscCommands(registry: CommandRegistry): void {
   registry.set("memo", memoCommand);
   registry.set("addtomemo", addToMemoCommand);
   registry.set("delmemo", delMemoCommand);
+  registry.set("clearmemo", clearMemoCommand);
 
   // Timer
   registry.set("opentimelimit", openTimeLimitCommand);
@@ -376,6 +369,7 @@ export function registerMiscCommands(registry: CommandRegistry): void {
   registry.set("savegoods", saveGoodsCommand);
   registry.set("loadgoods", loadGoodsCommand);
   registry.set("saveplayer", savePlayerCommand);
+  registry.set("loadplayer", loadPlayerCommand);
 
   // Gamble stub
   registry.set("gamble", gambleCommand);

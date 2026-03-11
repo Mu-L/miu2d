@@ -243,7 +243,7 @@ export const LUA_API_FUNCTIONS: LuaAPIFunction[] = [
   { name: "SetShowMapPos", signature: "(show: boolean)", description: "显示/隐藏地图坐标", category: "Script" },
   { name: "ShowMouseCursor", signature: "()", description: "显示鼠标光标", category: "Script" },
   { name: "HideMouseCursor", signature: "()", description: "隐藏鼠标光标", category: "Script" },
-  { name: "CheckYear", signature: "(): number", description: "检查当前是否春节 (1=是, 0=否)", category: "Script" },
+  { name: "CheckYear", signature: "(varName: string): void", description: "检查当前是否元旦或春节，结果写入变量（1=是, 0=否）", category: "Script" },
 
   // ===== Dialog Extended =====
   { name: "ChooseEx", signature: "(message: string, ...options: string[]): number", description: "扩展选择（支持条件）", category: "Dialog", blocking: true },

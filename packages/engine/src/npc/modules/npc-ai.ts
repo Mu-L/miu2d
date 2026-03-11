@@ -122,7 +122,7 @@ export class NpcAI {
       return;
     }
 
-    if (npc.isEnemy || npc.isNeutralFighter) {
+    if (npc.isEnemy) {
       this.findEnemyTarget();
     } else if (npc.isFighterFriend) {
       this.findFriendlyTarget();
