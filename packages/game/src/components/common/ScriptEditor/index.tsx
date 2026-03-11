@@ -6,12 +6,11 @@
  * - 资源管理器的文本文件编辑
  * - 游戏配置中的脚本内容编辑
  * - 其它需要代码编辑的场景
- *
- * 内嵌 Monaco 本地化配置，确保不从 CDN 拉取资源。
  */
 
 import type { OnMount } from "@monaco-editor/react";
 import Editor, { loader } from "@monaco-editor/react";
+import * as monaco from "monaco-editor";
 import { useEffect, useRef } from "react";
 import {
   defineJxqyScriptTheme,
@@ -50,22 +49,9 @@ export interface ScriptEditorProps {
 
 let monacoInitialized = false;
 
-// 配置本地 Monaco 实例，避免从 CDN 拉取。
-// 使用 new URL(..., import.meta.url) 语法，Vite 和 TypeScript 均支持。
-if (!window.MonacoEnvironment) {
-  window.MonacoEnvironment = {
-    getWorker(_workerId: string, _label: string): Worker {
-      return new Worker(
-        new URL("monaco-editor/esm/vs/editor/editor.worker", import.meta.url),
-        { type: "module" }
-      );
-    },
-  };
-  // 动态导入 monaco 实例后设置 loader（仅执行一次）
-  import("monaco-editor").then((m) => {
-    loader.config({ monaco: m });
-  });
-}
+// 绑定本地 Monaco 实例到 loader，避免从 CDN 拉取。
+// 此文件所在 chunk 仅在 DebugPanel 懒加载时才执行，无需担心提前初始化。
+loader.config({ monaco });
 
 /**
  * 通用 Monaco 脚本编辑器

@@ -143,6 +143,14 @@ export default defineConfig({
         manualChunks(id: string) {
           // @miu2d/engine — game engine core (large, changes independently)
           if (id.includes("/packages/engine/src/")) return "engine";
+          // DebugPanel + ScriptEditor — lazy-loaded by React.lazy, must NOT be
+          // forced into the "game" chunk or Monaco would load eagerly.
+          // Returning undefined lets Rolldown honour the dynamic import boundary.
+          if (
+            id.includes("/packages/game/src/components/common/DebugPanel/") ||
+            id.includes("/packages/game/src/components/common/ScriptEditor/")
+          )
+            return undefined;
           // @miu2d/game — game runtime / GameScreen
           if (id.includes("/packages/game/src/")) return "game";
           // @miu2d/dashboard — admin / dashboard
