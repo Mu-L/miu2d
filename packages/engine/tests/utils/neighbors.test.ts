@@ -27,8 +27,8 @@ describe("getNeighbors", () => {
   });
 
   it("odd row: has different diagonal offsets than even row", () => {
-    const evenNeighbors = getNeighbors({ x: 3, y: 4 });
-    const oddNeighbors = getNeighbors({ x: 3, y: 5 });
+    const evenNeighbors = getNeighbors({ x: 3, y: 4 }).map((n) => ({ ...n }));
+    const oddNeighbors = getNeighbors({ x: 3, y: 5 }).map((n) => ({ ...n }));
     // SouthWest differs: even (x-1, y+1) vs odd (x, y+1)
     expect(evenNeighbors[1]).toEqual({ x: 2, y: 5 }); // even SouthWest
     expect(oddNeighbors[1]).toEqual({ x: 3, y: 6 }); // odd SouthWest
@@ -45,8 +45,8 @@ describe("getNeighbors", () => {
   });
 
   it("even and odd rows share same South and North", () => {
-    const even = getNeighbors({ x: 3, y: 4 });
-    const odd = getNeighbors({ x: 3, y: 5 });
+    const even = getNeighbors({ x: 3, y: 4 }).map((n) => ({ ...n }));
+    const odd = getNeighbors({ x: 3, y: 5 }).map((n) => ({ ...n }));
     // South: both (x, y+2)
     expect(even[0]).toEqual({ x: 3, y: 6 });
     expect(odd[0]).toEqual({ x: 3, y: 7 });

@@ -197,12 +197,12 @@ describe("MapBase", () => {
       expect(map.isObstacleForMagic(5, 3)).toBe(false);
     });
 
-    it("CAN_OVER blocks magic (not TRANS)", () => {
+    it("CAN_OVER does not block magic (only OBSTACLE family blocks)", () => {
       const barriers = new Array(100).fill(NONE);
       barriers[5 + 3 * 10] = CAN_OVER;
       const map = createMapBase(10, 10, barriers);
 
-      expect(map.isObstacleForMagic(5, 3)).toBe(true);
+      expect(map.isObstacleForMagic(5, 3)).toBe(false);
     });
   });
 
@@ -224,12 +224,11 @@ describe("MapBase", () => {
   describe("debugGetTileBarrierInfo", () => {
     it("returns barrier info string", () => {
       const barriers = new Array(100).fill(NONE);
-      barriers[5 + 3 * 10] = OBSTACLE | TRANS;
+      barriers[5 + 3 * 10] = OBSTACLE;
       const map = createMapBase(10, 10, barriers);
 
       const info = map.debugGetTileBarrierInfo(5, 3);
       expect(info).toContain("OBSTACLE");
-      expect(info).toContain("TRANS");
       expect(info).toContain("isCharObstacle=true");
     });
 

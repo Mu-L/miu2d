@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generateId } from "../../src/utils/id";
+import { generateId } from "../../src/utils/math";
 
 describe("generateId", () => {
   it("returns a non-empty string", () => {

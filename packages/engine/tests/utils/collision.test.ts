@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isBoxCollide, type Rect } from "../../src/utils/collision";
+import { isBoxCollide, type Rect } from "../../src/utils/math";
 
 describe("isBoxCollide", () => {
   it("detects overlapping rectangles", () => {

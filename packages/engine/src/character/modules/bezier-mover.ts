@@ -37,7 +37,7 @@ function bernstein(n: number, i: number, t: number): number {
   return binomialCoefficient(n, i) * ti * tni;
 }
 
-function bezier2D(controlPoints: readonly Vector2[], outputPointCount: number): Vector2[] {
+export function bezier2D(controlPoints: readonly Vector2[], outputPointCount: number): Vector2[] {
   const n = controlPoints.length - 1;
   const result: Vector2[] = [];
   const step = 1.0 / (outputPointCount - 1);

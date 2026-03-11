@@ -3,7 +3,7 @@
  * 贝塞尔曲线工具 - 用于角色跳跃移动
  */
 import { describe, expect, it } from "vitest";
-import { bezier2D } from "../../../src/character/modules/bezier";
+import { bezier2D } from "../../../src/character/modules/bezier-mover";
 
 describe("bezier2D", () => {
   it("returns start and end points for a straight line", () => {

@@ -2,7 +2,8 @@
  * NPC queries tests - 查询工具函数
  */
 import { describe, expect, it } from "vitest";
-import { findCharactersInTileDistance, findClosestCharacter } from "../../src/npc/npc-queries";
+import { findCharactersInTileDistance, findClosestCharacter } from "../../src/npc/npc-query-helpers";
+import { NpcSpatialGrid } from "../../src/npc/npc-spatial-grid";
 
 // Minimal Npc-like mock
 function mockNpc(
@@ -27,7 +28,15 @@ function mockPlayer(x: number, y: number, opts: { isDeathInvoked?: boolean } = {
   } as never;
 }
 
-function makeNpcMap(...npcs: ReturnType<typeof mockNpc>[]): Map<string, never> {
+type MockNpc = ReturnType<typeof mockNpc>;
+
+function makeGrid(...npcs: MockNpc[]): NpcSpatialGrid<never> {
+  const grid = new NpcSpatialGrid<never>();
+  grid.rebuild(npcs as never[], (npc) => (npc as MockNpc).positionInWorld);
+  return grid;
+}
+
+function makeNpcMap(...npcs: MockNpc[]): Map<string, never> {
   const map = new Map<string, never>();
   for (const npc of npcs) {
     map.set((npc as { id: string }).id, npc);
@@ -38,7 +47,7 @@ function makeNpcMap(...npcs: ReturnType<typeof mockNpc>[]): Map<string, never> {
 describe("findClosestCharacter", () => {
   it("returns null for empty NPC list", () => {
     const result = findClosestCharacter(
-      new Map(),
+      makeGrid(),
       null,
       { x: 0, y: 0 },
       () => true
@@ -47,47 +56,45 @@ describe("findClosestCharacter", () => {
   });
 
   it("finds closest NPC", () => {
-    const npcs = makeNpcMap(
-      mockNpc("far", 100, 100),
-      mockNpc("close", 10, 10),
-      mockNpc("mid", 50, 50)
-    );
+    const far = mockNpc("far", 100, 100);
+    const close = mockNpc("close", 10, 10);
+    const mid = mockNpc("mid", 50, 50);
+    const grid = makeGrid(far, close, mid);
 
-    const result = findClosestCharacter(npcs, null, { x: 0, y: 0 }, () => true);
-    expect(result).toBe(npcs.get("close"));
+    const result = findClosestCharacter(grid, null, { x: 0, y: 0 }, () => true);
+    expect(result).toBe(close);
   });
 
   it("skips dead NPCs", () => {
-    const npcs = makeNpcMap(
-      mockNpc("dead", 1, 1, { isDeathInvoked: true }),
-      mockNpc("alive", 100, 100)
-    );
+    const dead = mockNpc("dead", 1, 1, { isDeathInvoked: true });
+    const alive = mockNpc("alive", 100, 100);
+    const grid = makeGrid(dead, alive);
 
-    const result = findClosestCharacter(npcs, null, { x: 0, y: 0 }, () => true);
-    expect(result).toBe(npcs.get("alive"));
+    const result = findClosestCharacter(grid, null, { x: 0, y: 0 }, () => true);
+    expect(result).toBe(alive);
   });
 
   it("applies NPC filter", () => {
-    const npcs = makeNpcMap(
-      mockNpc("excluded", 1, 1),
-      mockNpc("included", 50, 50)
-    );
+    const excluded = mockNpc("excluded", 1, 1);
+    const included = mockNpc("included", 50, 50);
+    const grid = makeGrid(excluded, included);
 
     const result = findClosestCharacter(
-      npcs,
+      grid,
       null,
       { x: 0, y: 0 },
       (npc) => (npc as { id: string }).id === "included"
     );
-    expect(result).toBe(npcs.get("included"));
+    expect(result).toBe(included);
   });
 
   it("includes player when playerFilter is provided and passes", () => {
-    const npcs = makeNpcMap(mockNpc("npc1", 100, 100));
+    const npc1 = mockNpc("npc1", 100, 100);
+    const grid = makeGrid(npc1);
     const player = mockPlayer(5, 5);
 
     const result = findClosestCharacter(
-      npcs,
+      grid,
       player,
       { x: 0, y: 0 },
       () => true,
@@ -97,20 +104,21 @@ describe("findClosestCharacter", () => {
   });
 
   it("skips player when playerFilter not provided", () => {
-    const npcs = makeNpcMap(mockNpc("npc1", 100, 100));
+    const npc1 = mockNpc("npc1", 100, 100);
+    const grid = makeGrid(npc1);
     const player = mockPlayer(5, 5);
 
-    const result = findClosestCharacter(npcs, player, { x: 0, y: 0 }, () => true);
-    expect(result).toBe(npcs.get("npc1")); // player not considered
+    const result = findClosestCharacter(grid, player, { x: 0, y: 0 }, () => true);
+    expect(result).toBe(npc1);
   });
 
   it("skips characters in ignoreList", () => {
     const npc1 = mockNpc("npc1", 1, 1);
     const npc2 = mockNpc("npc2", 50, 50);
-    const npcs = makeNpcMap(npc1, npc2);
+    const grid = makeGrid(npc1, npc2);
 
     const result = findClosestCharacter(
-      npcs,
+      grid,
       null,
       { x: 0, y: 0 },
       () => true,
@@ -121,17 +129,18 @@ describe("findClosestCharacter", () => {
   });
 
   it("skips dead player", () => {
-    const npcs = makeNpcMap(mockNpc("npc1", 100, 100));
+    const npc1 = mockNpc("npc1", 100, 100);
+    const grid = makeGrid(npc1);
     const player = mockPlayer(1, 1, { isDeathInvoked: true });
 
     const result = findClosestCharacter(
-      npcs,
+      grid,
       player,
       { x: 0, y: 0 },
       () => true,
       () => true
     );
-    expect(result).toBe(npcs.get("npc1"));
+    expect(result).toBe(npc1);
   });
 });
 
