@@ -470,7 +470,24 @@ export class GameManager {
    * Uses Player's loadSpritesFromNpcIni method directly
    */
   async loadPlayerSprites(npcIni: string): Promise<void> {
-    const loaded = await this.player.loadSpritesFromNpcIni(npcIni);
+    // 先加载最小可见状态（stand/walk/fightStand/fightWalk/hurt），
+    // 其余动画（attack/magic/run/death 等）后台静默加载，不阻塞游戏启动。
+    const loaded = await this.player.loadSpritesFromNpcIni(npcIni, {
+      deferKeys: new Set<keyof import("../sprite/sprite").SpriteSet>([
+        "attack",
+        "attack1",
+        "attack2",
+        "magic",
+        "run",
+        "fightRun",
+        "jump",
+        "fightJump",
+        "death",
+        "sit",
+        "stand1",
+        "special",
+      ]),
+    });
     if (!loaded) {
       logger.warn(`[GameManager] Failed to load player sprites from ${npcIni}`);
     }
