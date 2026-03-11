@@ -14,6 +14,7 @@
     "./lib/game-api": "./src/lib/game-api.ts",
     "./lib/monaco/jxqyScriptLanguage": "./src/lib/monaco/jxqyScriptLanguage.ts",
     "./lib/monaco/luaLanguage": "./src/lib/monaco/luaLanguage.ts",
+    "./lib/monaco/gameApiDefinitions": "./src/lib/monaco/gameApiDefinitions.ts",
     "./*": "./src/*"
   },
   "scripts": {

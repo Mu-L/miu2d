@@ -2,6 +2,7 @@
  * Scene REST 路由（Hono）
  *
  * GET /game/:gameSlug/api/scenes/:sceneKey/mmf              - 获取 MMF 地图二进制数据
+ * GET /game/:gameSlug/api/scenes/:sceneKey/manifest         - 获取场景资源清单
  * GET /game/:gameSlug/api/scenes/npc/:sceneKey/:npcKey   - 获取 NPC JSON 数据
  * GET /game/:gameSlug/api/scenes/obj/:sceneKey/:objKey   - 获取 OBJ JSON 数据
  */
@@ -33,6 +34,32 @@ sceneRoutes.get(":gameSlug/api/scenes/:sceneKey/mmf", async (c) => {
     return c.body(new Uint8Array(mmfBuffer));
   } catch (error) {
     logger.error("[getSceneMmf] Error:", error);
+    return c.json({ error: "Not found" }, 404);
+  }
+});
+
+/**
+ * 获取场景资源清单（tiles + missing 精灵路径）
+ *
+ * 短 TTL（30s）：后台修改 NPC/OBJ 后最多延迟 30 秒生效
+ */
+sceneRoutes.get(":gameSlug/api/scenes/:sceneKey/manifest", async (c) => {
+  try {
+    const gameSlug = c.req.param("gameSlug");
+    const sceneKey = c.req.param("sceneKey");
+    logger.debug(`[getSceneManifest] gameSlug=${gameSlug}, sceneKey=${sceneKey}`);
+
+    const manifest = await sceneService.getSceneManifestBySlug(gameSlug, sceneKey);
+    if (!manifest) {
+      return c.json({ error: "Scene not found" }, 404);
+    }
+
+    c.header("Content-Type", "application/json");
+    c.header("Cache-Control", "public, max-age=30");
+
+    return c.json(manifest);
+  } catch (error) {
+    logger.error("[getSceneManifest] Error:", error);
     return c.json({ error: "Not found" }, 404);
   }
 });

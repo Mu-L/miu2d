@@ -15,6 +15,7 @@ import type {
   ListSceneInput,
   Scene,
   SceneData,
+  SceneManifest,
   SceneListItem,
   SceneNpcEntry,
   SceneObjEntry,
@@ -29,6 +30,7 @@ import type { Language } from "../../i18n";
 import { getMessage } from "../../i18n";
 import { getGameIdBySlug } from "../../utils/game";
 import { verifyGameAccess } from "../../utils/gameAccess";
+import { batchCheckPaths } from "../../utils/file";
 import { parseMmfToDto, serializeDtoToMmf } from "./mmf-helper";
 
 export class SceneService {
@@ -332,6 +334,124 @@ export class SceneService {
       return objData.entries;
     }
     return null;
+  }
+
+  /**
+   * 获取场景资源清单（公开接口）
+   *
+   * 返回：
+   * - tiles: 地图瓦片 MSF 路径列表（来自 MMF msfEntries，全部在 DB 中定义）
+   * - missing: 已知不存在于文件存储的精灵 MSF 路径（客户端可跳过请求）
+   *
+   * 缓存策略：HTTP Cache-Control max-age=30（短 TTL，后台修改 NPC/OBJ 后最多延迟 30 秒）
+   */
+  async getSceneManifestBySlug(gameSlug: string, sceneKey: string): Promise<SceneManifest | null> {
+    const gameId = await getGameIdBySlug(gameSlug);
+    if (!gameId) return null;
+
+    const row = await db.scene.findFirst({
+      where: { gameId, key: sceneKey },
+      select: { mmfData: true, data: true, mapFileName: true },
+    });
+    if (!row) return null;
+
+    // 1. 从 MMF 提取瓦片列表
+    const tiles: string[] = [];
+    if (row.mmfData && row.mapFileName) {
+      const dto = parseMmfToDto(row.mmfData);
+      if (dto) {
+        const mapName = row.mapFileName.replace(/\.(mmf|map)$/i, "");
+        for (const entry of dto.msfEntries) {
+          tiles.push(`msf/map/${mapName}/${entry.name}`);
+        }
+      }
+    }
+
+    // 2. 收集场景里所有 NPC/OBJ 引用的精灵候选路径
+    const sceneData = row.data as SceneData | null;
+    const candidatePaths = new Set<string>();
+
+    if (sceneData?.npc) {
+      // 收集所有 npcIni 键（去重）
+      const npcIniKeys = new Set<string>();
+      for (const npcData of Object.values(sceneData.npc)) {
+        for (const entry of npcData.entries) {
+          if (entry.npcIni) npcIniKeys.add(entry.npcIni.toLowerCase());
+        }
+      }
+
+      if (npcIniKeys.size > 0) {
+        const npcResRows = await db.npcResource.findMany({
+          where: { gameId, key: { in: [...npcIniKeys] } },
+          select: { data: true },
+        });
+
+        for (const resRow of npcResRows) {
+          const resources = (resRow.data as { resources?: Record<string, { image?: string | null }> })?.resources;
+          if (!resources) continue;
+          for (const stateRes of Object.values(resources)) {
+            const img = stateRes?.image;
+            if (!img) continue;
+            // 如果已含路径前缀（asf/ 或 mpc/ 开头），直接转为 .msf
+            const lower = img.toLowerCase().replace(/\.(asf|mpc)$/i, ".msf");
+            if (lower.startsWith("asf/") || lower.startsWith("mpc/")) {
+              candidatePaths.add(lower);
+            } else {
+              // 裸名：character 和 interlude 两个候选
+              const name = img.replace(/\.(asf|mpc)$/i, ".msf").toLowerCase();
+              candidatePaths.add(`asf/character/${name}`);
+              candidatePaths.add(`asf/interlude/${name}`);
+            }
+          }
+        }
+      }
+    }
+
+    if (sceneData?.obj) {
+      const objIniKeys = new Set<string>();
+      for (const objData of Object.values(sceneData.obj)) {
+        for (const entry of objData.entries) {
+          if (entry.objFile) objIniKeys.add(entry.objFile.toLowerCase());
+        }
+      }
+
+      if (objIniKeys.size > 0) {
+        const objResRows = await db.objResource.findMany({
+          where: { gameId, key: { in: [...objIniKeys] } },
+          select: { data: true },
+        });
+
+        for (const resRow of objResRows) {
+          const resources = (resRow.data as { resources?: Record<string, { image?: string | null }> })?.resources;
+          if (!resources) continue;
+          for (const stateRes of Object.values(resources)) {
+            const img = stateRes?.image;
+            if (!img) continue;
+            const lower = img.toLowerCase().replace(/\.(asf|mpc)$/i, ".msf");
+            if (lower.startsWith("asf/") || lower.startsWith("mpc/")) {
+              candidatePaths.add(lower);
+            } else {
+              const name = img.replace(/\.(asf|mpc)$/i, ".msf").toLowerCase();
+              candidatePaths.add(`asf/object/${name}`);
+              candidatePaths.add(`asf/effect/${name}`);
+            }
+          }
+        }
+      }
+    }
+
+    // 3. 批量检查候选路径，找出缺失的
+    const missing: string[] = [];
+    if (candidatePaths.size > 0) {
+      const existingPaths = await batchCheckPaths(gameId, [...candidatePaths]);
+      for (const candidate of candidatePaths) {
+        if (!existingPaths.has(candidate)) {
+          missing.push(candidate);
+        }
+      }
+    }
+
+    return { tiles, missing };
   }
 }
 

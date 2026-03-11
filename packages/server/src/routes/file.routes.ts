@@ -5,11 +5,11 @@
  * 用于游戏客户端直接加载资源文件
  */
 
-import type { File } from "@prisma/client";
 import { Hono } from "hono";
 import { stream } from "hono/streaming";
 import { db } from "../db/client";
 import * as s3 from "../storage/s3";
+import { resolveFilePath } from "../utils/file";
 import { Logger } from "../utils/logger";
 
 const logger = new Logger("FileRoutes");
@@ -92,68 +92,3 @@ fileRoutes.get(":gameSlug/resources/*", async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
-
-/**
- * 根据路径段解析文件（大小写不敏感）
- *
- * 使用递归 CTE 一次查询完成整条路径解析，避免 N+1。
- * 参数通过 Prisma $queryRaw 参数化，防止 SQL 注入。
- */
-async function resolveFilePath(
-  gameId: string,
-  pathSegments: string[]
-): Promise<File | null> {
-  if (pathSegments.length === 0) return null;
-
-  // Build VALUES list: (1, 'seg1'), (2, 'seg2'), ...
-  // Use $queryRawUnsafe with parameterized placeholders
-  const valueRows = pathSegments
-    .map((seg, i) => `(${i + 1}::int, $${i + 2})`)
-    .join(", ");
-
-  const params: (string | number)[] = [gameId, ...pathSegments.map((s) => s.toLowerCase())];
-  const depthParam = `$${params.length + 1}`;
-  params.push(pathSegments.length);
-
-  const rows = await db.$queryRawUnsafe<File[]>(`
-    WITH RECURSIVE path_segments(depth, seg_name) AS (
-      VALUES ${valueRows}
-    ),
-    resolve(depth, id) AS (
-      SELECT 1, f.id
-      FROM files f
-      JOIN path_segments ps ON ps.depth = 1
-      WHERE f.game_id = $1
-        AND f.parent_id IS NULL
-        AND LOWER(f.name) = ps.seg_name
-        AND f.deleted_at IS NULL
-      UNION ALL
-      SELECT r.depth + 1, f.id
-      FROM resolve r
-      JOIN path_segments ps ON ps.depth = r.depth + 1
-      JOIN files f ON f.parent_id = r.id
-        AND f.game_id = $1
-        AND LOWER(f.name) = ps.seg_name
-        AND f.deleted_at IS NULL
-    )
-    SELECT
-      f.id,
-      f.game_id        AS "gameId",
-      f.parent_id      AS "parentId",
-      f.name,
-      f.type,
-      f.storage_key    AS "storageKey",
-      f.size,
-      f.mime_type      AS "mimeType",
-      f.checksum,
-      f.created_at     AS "createdAt",
-      f.updated_at     AS "updatedAt",
-      f.deleted_at     AS "deletedAt"
-    FROM resolve r
-    JOIN files f ON f.id = r.id
-    WHERE r.depth = ${depthParam}
-    LIMIT 1
-  `, ...params);
-
-  return rows[0] ?? null;
-}

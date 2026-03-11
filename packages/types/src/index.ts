@@ -528,6 +528,7 @@ export type {
   SceneData,
   SceneItemKind,
   SceneListItem,
+  SceneManifest,
   SceneNpcData,
   SceneNpcEntry,
   SceneObjData,
