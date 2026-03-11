@@ -619,6 +619,15 @@ export abstract class CharacterMovement extends CharacterBase {
     const dx = endPixelPos.x - startPixelPos.x;
     const dy = endPixelPos.y - startPixelPos.y;
     this.setDirectionFromDelta(dx, dy);
+
+    // Total animation duration = framesPerDirection * interval (ms)
+    const frames = this.frameCountsPerDirection;
+    const intervalMs = this.interval;
+    this._jumpTotalMs = frames * intervalMs;
+    this._jumpElapsedMs = 0;
+    this._jumpPhase = 0;
+    this._jumpDestPixel = endPixelPos;
+
     this.playCurrentDirOnce();
 
     return true;
