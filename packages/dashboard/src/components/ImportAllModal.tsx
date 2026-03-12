@@ -195,6 +195,50 @@ function detectMagicUserType(
 }
 
 /**
+ * 扫描所有脚本内容，提取 LoadMap + LoadNpc/LoadObj 调用链，
+ * 返回 fileName.lower() → Set<sceneKey.lower()> 映射。
+ *
+ * 原理：脚本中调用 LoadMap("X.map") 后跟 LoadNpc("Y.npc") 或 LoadObj("Z.obj")，
+ * 说明该文件应存入 X 这个 scene，而非文件 [Head] Map= 字段中的地图。
+ */
+function buildSaveFileScriptMapping(
+  scriptContents: Array<{ scriptSceneKey: string; content: string }>
+): Map<string, Set<string>> {
+  const mapping = new Map<string, Set<string>>();
+  const loadMapRe = /LoadMap\s*\(\s*"([^"]+\.map)"\s*\)/gi;
+  const loadSaveRe = /Load(?:Npc|Obj)\s*\(\s*"([^"]+\.(?:npc|obj))"\s*\)/gi;
+
+  for (const { scriptSceneKey, content } of scriptContents) {
+    const tokens: Array<{ type: "map" | "save"; value: string; index: number }> = [];
+
+    loadMapRe.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = loadMapRe.exec(content)) !== null) {
+      tokens.push({ type: "map", value: m[1].replace(/\.map$/i, "").toLowerCase(), index: m.index });
+    }
+    loadSaveRe.lastIndex = 0;
+    while ((m = loadSaveRe.exec(content)) !== null) {
+      tokens.push({ type: "save", value: m[1].toLowerCase(), index: m.index });
+    }
+
+    tokens.sort((a, b) => a.index - b.index);
+
+    // 默认 context = 脚本自身所属地图
+    let currentMap = scriptSceneKey;
+    for (const token of tokens) {
+      if (token.type === "map") {
+        currentMap = token.value;
+      } else {
+        if (!mapping.has(token.value)) mapping.set(token.value, new Set());
+        mapping.get(token.value)!.add(currentMap);
+      }
+    }
+  }
+
+  return mapping;
+}
+
+/**
  * 解析 Traps.ini 内容
  */
 function parseTrapsIni(content: string): Map<string, Map<number, string>> {
@@ -560,14 +604,17 @@ async function parseResourcesFolder(
   const scriptFiles = byNorm.filter(
     (f) => f.norm.startsWith("script/map/") && f.file.name.toLowerCase().endsWith(".txt")
   );
+  // 收集脚本内容用于 NPC/OBJ 跨场景映射分析
+  const allScriptContents: Array<{ scriptSceneKey: string; content: string }> = [];
   for (const sf of scriptFiles) {
     const parts = sf.normOrigCase.split("/");
     if (parts.length < 4) continue;
     const sceneKey = parts[2].toLowerCase();
     const fileName = parts[parts.length - 1];
+    const content = await sf.file.text();
+    allScriptContents.push({ scriptSceneKey: sceneKey, content });
     const scene = sceneMap.get(sceneKey);
     if (!scene) continue;
-    const content = await sf.file.text();
     // A file is a trap if its name matches Trap\d+ OR if it appears as a value
     // in this scene's trapOverrides (i.e., referenced by Traps.ini for this map).
     // Sword2 trap scripts often have arbitrary names like "地图切换.txt".
@@ -597,40 +644,59 @@ async function parseResourcesFolder(
     );
   });
 
+  // 从脚本中分析 LoadMap + LoadNpc/LoadObj 调用链，确定 NPC/OBJ 文件应存入哪个 scene
+  // 例如：脚本中 LoadMap("凤池山庄.map") 后调用 LoadNpc("Fengci1.npc")，
+  // 则 Fengci1.npc 应存入 凤池山庄 scene，而非 [Head] Map= 字段中的地图
+  const saveFileScriptMapping = buildSaveFileScriptMapping(allScriptContents);
+
   const saveFileSourceMap = new Map<string, "ini/save" | "save/game">();
 
   for (const sf of saveFiles) {
     const fromIniSave = /^ini\/save\//i.test(sf.norm);
     const content = await sf.file.text();
     const sections = parseIniContent(content);
-
-    const headSection = sections.Head || sections.head;
-    if (!headSection) continue;
-    const mapValue = headSection.Map || headSection.map;
-    if (!mapValue) continue;
-
-    const mapKey = mapValue.replace(/\.(map|mmf)$/i, "");
-    const scene = sceneMap.get(mapKey.toLowerCase());
-    if (!scene) continue;
-
     const fileName = sf.file.name;
-    const dedupeKey = `${mapKey.toLowerCase()}::${fileName.toLowerCase()}`;
-    const prevSource = saveFileSourceMap.get(dedupeKey);
+    const fileNameLower = fileName.toLowerCase();
 
-    // 如果已有 ini/save 版本，跳过 save/game 的同名文件
-    if (prevSource === "ini/save" && !fromIniSave) continue;
-    saveFileSourceMap.set(dedupeKey, fromIniSave ? "ini/save" : "save/game");
+    // 优先使用脚本分析得到的 scene key 集合；无匹配时回退到 [Head] Map= 字段
+    const scriptSceneKeys =
+      fileNameLower.endsWith(".npc") || fileNameLower.endsWith(".obj")
+        ? saveFileScriptMapping.get(fileNameLower)
+        : undefined;
 
-    if (fileName.toLowerCase().endsWith(".npc")) {
-      const entries = parseNpcEntries(sections);
-      if (!scene.data.npc) scene.data.npc = {};
-      const npcKey = fileName.toLowerCase();
-      scene.data.npc[npcKey] = { key: npcKey, entries };
-    } else if (fileName.toLowerCase().endsWith(".obj")) {
-      const entries = parseObjEntries(sections);
-      if (!scene.data.obj) scene.data.obj = {};
-      const objKey = fileName.toLowerCase();
-      scene.data.obj[objKey] = { key: objKey, entries };
+    let targetSceneKeys: string[];
+    if (scriptSceneKeys && scriptSceneKeys.size > 0) {
+      targetSceneKeys = Array.from(scriptSceneKeys);
+    } else {
+      const headSection = sections.Head || sections.head;
+      if (!headSection) continue;
+      const mapValue = headSection.Map || headSection.map;
+      if (!mapValue) continue;
+      targetSceneKeys = [mapValue.replace(/\.(map|mmf)$/i, "").toLowerCase()];
+    }
+
+    for (const mapKey of targetSceneKeys) {
+      const scene = sceneMap.get(mapKey);
+      if (!scene) continue;
+
+      const dedupeKey = `${mapKey}::${fileNameLower}`;
+      const prevSource = saveFileSourceMap.get(dedupeKey);
+
+      // 如果已有 ini/save 版本，跳过 save/game 的同名文件
+      if (prevSource === "ini/save" && !fromIniSave) continue;
+      saveFileSourceMap.set(dedupeKey, fromIniSave ? "ini/save" : "save/game");
+
+      if (fileNameLower.endsWith(".npc")) {
+        const entries = parseNpcEntries(sections);
+        if (!scene.data.npc) scene.data.npc = {};
+        const npcKey = fileNameLower;
+        scene.data.npc[npcKey] = { key: npcKey, entries };
+      } else if (fileNameLower.endsWith(".obj")) {
+        const entries = parseObjEntries(sections);
+        if (!scene.data.obj) scene.data.obj = {};
+        const objKey = fileNameLower;
+        scene.data.obj[objKey] = { key: objKey, entries };
+      }
     }
   }
 

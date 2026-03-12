@@ -570,11 +570,21 @@ export abstract class CharacterCombat extends CharacterMovement {
       return { isOk: true, magicIni: null };
     }
 
+    const retreatNeeded = attackRadius - tileDistance;
     const destPixel = tileToPixel(
       this._destinationAttackTilePosition.x,
       this._destinationAttackTilePosition.y
     );
-    if (!this.moveAwayTarget(destPixel, attackRadius - tileDistance, this._isRunToTarget)) {
+    if (!this.moveAwayTarget(destPixel, retreatNeeded, this._isRunToTarget)) {
+      const magicIni = this.getRandomMagicWithUseDistance(attackRadius);
+      return { isOk: magicIni !== null, magicIni };
+    }
+
+    // 后退路径找到了，但若 A* 绕墙导致路径远比退格数长（说明中间有障碍需要绕行），
+    // NPC 会反复侧走切换方向撞墙。此时取消寻路，直接原地攻击。
+    // 容忍 +1 格的路径偏差（8方向斜走路径会略长于直线距离）。
+    if (this.path.length > retreatNeeded + 1) {
+      this.standingImmediately();
       const magicIni = this.getRandomMagicWithUseDistance(attackRadius);
       return { isOk: magicIni !== null, magicIni };
     }
