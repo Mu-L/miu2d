@@ -6,7 +6,7 @@
 //! - PathOneStep: 简单贪心，约 10 步
 //! - SimpleMaxNpcTry: 贪心最佳优先搜索，maxTry=100
 //! - PerfectMaxNpcTry: A* 算法用于 NPC，maxTry=100
-//! - PerfectMaxPlayerTry: A* 算法用于玩家，maxTry=500
+//! - PerfectMaxPlayerTry: A* 算法用于玩家，maxTry=4000（C++ 为 16384）
 //! - PathStraightLine: 直线，忽略障碍物（用于飞行者）
 
 use hashbrown::{HashMap, HashSet};
@@ -295,7 +295,8 @@ impl PathFinder {
             PathType::PathOneStep => 10,
             PathType::SimpleMaxNpcTry => 100,
             PathType::PerfectMaxNpcTry => 100,
-            PathType::PerfectMaxPlayerTry => 500,
+            // C++ 使用 128*128=16384；500 对远距离目标不够，A* 频繁失败触发贪心回退 → 穿墙
+            PathType::PerfectMaxPlayerTry => 4000,
             PathType::PathStraightLine => {
                 let result = self.find_straight_line(start, end);
                 pathfind_log!(path_type, start_x, start_y, end_x, end_y, result, t0);

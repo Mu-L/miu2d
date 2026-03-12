@@ -306,8 +306,10 @@ export abstract class CharacterMovement extends CharacterBase {
         }
 
         // 检查下一瓦片障碍物（防止高速穿墙）
+        // hasObstacle: 动态障碍（NPC/Obj/Magic）；checkMapObstacleForCharacter: 静态障碍（门/Wall）
+        // 对应 C++ canWalk(nextStep) → 在每步提交前验证，防止门关闭后路径失效
         const nextTile = this.path[0];
-        if (this.hasObstacle(nextTile)) {
+        if (this.hasObstacle(nextTile) || this.checkMapObstacleForCharacter(nextTile)) {
           this._handleObstacleOnNextTile(nextTile);
           break;
         }
@@ -337,9 +339,9 @@ export abstract class CharacterMovement extends CharacterBase {
           break;
         }
 
-        // 检查下一瓦片障碍物
+        // 检查下一瓦片障碍物（动态 + 静态，同 C++ canWalk 逻辑）
         const nextTile = this.path[0];
-        if (this.hasObstacle(nextTile)) {
+        if (this.hasObstacle(nextTile) || this.checkMapObstacleForCharacter(nextTile)) {
           this._handleObstacleOnNextTile(nextTile);
           break;
         }
@@ -506,7 +508,13 @@ export abstract class CharacterMovement extends CharacterBase {
 
       if (directionResult.path.length > 1) {
         path = directionResult.path;
-        actualDestTile = directionResult.destination!;
+        // 保持原始目标 T（不用贪心路径的中间终点 M）
+        // 原因：若 actualDestTile = M ≠ T，_destinationMoveTilePosition 被设为 M，
+        // handleInput 的 guard（destMatch && hasPath）每帧都会失效，
+        // 从而每帧重跑 A*→回退→重置路径，玩家逻辑位置与像素位置频繁错位 → 穿墙。
+        // 保持 actualDestTile = destTile，guard 在跟随贪心路径期间正常阻止重算；
+        // 玩家走完 50 步后自然停止，handleInput 再从当前位置重路径到 T。
+        actualDestTile = destTile;
       }
     }
 
