@@ -465,13 +465,13 @@ export function getSceneDataCounts(data: SceneData | null | undefined): {
   let npcCount = 0;
   if (data?.npc) {
     for (const v of Object.values(data.npc)) {
-      npcCount += v.entries?.length ?? 0;
+      npcCount += v?.entries?.length ?? 0;
     }
   }
   let objCount = 0;
   if (data?.obj) {
     for (const v of Object.values(data.obj)) {
-      objCount += v.entries?.length ?? 0;
+      objCount += v?.entries?.length ?? 0;
     }
   }
   return {

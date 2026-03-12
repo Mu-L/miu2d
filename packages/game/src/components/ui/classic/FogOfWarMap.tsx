@@ -119,7 +119,6 @@ const REVEAL_RADIUS = 15;
 //   map_x = (u - v + V_MAX)      → 旋转后 x，range: 0..U_MAX+V_MAX
 //   map_y = (u + v)              → 旋转后 y，range: 0..U_MAX+V_MAX
 // canvas 为正方形，side = U_MAX + V_MAX ≈ mapCols + mapRows/2
-const CELL_PX = 1; // canvas 渲染像素/世界单位
 const HUD_MAX_SIZE = 462; // HUD 最大显示尺寸（CSS px）
 
 /** HUD 距屏幕左上角的偏移 */
@@ -148,10 +147,13 @@ export const FogOfWarMap: React.FC<FogOfWarMapProps> = ({
 
   // V_MAX = 世界高度（行数/2），用于将 map_x 平移到正值范围
   const vMax = mapRows / 2;
-  // canvas 正方形边长 = U_MAX + V_MAX ≈ mapCols + mapRows/2
-  const canvasSide = Math.ceil(mapColumns + 0.5 + vMax) || 1;
-  // HUD 显示尺寸（CSS px），不超过 HUD_MAX_SIZE
-  const displaySize = Math.min(HUD_MAX_SIZE, canvasSide);
+  // 原始逻辑边长（每格 1 单位）
+  const rawSide = Math.ceil(mapColumns + 0.5 + vMax) || 1;
+  // canvas 始终是 HUD_MAX_SIZE 大小，用浮点比例将坐标映射到其中——这样不需要 CSS 缩放，
+  // 不模糊也不方块
+  const canvasSide = HUD_MAX_SIZE;
+  const scale = HUD_MAX_SIZE / rawSide;
+  const displaySize = HUD_MAX_SIZE;
 
   // 玩家 tile 坐标
   const playerTile = pixelToTile(playerPosition.x, playerPosition.y);
@@ -173,16 +175,12 @@ export const FogOfWarMap: React.FC<FogOfWarMapProps> = ({
 
     ctx.clearRect(0, 0, canvasSide, canvasSide);
 
-    // 45° 旋转投影公式（原地 inline，避免重复计算 vMax）：
+    // 45° 旋转投影 + 缩放到 HUD_MAX_SIZE：
     // u = col + (row&1)*0.5,  v = row/2
-    // dx = round((u - v + vMax) * CELL_PX)
-    // dy = round((u + v) * CELL_PX)
+    // dx = round((u - v + vMax) * scale),  dy = round((u + v) * scale)
 
-    // 人物点大小：目标约 4 CSS px；障碍边框固定 1 canvas px（保持细线）
-    const dSize = Math.min(HUD_MAX_SIZE, canvasSide);
-    const dotSize = Math.max(2, Math.round(3 * canvasSide / dSize));
-
-    // 障碍轮廓（绿色，1×1 canvas px 保持细腻）
+    // 障碍轮廓：块大小 = ceil(scale)，填满相邻 tile 间距，保证连通不断线
+    const obstPx = Math.max(1, Math.ceil(scale));
     ctx.fillStyle = "#00ff00";
     for (let row = 0; row < mapRows; row++) {
       for (let col = 0; col < mapColumns; col++) {
@@ -198,13 +196,16 @@ export const FogOfWarMap: React.FC<FogOfWarMapProps> = ({
           if (isEdgeObstacle(barriers, revealed, col, row, mapColumns, mapRows)) {
             const u = col + (row & 1) * 0.5;
             const v = row / 2;
-            const dx = Math.round((u - v + vMax) * CELL_PX);
-            const dy = Math.round((u + v) * CELL_PX);
-            ctx.fillRect(dx, dy, 1, 1);
+            const dx = Math.round((u - v + vMax) * scale);
+            const dy = Math.round((u + v) * scale);
+            ctx.fillRect(dx, dy, obstPx, obstPx);
           }
         }
       }
     }
+
+    // 人物点：3 canvas px（= 3 CSS px，因为 1:1）
+    const dotSize = 3;
 
     // NPC / 敌人
     for (const char of characters) {
@@ -228,8 +229,8 @@ export const FogOfWarMap: React.FC<FogOfWarMapProps> = ({
       const nu = tileX + (tileY & 1) * 0.5;
       const nv = tileY / 2;
       ctx.fillRect(
-        Math.round((nu - nv + vMax) * CELL_PX),
-        Math.round((nu + nv) * CELL_PX),
+        Math.round((nu - nv + vMax) * scale),
+        Math.round((nu + nv) * scale),
         dotSize,
         dotSize,
       );
@@ -240,12 +241,12 @@ export const FogOfWarMap: React.FC<FogOfWarMapProps> = ({
     const pu = playerTileX + (playerTileY & 1) * 0.5;
     const pv = playerTileY / 2;
     ctx.fillRect(
-      Math.round((pu - pv + vMax) * CELL_PX),
-      Math.round((pu + pv) * CELL_PX),
+      Math.round((pu - pv + vMax) * scale),
+      Math.round((pu + pv) * scale),
       dotSize,
       dotSize,
     );
-  }, [mapData, mapName, mapColumns, mapRows, canvasSide, vMax, playerTileX, playerTileY, characters]);
+  }, [mapData, mapName, mapColumns, mapRows, scale, vMax, playerTileX, playerTileY, characters]);
 
   if (!mapData || mapColumns === 0) return null;
 
