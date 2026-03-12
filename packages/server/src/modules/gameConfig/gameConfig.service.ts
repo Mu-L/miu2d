@@ -1,5 +1,5 @@
 import type { GameConfig, GameConfigData, UpdateGameConfigInput } from "@miu2d/types";
-import { createDefaultGameConfig, GameConfigDataSchema } from "@miu2d/types";
+import { createDefaultGameConfig, createDefaultMagicExpConfig, GameConfigDataSchema } from "@miu2d/types";
 import type { GameConfig as PrismaGameConfig } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { db } from "../../db/client";
@@ -14,7 +14,8 @@ export class GameConfigService {
   private toGameConfig(row: PrismaGameConfig): GameConfig {
     const defaults = createDefaultGameConfig();
     const raw = row.data as Record<string, unknown>;
-    const merged = { ...defaults, ...raw };
+    // 确保 magicExp 始终有默认值（旧记录可能没有此字段）
+    const merged = { ...defaults, magicExp: createDefaultMagicExpConfig(), ...raw };
     const data = GameConfigDataSchema.parse(merged);
     return {
       id: row.id,
@@ -117,9 +118,9 @@ export class GameConfigService {
       }
       // workspace name/logo override config fields
       const overrides = { gameName: game.name, logoUrl: `/game/${game.slug}/api/logo` };
-      // playerKey 未设置时，不返回 player/drop/magicExp 配置
+      // playerKey 未设置时，不返回 player/drop 配置（magicExp 始终返回）
       if (!config.playerKey) {
-        const { player: _, drop: __, magicExp: ___, ...rest } = config;
+        const { player: _, drop: __, ...rest } = config;
         return { ...rest, ...overrides };
       }
       return { ...config, ...overrides };
