@@ -174,6 +174,9 @@ const STATE_ASF_FALLBACKS: Record<CharacterState, (keyof SpriteSet)[]> = {
   [CharacterState.Death]: ["death", "hurt", "stand"],
   [CharacterState.Sit]: ["sit", "stand1", "stand"],
   [CharacterState.Special]: ["special", "stand"],
+  [CharacterState.Sitting]: ["sit", "stand"],
+  [CharacterState.SpecialAttack]: ["attack", "stand"],
+  [CharacterState.Hide]: ["stand"],
 };
 
 /** CharacterState 到 SpriteSet key 的映射 */
@@ -195,6 +198,9 @@ const STATE_TO_SPRITEKEY: Record<CharacterState, keyof SpriteSet> = {
   [CharacterState.FightWalk]: "fightWalk",
   [CharacterState.FightRun]: "fightRun",
   [CharacterState.FightJump]: "fightJump",
+  [CharacterState.Sitting]: "sit",
+  [CharacterState.SpecialAttack]: "attack",
+  [CharacterState.Hide]: "stand",
 };
 
 /** 获取状态对应的 SpriteSet key（无 fallback） */
