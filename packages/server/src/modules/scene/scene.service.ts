@@ -451,7 +451,10 @@ export class SceneService {
       }
     }
 
-    return { tiles, missing };
+    // 4. 场景脚本（存于 scene.data.scripts，随 manifest 下发，引擎直接预热到缓存）
+    const scripts: Record<string, string> = sceneData?.scripts ?? {};
+
+    return { tiles, missing, scripts };
   }
 }
 

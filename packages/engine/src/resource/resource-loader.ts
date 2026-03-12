@@ -963,6 +963,30 @@ class ResourceLoaderImpl {
   }
 
   /**
+   * 预热已解析的 INI/脚本对象到 iniCache（来自 SceneManifest.scripts 等预下发数据）
+   *
+   * 将已解析的对象直接写入 iniCache，使后续 loadIni 调用命中缓存，
+   * 绕过文件存储请求。仅在缓存中尚无该键时写入（不覆盖已有缓存）。
+   *
+   * @param url 与 loadIni 调用时相同的 url（如 ResourcePath.scriptMap(sceneKey) + "/" + fileName）
+   * @param parsed 已解析的对象
+   * @param resourceType 资源类型前缀（需与 loadIni 调用时一致）
+   */
+  prewarmIni(url: string, parsed: unknown, resourceType: ResourceType): void {
+    const normalizedPath = this.normalizePath(url);
+    const cacheKey = `${resourceType}:${normalizedPath}`;
+    if (!this.iniCache.has(cacheKey)) {
+      this.iniCache.set(cacheKey, {
+        data: parsed,
+        size: 256,
+        loadTime: Date.now(),
+        lastAccess: Date.now(),
+        accessCount: 0,
+      });
+    }
+  }
+
+  /**
    * 预置已知缺失路径到失败缓存（来自 SceneManifest.missing）
    *
    * 将相对资源路径（如 "asf/character/x.msf"）按各资源类型的 cacheKey 格式
