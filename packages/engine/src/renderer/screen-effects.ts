@@ -34,7 +34,7 @@ export interface ScreenEffectsState {
   fadeLum: number;
 
   // Map time of day (SetMapTime command): 0=day, 1=night, 2=dusk, 3=dawn
-  // Controls the tint color of the dark overlay (C++ dayMask color per DayType)
+  // Controls the tint color of the dark overlay
   mapTime: number;
 
   // Screen flash
@@ -148,7 +148,6 @@ export class ScreenEffects {
 
   /**
    * SetPlayerLum command — pure no-op.
-   * C++ reference: `void setPlayerLum(unsigned char lum) {}` (GameManager.h:222)
    * The lum value is stored for completeness but never used visually.
    */
   setPlayerLum(level: number): void {
@@ -162,8 +161,6 @@ export class ScreenEffects {
 
   /**
    * SetFadeLum command — sets the target lum for FadeIn/FadeOut transitions.
-   * C++ formula (Weather.cpp:212-221):
-   *   fadeLum = l >= 31 ? 255 : l * 8
    * At fadeLum=0 (default): FadeOut goes to full black, FadeIn comes from full black.
    */
   setFadeLum(level: number): void {
@@ -177,8 +174,6 @@ export class ScreenEffects {
 
   /**
    * Get the fade target transparency (0 = transparent, 1 = opaque black).
-   * C++ formula: internalFadeLum = fadeLum >= 31 ? 255 : fadeLum * 8
-   *             transparency = (255 - internalFadeLum) / 255
    */
   getFadeTargetTransparency(): number {
     const l = this.state.fadeLum;
@@ -188,9 +183,6 @@ export class ScreenEffects {
 
   /**
    * SetMainLum command — controls scene darkness via a dark overlay.
-   * C++ formula (Weather.cpp:224-234):
-   *   lum = l >= 31 ? 255 : (l + 1) * 7 + 32
-   *   overlay alpha = (255 - lum) / 255
    * Does NOT modify mapDrawColor / spriteDrawColor.
    */
   setMainLum(level: number): void {
@@ -204,11 +196,7 @@ export class ScreenEffects {
 
   /**
    * SetMapTime command — sets time of day for overlay tint color.
-   * C++ DayType → dayMask color (Weather.cpp resetDay):
-   *   0 = day:   rgb(0,   0,   0)  pure black
-   *   1 = night: rgb(0,   0,  30)  dark blue
-   *   2 = dusk:  rgb(80, 70,   0)  dark orange
-   *   3 = dawn:  rgb(60,  0,  80)  dark purple
+   * 0 = day, 1 = night, 2 = dusk, 3 = dawn
    */
   setMapTime(time: number): void {
     this.state.mapTime = Math.max(0, time);
@@ -226,17 +214,16 @@ export class ScreenEffects {
   private mainLumOverlayAlpha(): number {
     const l = this.state.mainLum;
     if (l >= 31) return 0;
-    const lum = (l + 1) * 7 + 32; // 0-255
+    const lum = (l + 1) * (16 / 3) + 32; // 0-255; coefficient 16/3 makes l=20 equal old l=15
     return (255 - lum) / 255;
   }
 
   /**
    * Get the RGB tint color for the dark overlay based on map time of day.
-   * C++ reference: Weather::resetDay() dayMask colors per DayType.
    */
   private mainLumOverlayColor(): { r: number; g: number; b: number } {
     switch (this.state.mapTime) {
-      case 1: return { r: 0, g: 0, b: 30 };   // night: dark blue
+      case 1: return { r: 0, g: 10, b: 60 };  // night: dark blue
       case 2: return { r: 80, g: 70, b: 0 };  // dusk:  dark orange
       case 3: return { r: 60, g: 0, b: 80 };  // dawn:  dark purple
       default: return { r: 0, g: 0, b: 0 };    // day:   pure black

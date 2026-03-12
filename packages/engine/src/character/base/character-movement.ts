@@ -488,6 +488,7 @@ export abstract class CharacterMovement extends CharacterBase {
 
     let path = this._dispatchFindPath(startTile, actualDestTile, usePathType, 8);
 
+
     // 如果寻路失败（目标可能是障碍物），尝试沿方向行走
     // 这样点击障碍物时角色会朝那个方向尽可能走远，而不是完全不动
     // 注意：仅对玩家启用此回退，NPC 寻路失败应直接停止，避免鬼畜行为
@@ -712,6 +713,10 @@ export abstract class CharacterMovement extends CharacterBase {
     if (tilePositionList === null || tilePositionList.length < 2 || !this.isStanding()) {
       return;
     }
+    // No walk animation → skip walk entirely (no-Walk NPCs should not move)
+    if (!this._spriteSet.walk) {
+      return;
+    }
 
     if (Math.floor(Math.random() * randMaxValue) === 0) {
       const randomIndex = Math.floor(Math.random() * tilePositionList.length);
@@ -726,6 +731,10 @@ export abstract class CharacterMovement extends CharacterBase {
     _isFlyer: boolean
   ): void {
     if (tilePositionList === null || tilePositionList.length < 2) {
+      return;
+    }
+    // No walk animation → skip walk entirely
+    if (!this._spriteSet.walk) {
       return;
     }
 

@@ -276,12 +276,15 @@ export class NpcManager {
    * Get NPC by name (returns first match)
    */
   getNpc(name: string): Npc | null {
+    // 同名 NPC 并存时（如 AddNpc 后战死的旧实例尚未清除），优先返回存活 NPC。
+    // 与 setNpcRelation/setNpcDirection 等方法保持一致。
+    let deadFallback: Npc | null = null;
     for (const [, npc] of this.npcs) {
-      if (npc.name === name) {
-        return npc;
-      }
+      if (npc.name !== name) continue;
+      if (!npc.isDeath && !npc.isDeathInvoked) return npc;
+      deadFallback ??= npc;
     }
-    return null;
+    return deadFallback;
   }
 
   private withNpc(name: string, action: (npc: Npc) => void): boolean {
@@ -498,14 +501,20 @@ export class NpcManager {
    * Set NPC position
    */
   setNpcPosition(name: string, tileX: number, tileY: number): boolean {
-    return this.withNpc(name, (npc) => {
+    // 与 setNpcRelation 保持一致：仅当存在同名存活 NPC 时才跳过死亡 NPC
+    const npcs = this.getAllNpcsByName(name);
+    if (npcs.length === 0) return false;
+    const hasLive = npcs.some((npc) => !npc.isDeath && !npc.isDeathInvoked);
+    for (const npc of npcs) {
+      if (hasLive && (npc.isDeath || npc.isDeathInvoked)) continue;
       if (npc.isDeath || npc.isDeathInvoked) {
         npc.isDeath = false;
         npc.isDeathInvoked = false;
       }
       npc.standingImmediately();
       npc.setPosition(tileX, tileY);
-    });
+    }
+    return true;
   }
 
   /**
@@ -900,7 +909,11 @@ export class NpcManager {
     }
 
     const relationNames = ["Friend", "Enemy", "None"];
+    // 仅当存在同名存活 NPC 时，才跳过死亡 NPC（赵无双情形：AddNpc 后两个同名 NPC 并存）。
+    // 若所有同名 NPC 均为死亡状态，则允许复活（玄慈情形：死亡脚本直接对唯一死亡 NPC 改阵营复活）。
+    const hasLive = npcs.some((npc) => !npc.isDeath && !npc.isDeathInvoked);
     for (const npc of npcs) {
+      if (hasLive && (npc.isDeath || npc.isDeathInvoked)) continue;
       logger.log(
         `[NpcManager] SetNpcRelation: ${name} (id=${npc.id}) relation changed from ${relationNames[npc.relation] || npc.relation} to ${relationNames[relation] || relation}`
       );

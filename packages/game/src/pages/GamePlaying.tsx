@@ -31,6 +31,7 @@ import type { MenuTab } from "../components/GameMenuPanel";
 import type { UITheme } from "../components/ui";
 import { VideoPlayer } from "../components/ui/classic";
 import { reloadUIConfigs } from "../components/ui/classic/useUISettings";
+import { revealFullMap } from "../components/ui/classic/FogOfWarMap";
 
 // DebugPanel 含 Monaco Editor，按需加载（仅当调试面板首次打开时引入）
 const DebugPanel = lazy<React.ComponentType<DebugPanelProps>>(() =>
@@ -431,6 +432,15 @@ export function GamePlaying({
                 setUiTheme(config.uiTheme as UiTheme);
               }
               reloadUIConfigs();
+            }}
+            onRevealFullMap={() => {
+              const engine = getEngine();
+              if (!engine) return;
+              const mapData = engine.getMapData();
+              const mapName = engine.getCurrentMapName();
+              if (mapData && mapName) {
+                revealFullMap(mapName, mapData.mapColumnCounts, mapData.mapRowCounts);
+              }
             }}
           />
           </Suspense>

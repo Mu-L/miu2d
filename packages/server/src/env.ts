@@ -63,7 +63,7 @@ export const env = {
   /** 允许跨域的 Origin 白名单，逗号分隔 */
   corsOrigins: str(
     "CORS_ORIGINS",
-    "https://miu2d.com,https://miu2d.williamchan.me:10443,http://localhost:5173,http://localhost:5174"
+    "https://miu2d.com,https://miu2d.williamchan.me:10443,http://localhost:5173,http://localhost:5174,http://localhost:5274,http://localhost:4100"
   ),
   get isEmailEnabled() {
     return !!(this.smtpHost && this.smtpUser && this.smtpPass);

@@ -64,6 +64,7 @@ interface GameDebugSectionProps {
   onAddAllMagics?: () => Promise<void>;
   onReloadMagicConfig?: () => Promise<void>;
   onReloadUILayout?: () => Promise<void>;
+  onRevealFullMap?: () => void;
 }
 
 export const GameDebugSection: React.FC<GameDebugSectionProps> = ({
@@ -79,6 +80,7 @@ export const GameDebugSection: React.FC<GameDebugSectionProps> = ({
   onAddAllMagics,
   onReloadMagicConfig,
   onReloadUILayout,
+  onRevealFullMap,
 }) => {
   const [moneyAmount, setMoneyAmount] = useState("1000");
   const [targetLevel, setTargetLevel] = useState("80");
@@ -185,6 +187,15 @@ export const GameDebugSection: React.FC<GameDebugSectionProps> = ({
           <button type="button" onClick={onFullAll} className={`${btnClass} flex-1`}>
             全满
           </button>
+          {onRevealFullMap && (
+            <button
+              type="button"
+              onClick={onRevealFullMap}
+              className={`${btnClass} flex-1 text-[#4ade80]`}
+            >
+              全图
+            </button>
+          )}
           <button
             type="button"
             onClick={onToggleGodMode}
