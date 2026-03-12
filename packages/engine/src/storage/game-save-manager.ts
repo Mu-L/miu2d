@@ -352,7 +352,6 @@ export class Loader {
           const t = performance.now();
           magicInventory.stopReplace();
           magicInventory.clearReplaceList();
-          magicInventory.initializeMagicExp();
           if (apiPlayerData?.initialMagics && apiPlayerData.initialMagics.length > 0) {
             const magicItems: MagicItemData[] = apiPlayerData.initialMagics.map((m, i) => ({
               fileName: m.iniFile,

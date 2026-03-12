@@ -646,10 +646,21 @@ export class MagicSpriteManager {
       `[MagicSpriteManager] Triggering explode magic: ${magicAtLevel.name} at position (${explodePos.x}, ${explodePos.y})`
     );
 
+    const dir = sprite.direction;
+    let destination: Vector2;
+    if (dir.x !== 0 || dir.y !== 0) {
+      destination = { x: explodePos.x + dir.x, y: explodePos.y + dir.y };
+    } else {
+      const casterPos = this.charHelper.getCharacterPosition(sprite.belongCharacterId);
+      destination = casterPos
+        ? { x: explodePos.x + (explodePos.x - casterPos.x), y: explodePos.y + (explodePos.y - casterPos.y) }
+        : explodePos;
+    }
+
     this.useMagic({
       magic: magicAtLevel,
       origin: explodePos,
-      destination: explodePos,
+      destination,
       userId: sprite.belongCharacterId,
     });
   }

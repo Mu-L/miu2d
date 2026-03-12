@@ -416,7 +416,6 @@ export class MagicCollisionHandler implements CollisionHandler {
 
     if (sprite.magic.passThrough > 0) {
       if (sprite.magic.vanishImage) {
-        // 穿透命中特效显示在目标位置
         this.callbacks.createHitEffect(sprite, targetPos);
       }
       // 穿透后移动到邻居格子
@@ -462,7 +461,6 @@ export class MagicCollisionHandler implements CollisionHandler {
       return;
     }
 
-    // 播放命中特效（锚定在被命中的角色位置）
     this.callbacks.createHitEffect(sprite, hitedCharacter.pixelPosition);
 
     // 记录已命中的角色

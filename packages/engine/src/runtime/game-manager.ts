@@ -196,6 +196,8 @@ export class GameManager {
 
     // Initialize systems
     this.player = new Player();
+    // 全局配置在 GameScreen 加载后已就绪，立即初始化武功经验配置
+    this.player.getPlayerMagicInventory().initializeMagicExp();
 
     this.npcManager = new NpcManager();
     // NPC 现在通过 EngineContext.player 获取 Player 引用
