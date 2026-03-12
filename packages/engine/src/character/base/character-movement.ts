@@ -421,11 +421,15 @@ export abstract class CharacterMovement extends CharacterBase {
    * destinationTilePosition, PathType pathType)
    * checks PerformActionOk() at the start to prevent interrupting special actions
    */
-  walkTo(destTile: Vector2, pathTypeOverride: PathType = PathType.End): boolean {
+  walkTo(
+    destTile: Vector2,
+    pathTypeOverride: PathType = PathType.End,
+    skipDirectionFallback = false
+  ): boolean {
     if (!this.performActionOk()) return false;
     if (this._mapX === destTile.x && this._mapY === destTile.y) return true;
 
-    const result = this._findPathAndMove(destTile, pathTypeOverride);
+    const result = this._findPathAndMove(destTile, pathTypeOverride, skipDirectionFallback);
     if (!result) return false;
 
     this.cancelAttackTarget();
@@ -437,14 +441,18 @@ export abstract class CharacterMovement extends CharacterBase {
    * 跑到目标瓦片
    * checks PerformActionOk() and Run state image availability
    */
-  runTo(destTile: Vector2, pathTypeOverride: PathType = PathType.End): boolean {
+  runTo(
+    destTile: Vector2,
+    pathTypeOverride: PathType = PathType.End,
+    skipDirectionFallback = false
+  ): boolean {
     if (!this.performActionOk()) return false;
     if (this._mapX === destTile.x && this._mapY === destTile.y) return true;
     if (!this.isStateImageOk(CharacterState.Run) && !this.isStateImageOk(CharacterState.FightRun)) {
       return false;
     }
 
-    const result = this._findPathAndMove(destTile, pathTypeOverride);
+    const result = this._findPathAndMove(destTile, pathTypeOverride, skipDirectionFallback);
     if (!result) return false;
 
     this.state = this.selectFightOrNormalState(CharacterState.FightRun, CharacterState.Run);
@@ -468,7 +476,11 @@ export abstract class CharacterMovement extends CharacterBase {
    * 寻路成功后设置 path 和 _destinationMoveTilePosition，返回 true
    * 寻路失败时清理状态并返回 false
    */
-  private _findPathAndMove(destTile: Vector2, pathTypeOverride: PathType): boolean {
+  private _findPathAndMove(
+    destTile: Vector2,
+    pathTypeOverride: PathType,
+    skipDirectionFallback = false
+  ): boolean {
     const usePathType = pathTypeOverride === PathType.End ? this.getPathType() : pathTypeOverride;
 
     const startTile = { x: this._mapX, y: this._mapY };
@@ -479,7 +491,9 @@ export abstract class CharacterMovement extends CharacterBase {
     // 如果寻路失败（目标可能是障碍物），尝试沿方向行走
     // 这样点击障碍物时角色会朝那个方向尽可能走远，而不是完全不动
     // 注意：仅对玩家启用此回退，NPC 寻路失败应直接停止，避免鬼畜行为
-    if (path.length === 0 && this.shouldFallbackToDirectionWalk()) {
+    // 脚本命令（PlayerGoto 等）传入 skipDirectionFallback=true，匹配 C++ 原版行为：
+    // A* 失败则直接放弃，脚本继续执行，避免方向行走回退导致的无限循环
+    if (path.length === 0 && !skipDirectionFallback && this.shouldFallbackToDirectionWalk()) {
       const isMapObstacle = (tile: Vector2): boolean => this.checkMapObstacleForCharacter(tile);
       const isHardObstacle = (tile: Vector2): boolean => this.checkHardObstacle(tile);
       const directionResult = findPathInDirection(
