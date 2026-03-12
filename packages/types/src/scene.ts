@@ -447,12 +447,16 @@ export function parseObjEntries(sections: Record<string, Record<string, string>>
  * 服务端计算后返回给客户端：
  * - tiles: 地图瓦片 MSF 路径列表（相对于资源根目录），均已确认存在，可用于预取
  * - missing: 已知 404 的精灵路径列表（相对于资源根目录），客户端可跳过请求
+ * - scripts: 场景脚本内容（fileName → 文本），存于数据库的脚本直接随 manifest 下发，
+ *            引擎预热到缓存后无需再请求文件存储
  */
 export interface SceneManifest {
   /** 地图瓦片 MSF 文件路径（相对资源根），全部存在 */
   tiles: string[];
   /** 已知缺失的精灵 MSF 路径（相对资源根），客户端可直接标记为 404 跳过 */
   missing: string[];
+  /** 场景脚本内容：key = 文件名（如 "欢迎.txt"），value = 脚本文本 */
+  scripts: Record<string, string>;
 }
 
 /** 从 scene.data 计算子项统计（NPC/OBJ 统计总 entries 数） */

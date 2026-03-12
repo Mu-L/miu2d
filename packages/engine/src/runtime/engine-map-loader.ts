@@ -22,6 +22,7 @@ import type { ScreenEffects } from "../renderer/screen-effects";
 import { parseMMF } from "../resource/format/mmf";
 import { ResourcePath } from "../resource/resource-paths";
 import { resourceLoader } from "../resource/resource-loader";
+import { parseScript } from "../script/parser";
 import { initWasmPathfinder, syncStaticObstacles } from "../wasm/wasm-path-finder";
 import type { EngineCamera } from "./engine-camera";
 import type { GameEngineState } from "./game-engine";
@@ -206,9 +207,26 @@ async function loadMapFromSceneApi(fullMapPath: string): Promise<MiuMapData | nu
     // 将已知缺失路径写入失败缓存（跳过无效 404 网络请求）
     if (manifest?.missing && manifest.missing.length > 0) {
       resourceLoader.prewarmMissing(manifest.missing);
-      logger.log(
-        `[EngineMapLoader] Manifest: ${manifest.tiles.length} tiles, ${manifest.missing.length} missing sprites prewarmed`
-      );
+    }
+
+    // 将场景脚本预热到 iniCache（存于数据库，随 manifest 下发，避免去文件存储查找）
+    if (manifest?.scripts) {
+      const scriptEntries = Object.entries(manifest.scripts);
+      if (scriptEntries.length > 0) {
+        for (const [fileName, content] of scriptEntries) {
+          const url = `${ResourcePath.scriptMap(sceneKey)}/${fileName}`;
+          const relPath = `script/map/${sceneKey}/${fileName}`;
+          const parsed = parseScript(content, relPath);
+          resourceLoader.prewarmIni(url, parsed, "script");
+        }
+        logger.log(
+          `[EngineMapLoader] Manifest: ${manifest.tiles.length} tiles, ${manifest.missing?.length ?? 0} missing sprites, ${scriptEntries.length} scripts prewarmed`
+        );
+      } else {
+        logger.log(
+          `[EngineMapLoader] Manifest: ${manifest.tiles.length} tiles, ${manifest.missing?.length ?? 0} missing sprites prewarmed`
+        );
+      }
     }
 
     if (!buffer) return null;
