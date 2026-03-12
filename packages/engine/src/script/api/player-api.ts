@@ -6,6 +6,7 @@ import { logger } from "../../core/logger";
 import { CharacterState } from "../../core/types";
 import type { Npc } from "../../npc";
 import type { Player } from "../../player/player";
+import { PathType } from "../../utils/path-finder";
 import type { BlockingResolver } from "../blocking-resolver";
 import type { PlayerAPI } from "./game-api";
 import { isCharacterMoveEnd } from "./helpers";
@@ -75,15 +76,16 @@ export function createPlayerAPI(ctx: ScriptCommandContext, resolver: BlockingRes
     },
 
     // Blocking movement → Promise
+    // skipDirectionFallback=true: 脚本命令不使用方向行走回退，匹配 C++ 原版行为
     walkTo: async (x, y) => {
       const target = getPlayerKindCharacter();
       const destination = { x, y };
-      target.walkTo(destination);
+      target.walkTo(destination, PathType.End, true);
       if (
         isCharacterMoveEnd(
           target,
           destination,
-          (_c, d) => target.walkTo(d),
+          (_c, d) => target.walkTo(d, PathType.End, true),
           isMapObstacleForCharacter,
           "playerWalkTo"
         )
@@ -94,7 +96,7 @@ export function createPlayerAPI(ctx: ScriptCommandContext, resolver: BlockingRes
         isCharacterMoveEnd(
           target,
           destination,
-          (_c, d) => target.walkTo(d),
+          (_c, d) => target.walkTo(d, PathType.End, true),
           isMapObstacleForCharacter,
           "playerWalkTo"
         )
@@ -113,12 +115,12 @@ export function createPlayerAPI(ctx: ScriptCommandContext, resolver: BlockingRes
     runTo: async (x, y) => {
       const target = getPlayerKindCharacter();
       const destination = { x, y };
-      target.runTo(destination);
+      target.runTo(destination, PathType.End, true);
       if (
         isCharacterMoveEnd(
           target,
           destination,
-          (_c, d) => target.runTo(d),
+          (_c, d) => target.runTo(d, PathType.End, true),
           isMapObstacleForCharacter,
           "playerRunTo"
         )
@@ -129,7 +131,7 @@ export function createPlayerAPI(ctx: ScriptCommandContext, resolver: BlockingRes
         isCharacterMoveEnd(
           target,
           destination,
-          (_c, d) => target.runTo(d),
+          (_c, d) => target.runTo(d, PathType.End, true),
           isMapObstacleForCharacter,
           "playerRunTo"
         )

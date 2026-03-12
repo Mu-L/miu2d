@@ -92,7 +92,11 @@ export class Npc extends Character {
    * - 目标 tile 未变：跳过，不重算路径
    * - 目标 tile 变了（玩家移动）：立即重算路径追击
    */
-  override walkTo(destTile: Vector2, pathTypeOverride: PathType = PathType.End): boolean {
+  override walkTo(
+    destTile: Vector2,
+    pathTypeOverride: PathType = PathType.End,
+    skipDirectionFallback = false
+  ): boolean {
     if ((this.isWalking() || this.isRunning()) && this.path.length > 0) {
       if (!this.performActionOk()) return false;
       if (this._mapX === destTile.x && this._mapY === destTile.y) return true;
@@ -110,7 +114,7 @@ export class Npc extends Character {
         `[NpcAI] ${this._id} walkTo: target moved to (${destTile.x},${destTile.y}), repathing`
       );
     }
-    return super.walkTo(destTile, pathTypeOverride);
+    return super.walkTo(destTile, pathTypeOverride, skipDirectionFallback);
   }
 
   getRandTilePathForAI(count: number, isFlyer: boolean, maxOffset: number = -1): Vector2[] {
