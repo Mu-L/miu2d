@@ -404,7 +404,19 @@ function hitTestMarker(
       const right = left + asf.width;
       const bottom = top + asf.height;
       if (worldX >= left && worldX <= right && worldY >= top && worldY <= bottom) {
-        return i;
+        // 像素级 alpha 检测（复用引擎 isPointInNpcBounds 逻辑）
+        // alpha < 200 视为透明，不命中
+        const frame = asf.frames[0];
+        if (frame?.imageData) {
+          const offX = Math.floor(worldX - left);
+          const offY = Math.floor(worldY - top);
+          if (offX >= 0 && offX < frame.width && offY >= 0 && offY < frame.height) {
+            const idx = (offY * frame.width + offX) * 4 + 3;
+            if (frame.imageData.data[idx] >= 200) return i;
+          }
+        } else {
+          return i;
+        }
       }
     } else if (m.sprite && m.sprite.frames.length > 0) {
       // 回退帧包围盒
