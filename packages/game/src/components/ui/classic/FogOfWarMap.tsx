@@ -47,6 +47,16 @@ function getExplorationData(mapName: string, columns: number, rows: number): Map
   return data;
 }
 
+/** 揭示整张地图（全图探索，调试用） */
+export function revealFullMap(mapName: string, columns: number, rows: number): void {
+  const data: MapExplorationData = {
+    columns,
+    rows,
+    revealed: new Uint8Array(columns * rows).fill(1),
+  };
+  explorationStore.set(mapName, data);
+}
+
 /** 以玩家 tile 位置为中心揭示周围区域（圆形） */
 function revealAroundPlayer(
   data: MapExplorationData,
@@ -103,12 +113,18 @@ function isEdgeObstacle(
 /** 玩家周围揭示半径（tile 数） */
 const REVEAL_RADIUS = 15;
 
-/** 每个 tile 对应的 CSS 像素数（固定，不随地图大小变化） */
-const CELL_PX = 1.4;
+// 45° 旋转投影：先去交错 (u,v)，再旋转 45°，将地形菱形轮廓变成正方形外观：
+//   u = col + (row&1)*0.5       → 世界 x（消除行偏移）
+//   v = row / 2                  → 世界 y（每 2 行 = 1 单位）
+//   map_x = (u - v + V_MAX)      → 旋转后 x，range: 0..U_MAX+V_MAX
+//   map_y = (u + v)              → 旋转后 y，range: 0..U_MAX+V_MAX
+// canvas 为正方形，side = U_MAX + V_MAX ≈ mapCols + mapRows/2
+const CELL_PX = 1; // canvas 渲染像素/世界单位
+const HUD_MAX_SIZE = 462; // HUD 最大显示尺寸（CSS px）
 
 /** HUD 距屏幕左上角的偏移 */
-const HUD_LEFT = 10;
-const HUD_TOP = 10;
+const HUD_LEFT = 0;
+const HUD_TOP = 0;
 
 // ============= 组件 =============
 
@@ -130,12 +146,12 @@ export const FogOfWarMap: React.FC<FogOfWarMapProps> = ({
   const mapColumns = mapData?.mapColumnCounts ?? 0;
   const mapRows = mapData?.mapRowCounts ?? 0;
 
-  // 去除 isometric stagger，变换为正交俯视坐标（正方形瓦片感）：
-  //   drawX = (col + (row % 2) * 0.5) * CELL_PX
-  //   drawY = (row / 2) * CELL_PX
-  // 奇数行向右偏移半格，恰好还原等角交错为正交网格
-  const canvasW = Math.ceil((mapColumns + 0.5) * CELL_PX) || 1;
-  const canvasH = Math.ceil((mapRows / 2) * CELL_PX) || 1;
+  // V_MAX = 世界高度（行数/2），用于将 map_x 平移到正值范围
+  const vMax = mapRows / 2;
+  // canvas 正方形边长 = U_MAX + V_MAX ≈ mapCols + mapRows/2
+  const canvasSide = Math.ceil(mapColumns + 0.5 + vMax) || 1;
+  // HUD 显示尺寸（CSS px），不超过 HUD_MAX_SIZE
+  const displaySize = Math.min(HUD_MAX_SIZE, canvasSide);
 
   // 玩家 tile 坐标
   const playerTile = pixelToTile(playerPosition.x, playerPosition.y);
@@ -155,9 +171,18 @@ export const FogOfWarMap: React.FC<FogOfWarMapProps> = ({
     const { barriers } = mapData;
     const { revealed } = exploration;
 
-    ctx.clearRect(0, 0, canvasW, canvasH);
+    ctx.clearRect(0, 0, canvasSide, canvasSide);
 
-    // 障碍轮廓（绿色）
+    // 45° 旋转投影公式（原地 inline，避免重复计算 vMax）：
+    // u = col + (row&1)*0.5,  v = row/2
+    // dx = round((u - v + vMax) * CELL_PX)
+    // dy = round((u + v) * CELL_PX)
+
+    // 人物点大小：目标约 4 CSS px；障碍边框固定 1 canvas px（保持细线）
+    const dSize = Math.min(HUD_MAX_SIZE, canvasSide);
+    const dotSize = Math.max(2, Math.round(3 * canvasSide / dSize));
+
+    // 障碍轮廓（绿色，1×1 canvas px 保持细腻）
     ctx.fillStyle = "#00ff00";
     for (let row = 0; row < mapRows; row++) {
       for (let col = 0; col < mapColumns; col++) {
@@ -171,8 +196,10 @@ export const FogOfWarMap: React.FC<FogOfWarMapProps> = ({
           b === BarrierType.CanOverTrans
         ) {
           if (isEdgeObstacle(barriers, revealed, col, row, mapColumns, mapRows)) {
-            const dx = Math.round((col + (row & 1) * 0.5) * CELL_PX);
-            const dy = Math.round((row / 2) * CELL_PX);
+            const u = col + (row & 1) * 0.5;
+            const v = row / 2;
+            const dx = Math.round((u - v + vMax) * CELL_PX);
+            const dy = Math.round((u + v) * CELL_PX);
             ctx.fillRect(dx, dy, 1, 1);
           }
         }
@@ -198,31 +225,42 @@ export const FogOfWarMap: React.FC<FogOfWarMapProps> = ({
           ctx.fillStyle = "#ffff00";
           break;
       }
-      const ndx = Math.round((tileX + (tileY & 1) * 0.5) * CELL_PX);
-      const ndy = Math.round((tileY / 2) * CELL_PX);
-      ctx.fillRect(ndx, ndy, 2, 2);
+      const nu = tileX + (tileY & 1) * 0.5;
+      const nv = tileY / 2;
+      ctx.fillRect(
+        Math.round((nu - nv + vMax) * CELL_PX),
+        Math.round((nu + nv) * CELL_PX),
+        dotSize,
+        dotSize,
+      );
     }
 
-    // 玩家（青色 2×2 px 方块）
+    // 玩家（青色方块）
     ctx.fillStyle = "#00ffff";
-    const pdx = Math.round((playerTileX + (playerTileY & 1) * 0.5) * CELL_PX);
-    const pdy = Math.round((playerTileY / 2) * CELL_PX);
-    ctx.fillRect(pdx, pdy, 2, 2);
-  }, [mapData, mapName, mapColumns, mapRows, canvasW, canvasH, playerTileX, playerTileY, characters]);
+    const pu = playerTileX + (playerTileY & 1) * 0.5;
+    const pv = playerTileY / 2;
+    ctx.fillRect(
+      Math.round((pu - pv + vMax) * CELL_PX),
+      Math.round((pu + pv) * CELL_PX),
+      dotSize,
+      dotSize,
+    );
+  }, [mapData, mapName, mapColumns, mapRows, canvasSide, vMax, playerTileX, playerTileY, characters]);
 
   if (!mapData || mapColumns === 0) return null;
 
   return (
     <canvas
       ref={canvasRef}
-      width={canvasW}
-      height={canvasH}
+      width={canvasSide}
+      height={canvasSide}
       style={{
         position: "absolute",
         left: HUD_LEFT,
         top: HUD_TOP,
-        width: canvasW,
-        height: canvasH,
+        width: displaySize,
+        height: displaySize,
+        imageRendering: "pixelated",
         pointerEvents: "none",
         zIndex: 1000,
       }}

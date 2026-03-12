@@ -4,6 +4,7 @@
 
 import { logger } from "../../core/logger";
 import { tileToPixel } from "../../utils";
+import { syncDynamicObstacles } from "../../wasm/wasm-path-finder";
 import type { BlockingResolver } from "../blocking-resolver";
 import type { AudioAPI, CameraAPI, EffectsAPI, MapAPI, ObjAPI, TimerAPI } from "./game-api";
 import type { ScriptCommandContext } from "./types";
@@ -51,6 +52,9 @@ export function createObjAPI(ctx: ScriptCommandContext): ObjAPI {
       } else {
         objManager.deleteObj(nameOrId);
       }
+      // Re-sync the WASM dynamic obstacle bitmap immediately so same-frame
+      // pathfinding (e.g. NpcGotoEx right after DelObj) sees the deletion.
+      syncDynamicObstacles(ctx.npcManager, ctx.objManager, ctx.magicSpriteManager, ctx.player);
     },
     openBox: (nameOrId?) => {
       if (nameOrId) {
@@ -226,8 +230,6 @@ export function createEffectsAPI(
       screenEffects.setPlayerLum(level);
     },
     setFadeLum: (level) => {
-      // SetFadeLum: sets FadeIn/FadeOut target darkness.
-      // C++ formula: internalLum = l >= 31 ? 255 : l * 8
       screenEffects.setFadeLum(level);
     },
     petrify: (ms) => {

@@ -296,6 +296,10 @@ export class Loader {
 
     try {
       this.deps.map.resetTrapState();
+      // 重置地图时间和亮度，防止前一场景的夜间/暗化设置残留
+      this.deps.screenEffects.resetColors();
+      this.deps.setMapTime(0);
+      this.deps.screenEffects.setMainLum(32);
 
       // ── Phase 1: 读取配置 ──
       this.reportProgress(0, "读取游戏配置...");
@@ -489,6 +493,10 @@ export class Loader {
       const tReset = performance.now();
       screenEffects.setFadeTransparency(1);
       screenEffects.resetColors();
+      // 显式重置地图时间和亮度（resetColors 只重置 screenEffects 内部状态，
+      // 还需通过 deps 同步重置 GameManager 侧的 mapTime 字段）
+      this.deps.setMapTime(0);
+      screenEffects.setMainLum(32);
       const scriptExecutor = getScriptExecutor();
       scriptExecutor.stopAllScripts();
       guiManager.resetAllUI();
