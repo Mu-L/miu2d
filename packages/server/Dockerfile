@@ -25,7 +25,7 @@ COPY packages/shared/src ./packages/shared/src
 COPY packages/server/package.json ./packages/server/
 COPY packages/server/tsconfig.json ./packages/server/
 COPY packages/server/tsconfig.build.json ./packages/server/
-COPY packages/server/rollup.config.mjs ./packages/server/
+COPY packages/server/rolldown.config.mjs ./packages/server/
 
 # 安装所有依赖（包括 devDependencies，构建时需要）
 RUN pnpm install --frozen-lockfile
@@ -39,11 +39,11 @@ COPY packages/server/prisma ./packages/server/prisma
 WORKDIR /app/packages/types
 RUN pnpm build
 
-# 编译 shared/locales 为 JS（rollup 打包时从 default 条件加载）
+# 编译 shared/locales 为 JS（rolldown 打包时从 default 条件加载）
 WORKDIR /app/packages/shared
 RUN pnpm build:locales
 
-# 构建应用（rollup 打包，@miu2d/* 工作区包全部内联）
+# 构建应用（rolldown 打包，@miu2d/* 工作区包全部内联）
 WORKDIR /app/packages/server
 RUN pnpm build
 
@@ -61,7 +61,7 @@ COPY packages/types/package.json ./packages/types/
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/server/package.json ./packages/server/
 
-# 从构建阶段复制构建产物（@miu2d/* 已由 rollup 内联，无需 types/shared dist）
+# 从构建阶段复制构建产物（@miu2d/* 已由 rolldown 内联，无需 types/shared dist）
 COPY --from=builder /app/packages/server/dist ./packages/server/dist
 
 # 复制 prisma schema 和迁移文件
