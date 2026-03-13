@@ -205,26 +205,9 @@ export async function loadScript(url: string): Promise<ScriptData | null> {
     return cachedResult;
   }
 
-  // If map-specific script not found, try fallback paths
+  // If map-specific script not found, try common folder fallback
   if (url.includes("/script/map/")) {
     const fileName = url.split("/").pop() || "";
-
-    // First try alternate case (trap -> Trap or Trap -> trap)
-    const altCaseFileName =
-      fileName.charAt(0) === fileName.charAt(0).toLowerCase()
-        ? fileName.charAt(0).toUpperCase() + fileName.slice(1)
-        : fileName.charAt(0).toLowerCase() + fileName.slice(1);
-    const altCaseUrl = url.replace(fileName, altCaseFileName);
-    logger.log(`[loadScript] Map script not found, trying alternate case: ${altCaseUrl}`);
-
-    const altResult = await resourceLoader.loadParsed<ScriptData>(
-      altCaseUrl,
-      (content) => parseScript(content, altCaseUrl.replace(/^\/resources\//, "")),
-      "script"
-    );
-    if (altResult) {
-      return altResult;
-    }
 
     // Try common folder
     const commonUrl = ResourcePath.scriptCommon(fileName);
