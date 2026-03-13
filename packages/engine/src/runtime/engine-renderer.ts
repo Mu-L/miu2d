@@ -21,7 +21,7 @@ import type { NpcManager } from "../npc/npc-manager";
 import type { ObjManager } from "../obj";
 import type { ObjRenderer } from "../obj/obj-renderer";
 import type { Player } from "../player/player";
-import { drawElementLum } from "../renderer/lum-mask";
+import { drawLightingPass } from "../renderer/lum-mask";
 import type { Renderer } from "../renderer/renderer";
 import type { WeatherManager } from "../weather";
 import type { GameManager } from "./game-manager";
@@ -260,32 +260,17 @@ export function renderFrame(renderer: Renderer, ctx: FrameRenderContext): void {
     renderer.restore();
   }
 
-  // 应用地图颜色叠加（非黑色的 ChangeMapColor 效果）
-  if (screenEffects.isMapTinted()) {
-    const tint = screenEffects.getMapTintColor();
-    renderer.save();
-    renderer.setBlendMode("multiply");
-    renderer.fillRect({
-      x: 0,
-      y: 0,
-      width,
-      height,
-      color: `rgb(${tint.r}, ${tint.g}, ${tint.b})`,
-    });
-    renderer.restore();
-  }
-
-  // 渲染天气效果（雨、雪）
-  weatherManager.draw(renderer, mapR.camera.x, mapR.camera.y);
-
-  // 渲染屏幕特效：暗色遮罩 → 局部光照 → 淡入淡出 → 闪烁
-  const screenEffects2 = gameManager.screenEffects;
-  screenEffects2.drawDarkOverlay(renderer, width, height);
-
-  // 局部光照：发光物体/NPC/武功精灵在暗处产生光晕
-  drawElementLum(
+  // 光照 pass：合并 ChangeMapColor 色调 + SetMainLum 暗化 + 局部光源还原
+  // out = scene × light_buffer
+  //   暗区：buffer = tint × dark / 255
+  //   光源区：buffer = tint（光晕将 buffer 从 combinedDark 推到 tint）
+  drawLightingPass(
     renderer,
-    screenEffects2.getMainLum(),
+    screenEffects.getMainLum(),
+    screenEffects.getMapTime(),
+    screenEffects.isMapTinted() ? screenEffects.getMapTintColor() : null,
+    width,
+    height,
     mapR.camera.x,
     mapR.camera.y,
     gameManager.objManager.objsInView,
@@ -293,6 +278,9 @@ export function renderFrame(renderer: Renderer, ctx: FrameRenderContext): void {
     gameManager.magicSpriteManager.getMagicSprites(),
     gameManager.magicSpriteManager.getEffectSprites()
   );
+
+  // 渲染天气效果（雨、雪）
+  weatherManager.draw(renderer, mapR.camera.x, mapR.camera.y);
 
   // === 高亮边缘（在暗色遮罩和局部光照之后，确保在暗场景中可见且不闪烁） ===
   {
@@ -310,8 +298,8 @@ export function renderFrame(renderer: Renderer, ctx: FrameRenderContext): void {
     }
   }
 
-  screenEffects2.drawFade(renderer, width, height);
-  screenEffects2.drawFlash(renderer, width, height);
+  screenEffects.drawFade(renderer, width, height);
+  screenEffects.drawFlash(renderer, width, height);
 
   renderer.endFrame();
 }

@@ -3,6 +3,7 @@
  * Handles fade in/out, color tinting, and other screen effects
  */
 
+import { computeAmbientDarkColor } from "./lum-mask";
 import type { Renderer } from "./renderer";
 
 export interface Color {
@@ -212,20 +213,7 @@ export class ScreenEffects {
    * Drawn with multiply blend: final = scene * tint (black stays black, no hue injection).
    */
   private mainLumMultiplyColor(): { r: number; g: number; b: number } | null {
-    const l = this.state.mainLum;
-    if (l >= 31) return null;
-    const br = ((l + 1) * 7 + 32) / 255; // brightness factor 0–1
-    const c = (v: number) => Math.max(0, Math.min(255, Math.round(v * 255)));
-    switch (this.state.mapTime) {
-      case 1:
-        return { r: c(br * 0.7), g: c(br * 0.75), b: c(br * 1.0) }; // night: cool blue
-      case 2:
-        return { r: c(br * 1.0), g: c(br * 0.82), b: c(br * 0.55) }; // dusk:  warm amber
-      case 3:
-        return { r: c(br * 0.8), g: c(br * 0.75), b: c(br * 1.0) }; // dawn:  purple
-      default:
-        return { r: c(br), g: c(br), b: c(br) }; // day:   neutral dark
-    }
+    return computeAmbientDarkColor(this.state.mainLum, this.state.mapTime);
   }
 
   /**

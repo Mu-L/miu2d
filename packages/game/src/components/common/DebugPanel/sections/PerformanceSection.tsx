@@ -4,8 +4,29 @@
 
 import type { PerformanceStatsData } from "@miu2d/engine/runtime/performance-stats";
 import type React from "react";
+import { useEffect, useState } from "react";
 import { DataRow } from "../DataRow";
 import { Section } from "../Section";
+
+interface MemoryInfo {
+  used: number;
+  total: number;
+  limit: number;
+}
+
+function readMemoryInfo(): MemoryInfo | null {
+  const mem = (performance as { memory?: { usedJSHeapSize: number; totalJSHeapSize: number; jsHeapSizeLimit: number } }).memory;
+  if (!mem) return null;
+  return {
+    used: mem.usedJSHeapSize,
+    total: mem.totalJSHeapSize,
+    limit: mem.jsHeapSizeLimit,
+  };
+}
+
+function formatMB(bytes: number): string {
+  return `${(bytes / 1048576).toFixed(1)} MB`;
+}
 
 interface PerformanceSectionProps {
   performanceStats: PerformanceStatsData;
@@ -42,6 +63,13 @@ function getRendererLabel(type: string): { label: string; color: string } {
 }
 
 export const PerformanceSection: React.FC<PerformanceSectionProps> = ({ performanceStats }) => {
+  const [memInfo, setMemInfo] = useState<MemoryInfo | null>(() => readMemoryInfo());
+
+  useEffect(() => {
+    const id = setInterval(() => setMemInfo(readMemoryInfo()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const {
     fps,
     fpsMin,
@@ -136,6 +164,16 @@ export const PerformanceSection: React.FC<PerformanceSectionProps> = ({ performa
             valueColor={droppedFrames > 0 ? "text-[#fbbf24]" : "text-[#4ade80]"}
           />
         </div>
+
+        {/* JS 堆内存（Chrome/Edge 专有） */}
+        {memInfo && (
+          <div className="space-y-px">
+            <div className="text-[10px] text-[#969696] uppercase">JS 堆内存</div>
+            <DataRow label="已用" value={formatMB(memInfo.used)} valueColor="text-[#4ade80]" />
+            <DataRow label="已分配" value={formatMB(memInfo.total)} valueColor="text-[#d4d4d4]" />
+            <DataRow label="上限" value={formatMB(memInfo.limit)} valueColor="text-[#969696]" />
+          </div>
+        )}
       </div>
     </Section>
   );

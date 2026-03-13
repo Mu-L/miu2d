@@ -55,6 +55,7 @@ import {
   clearMpcAtlasCache,
   createMapRenderer,
   type MapRenderer,
+  prewarmMpcAtlasTextures,
   renderMapInterleaved,
 } from "../map/map-renderer";
 import type { MiuMapData } from "../map/types";
@@ -556,6 +557,10 @@ export class GameEngine implements EngineContext {
     try {
       this._renderer = createRenderer(canvas, this.rendererBackend);
       logger.info(`[GameEngine] Renderer initialized: ${this._renderer.type}`);
+      // 如果地图已预加载（引擎先于画布完成初始化），立即预热 MPC atlas 纹理
+      if (this.mapRendererInstance?.mpcAtlases?.length > 0) {
+        prewarmMpcAtlasTextures(this.mapRendererInstance.mpcAtlases, this._renderer);
+      }
     } catch (e) {
       logger.error("[GameEngine] Failed to initialize renderer", e);
     }

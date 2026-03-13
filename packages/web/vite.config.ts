@@ -31,6 +31,20 @@ function getAppVersion(): string {
 }
 
 /**
+ * 监听 monorepo 其他包的源码变更，确保 Vite 在文件修改后重新编译相关模块。
+ * （Vite 默认只监听自身包根目录，packages/engine 等变更需手动添加）
+ */
+function watchWorkspacePackagesPlugin(): Plugin {
+  return {
+    name: "watch-workspace-packages",
+    configureServer(server) {
+      const engineSrc = path.resolve(__dirname, "../../packages/engine/src");
+      server.watcher.add(engineSrc);
+    },
+  };
+}
+
+/**
  * Custom plugin to return 404 for missing resources
  * This prevents Vite from returning 200 OK with index.html for missing files
  */
@@ -69,6 +83,7 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(getAppVersion()),
   },
   plugins: [
+    watchWorkspacePackagesPlugin(),
     resources404Plugin(),
     tailwindcss(),
     react(),

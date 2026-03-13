@@ -120,6 +120,15 @@ export interface Renderer {
   updateSourceTexture(source: TextureSource): void;
 
   /**
+   * 预热 source 纹理：将 canvas 像素立即上传到 GPU 缓存，
+   * 避免首帧绘制时的延迟上传。上传后调用方可安全收缩 canvas 尺寸
+   * 以释放 CPU 侧像素数据（WebGL 不再需要它）。
+   *
+   * Canvas2D 后端为空操作（仍需要源像素数据每帧直接读取）。
+   */
+  prewarmSourceTexture(source: TextureSource): void;
+
+  /**
    * 根据 ID 获取纹理
    */
   getTexture(id: TextureId): TextureInfo | null;

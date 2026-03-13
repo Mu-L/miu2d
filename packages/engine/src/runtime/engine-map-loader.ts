@@ -15,7 +15,7 @@ import type { TypedEventEmitter } from "../events/event-emitter";
 import type { GameEventMap } from "../events/game-events";
 import type { MapBase } from "../map";
 import type { MapRenderer } from "../map/map-renderer";
-import { loadMapMpcs, releaseMapTextures } from "../map/map-renderer";
+import { loadMapMpcs, prewarmMpcAtlasTextures, releaseMapTextures } from "../map/map-renderer";
 import type { MiuMapData } from "../map/types";
 import type { Renderer } from "../renderer/renderer";
 import type { ScreenEffects } from "../renderer/screen-effects";
@@ -140,6 +140,11 @@ export async function handleMapChange(
           progressCallback(progress, "加载地图资源...");
         }
       });
+
+      // 预热 MPC atlas GPU 纹理并释放 CPU 侧 canvas 像素数据（节省 ~130MB RAM）
+      if (renderer) {
+        prewarmMpcAtlasTextures(mapRenderer.mpcAtlases, renderer);
+      }
 
       // 更新游戏管理器的地图名称
       gm.setCurrentMapName(mapName);
