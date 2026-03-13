@@ -202,6 +202,10 @@ export class Canvas2DRenderer implements Renderer {
     // Canvas2D 后端直接 drawImage 读源，无需手动更新
   }
 
+  prewarmSourceTexture(_source: TextureSource): void {
+    // Canvas2D 后端每帧直接读取 canvas 像素，无法提前上传，空操作
+  }
+
   getTexture(id: TextureId): TextureInfo | null {
     return this.textures.get(id) ?? null;
   }

@@ -11,6 +11,12 @@ import type { Camera, MiuMapData, Mpc } from "./types";
 // Reusable Vector2 for tile-to-pixel conversion in hot render loop
 const _tempPos = { x: 0, y: 0 };
 
+/**
+ * 模块级复用桶数组，避免每帧堆分配。
+ * 索引 = atlasIndex，内容 = [col, row, col, row, ...]
+ */
+const _batchBuckets: number[][] = [];
+
 /** 单个 MPC 图集：一张 atlas canvas + 每帧的源矩形 */
 export interface MpcAtlas {
   canvas: HTMLCanvasElement;
@@ -128,10 +134,44 @@ function createMpcAtlas(mpc: Mpc): MpcAtlas {
  */
 export function releaseMapTextures(mapRenderer: MapRenderer, renderer: Renderer): void {
   for (const atlas of mapRenderer.mpcAtlases) {
-    if (atlas) {
+    // 已收缩的 atlas（width=0）说明 GPU 纹理是通过 prewarm 上传的唯一副本，
+    // 不能释放：切换回该地图时需要通过 WeakMap 复用同一 TextureInfo。
+    // GPU 资源与 canvas 对象共存亡（GC 时由 FinalizationRegistry 自动清理）。
+    if (atlas && atlas.canvas.width > 0) {
       renderer.releaseSourceTexture(atlas.canvas);
     }
   }
+}
+
+/**
+ * 预热 MPC atlas 纹理：在地图加载完成后立即将所有 atlas canvas 上传到 GPU，
+ * 然后将 canvas 收缩至 0×0 以释放约 130MB+ 的 CPU 侧像素数据。
+ *
+ * WebGL 只需要 GPU 纹理副本，canvas 本身保留作为 sourceTextureCache WeakMap 的 key。
+ * Canvas2D 后端通过 prewarmSourceTexture 的空操作跳过此流程（仍需原始像素）。
+ *
+ * 同时清空 mpcAtlasCache，防止已收缩的 0×0 canvas 在切换地图后被复用导致渲染空白。
+ * （Mpc 解析结果保留在 resourceLoader.parsedCache，下次加载同一地图时会重建 atlas）
+ */
+export function prewarmMpcAtlasTextures(
+  mpcAtlases: (MpcAtlas | null)[],
+  renderer: Renderer
+): void {
+  if (renderer.type !== "webgl") return;
+
+  let freed = 0;
+  for (const atlas of mpcAtlases) {
+    if (!atlas || atlas.canvas.width === 0) continue;
+    renderer.prewarmSourceTexture(atlas.canvas);
+    // 收缩 canvas 释放 CPU 像素数据；canvas 对象仍保留作为 WeakMap key。
+    // 不清空 mpcAtlasCache：缓存保留 0×0 canvas 条目，切换回同一地图时可直接
+    // 通过 WeakMap 找到 TextureInfo（GPU 纹理），无需重建 atlas。
+    atlas.canvas.width = 0;
+    atlas.canvas.height = 0;
+    freed++;
+  }
+
+  logger.info(`[MapRenderer] Prewarm: ${freed} MPC atlas textures uploaded, canvas backing stores freed`);
 }
 
 /** 加载地图的所有 MSF/MPC 文件 */
@@ -296,6 +336,53 @@ function drawTileLayer(
   });
 }
 
+/**
+ * 按 atlas 分组渲染图层，最大化批次合并，减少纹理切换。
+ * ⚠️ 不保证行列绘制顺序，仅适用于无深度排序要求的层（如 layer1 地面层）。
+ */
+function renderLayerBatched(
+  renderer: Renderer,
+  mapRenderer: MapRenderer,
+  layer: "layer1" | "layer2" | "layer3",
+  startX: number,
+  startY: number,
+  endX: number,
+  endY: number
+): void {
+  const { mapData } = mapRenderer;
+  if (!mapData) return;
+
+  const layerData = mapData[layer];
+  const cols = mapData.mapColumnCounts;
+
+  // 清空桶（复用已有数组，不重新分配）
+  for (let i = 0; i < _batchBuckets.length; i++) {
+    if (_batchBuckets[i]) _batchBuckets[i].length = 0;
+  }
+
+  // 分桶阶段：按 atlasIndex 归类所有可见瓦片
+  for (let row = startY; row < endY; row++) {
+    for (let col = startX; col < endX; col++) {
+      const byteOffset = (col + row * cols) * 2;
+      if (byteOffset < 0 || byteOffset + 1 >= layerData.length) continue;
+      const msfIdx = layerData[byteOffset];
+      if (msfIdx === 0) continue;
+      const atlasIdx = msfIdx - 1;
+      if (!_batchBuckets[atlasIdx]) _batchBuckets[atlasIdx] = [];
+      _batchBuckets[atlasIdx].push(col, row);
+    }
+  }
+
+  // 绘制阶段：同一 atlas 的所有瓦片连续绘制 → SpriteBatcher 不触发 flush
+  for (let atlasIdx = 0; atlasIdx < _batchBuckets.length; atlasIdx++) {
+    const bucket = _batchBuckets[atlasIdx];
+    if (!bucket || bucket.length === 0) continue;
+    for (let i = 0; i < bucket.length; i += 2) {
+      drawTileLayer(renderer, mapRenderer, layer, bucket[i], bucket[i + 1]);
+    }
+  }
+}
+
 /** 渲染指定图层 */
 export function renderLayer(
   renderer: Renderer,
@@ -312,11 +399,7 @@ export function renderLayer(
     mapRenderer.maxTileWidth
   );
 
-  for (let row = startY; row < endY; row++) {
-    for (let col = startX; col < endX; col++) {
-      drawTileLayer(renderer, mapRenderer, layer, col, row);
-    }
-  }
+  renderLayerBatched(renderer, mapRenderer, layer, startX, startY, endX, endY);
 }
 
 /** 获取瓦片纹理的世界坐标区域（用于碰撞检测） */
@@ -396,13 +479,9 @@ export function renderMapInterleaved(
   const layer2 = options?.showLayer2 !== false;
   const layer3 = options?.showLayer3 !== false;
 
-  // 1. 绘制 layer1 (地面)
+  // 1. 绘制 layer1 (地面) - 按 atlas 分组批次渲染，无深度排序限制
   if (layer1) {
-    for (let row = startY; row < endY; row++) {
-      for (let col = startX; col < endX; col++) {
-        drawTileLayer(renderer, mapRenderer, "layer1", col, row);
-      }
-    }
+    renderLayerBatched(renderer, mapRenderer, "layer1", startX, startY, endX, endY);
   }
 
   // 2. layer2 与角色交错渲染
@@ -458,13 +537,9 @@ export function renderMap(renderer: Renderer, mapRenderer: MapRenderer): void {
     mapRenderer.maxTileWidth
   );
 
-  // 按层次绘制: layer1 -> layer2 -> layer3
+  // 按层次绘制: layer1 -> layer2 -> layer3（均按 atlas 分组批次）
   for (const layer of ["layer1", "layer2", "layer3"] as const) {
-    for (let row = startY; row < endY; row++) {
-      for (let col = startX; col < endX; col++) {
-        drawTileLayer(renderer, mapRenderer, layer, col, row);
-      }
-    }
+    renderLayerBatched(renderer, mapRenderer, layer, startX, startY, endX, endY);
   }
 }
 

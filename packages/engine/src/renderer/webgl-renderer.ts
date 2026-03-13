@@ -390,6 +390,10 @@ export class WebGLRenderer implements Renderer {
     }
   }
 
+  prewarmSourceTexture(source: TextureSource): void {
+    this.getOrCreateSourceTexture(source);
+  }
+
   getTexture(id: TextureId): TextureInfo | null {
     return this.textures.get(id) ?? null;
   }
@@ -683,3 +687,4 @@ export class WebGLRenderer implements Renderer {
     }
   }
 }
+
