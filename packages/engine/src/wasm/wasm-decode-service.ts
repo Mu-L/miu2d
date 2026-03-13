@@ -15,8 +15,10 @@ import { decodeAsfWasm } from "./wasm-asf-decoder";
 import type { AsfPayload, MpcPayload, WorkerRequest, WorkerResponse } from "./wasm-decode-worker";
 import { decodeMpcWasm } from "./wasm-mpc-decoder";
 
-/** Worker 池大小：取 CPU 核心数的一半（最少 2，最多 4） */
-const POOL_SIZE = Math.max(2, Math.min(4, Math.floor((navigator.hardwareConcurrency ?? 4) / 2)));
+/** Worker 池大小：取 CPU 核心数的一半（最少 1，最多 2）
+ * 每个 Worker 会加载一个独立 WASM 实例（约 30-40MB），限制上限以节省内存。
+ */
+const POOL_SIZE = Math.max(1, Math.min(2, Math.floor((navigator.hardwareConcurrency ?? 2) / 2)));
 
 interface PoolEntry {
   worker: Worker;

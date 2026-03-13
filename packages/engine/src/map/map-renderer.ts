@@ -110,6 +110,11 @@ function createMpcAtlas(mpc: Mpc): MpcAtlas {
     }
   }
 
+  // Atlas 构建完毕，释放原始 ImageData（节省内存，渲染只用 atlas canvas）
+  for (const frame of frames) {
+    (frame as { imageData: ImageData | null }).imageData = null!;
+  }
+
   return { canvas, rects };
 }
 

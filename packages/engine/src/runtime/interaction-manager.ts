@@ -14,6 +14,7 @@
  * 4. Obj interaction state (has been interacted with)
  */
 
+import { getFrameCanvas } from "../resource/format/asf";
 import type { Npc } from "../npc";
 import type { Obj } from "../obj/obj";
 
@@ -268,11 +269,12 @@ export class InteractionManager {
     const offX = Math.floor(worldX - regionLeft);
     const offY = Math.floor(worldY - regionTop);
 
-    // Get pixel alpha from imageData
-    // var idx = offX + offY * texture.Width;
-    // ImageData.data is RGBA, so each pixel is 4 bytes, alpha is at index 3
-    const idx = (offY * frame.width + offX) * 4 + 3; // +3 for alpha channel
-    const alpha = frame.imageData.data[idx];
+    // Get pixel alpha — use canvas API since imageData may be null after atlas build
+    const canvas = getFrameCanvas(frame);
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return true;
+    const pixel = ctx.getImageData(offX, offY, 1, 1);
+    const alpha = pixel.data[3];
 
     // if (!TextureGenerator.IsColorTransparentForNpcObj(data[idx])) return true;
     return !this.isColorTransparentForNpcObj(alpha);
@@ -311,9 +313,12 @@ export class InteractionManager {
     const offX = Math.floor(worldX - regionLeft);
     const offY = Math.floor(worldY - regionTop);
 
-    // Get pixel alpha from imageData
-    const idx = (offY * frame.width + offX) * 4 + 3; // +3 for alpha channel
-    const alpha = frame.imageData.data[idx];
+    // Get pixel alpha — use canvas API since imageData may be null after atlas build
+    const canvas = getFrameCanvas(frame);
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return true;
+    const pixel = ctx.getImageData(offX, offY, 1, 1);
+    const alpha = pixel.data[3];
 
     // Return true if pixel is NOT transparent
     return !this.isColorTransparentForNpcObj(alpha);
