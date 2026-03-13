@@ -16,6 +16,8 @@ export interface AsfFrame {
   height: number;
   imageData: ImageData;
   canvas: HTMLCanvasElement | null;
+  /** Atlas 构建后的反向引用，用于从 atlas canvas 还原 per-frame canvas */
+  _atlasRef?: { canvas: HTMLCanvasElement; x: number; y: number };
 }
 
 /** ASF 帧图集：所有帧打包到一张 canvas 中，减少纹理切换 */
@@ -64,10 +66,15 @@ export function getCachedAsf(url: string): AsfData | null {
 
 export async function loadAsf(url: string): Promise<AsfData | null> {
   const msfUrl = rewriteAsfToMsf(url);
-  return resourceLoader.loadParsedBinaryAsync<AsfData>(msfUrl, decodeAsfOffThread, "asf");
+  const asf = await resourceLoader.loadParsedBinaryAsync<AsfData>(msfUrl, decodeAsfOffThread, "asf");
+  // 立即构建 atlas，释放原始 ImageData（避免大量 ImageData 在内存中等待首次渲染才清理）
+  if (asf && !asf.atlas && asf.frames.length > 0 && asf.frames[0].imageData) {
+    getAsfAtlas(asf);
+  }
+  return asf;
 }
 
-/** 获取帧的 canvas（延迟创建）— 用于 UI 预览等非批量渲染场景 */
+/** 获取帧的 canvas（延迟创建）— 用于高亮边缘检测、UI 预览等非批量渲染场景 */
 export function getFrameCanvas(frame: AsfFrame): HTMLCanvasElement {
   if (frame.canvas) return frame.canvas;
 
@@ -75,7 +82,24 @@ export function getFrameCanvas(frame: AsfFrame): HTMLCanvasElement {
   canvas.width = Math.max(1, frame.width);
   canvas.height = Math.max(1, frame.height);
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
-  if (ctx) ctx.putImageData(frame.imageData, 0, 0);
+  if (ctx) {
+    if (frame.imageData) {
+      ctx.putImageData(frame.imageData, 0, 0);
+    } else if (frame._atlasRef) {
+      // Atlas 已构建并清除了 imageData，从 atlas canvas 还原 per-frame canvas
+      ctx.drawImage(
+        frame._atlasRef.canvas,
+        frame._atlasRef.x,
+        frame._atlasRef.y,
+        frame.width,
+        frame.height,
+        0,
+        0,
+        frame.width,
+        frame.height
+      );
+    }
+  }
   frame.canvas = canvas;
   return canvas;
 }
@@ -117,6 +141,12 @@ function buildAsfAtlas(asf: AsfData): AsfAtlas {
       ctx.putImageData(frames[i].imageData, x, y);
       rects.push({ x, y, w: frames[i].width, h: frames[i].height });
     }
+  }
+
+  // Atlas 构建完毕，释放原始 ImageData（节省内存）；存储 atlas 反向引用以供 getFrameCanvas 按需还原
+  for (let i = 0; i < frames.length; i++) {
+    (frames[i] as { imageData: ImageData | null }).imageData = null!;
+    frames[i]._atlasRef = { canvas, x: rects[i].x, y: rects[i].y };
   }
 
   return { canvas, rects };
