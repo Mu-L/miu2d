@@ -176,15 +176,15 @@ pub fn parse_msf_header(data: &[u8]) -> Option<MsfHeader> {
 fn parse_msf_structure(
     data: &[u8],
 ) -> Option<(
-    u16,           // canvas_width
-    u16,           // canvas_height
-    usize,         // frame_count
-    u8,            // pixel_format_byte
-    u16,           // palette_size
-    [[u8; 4]; 256],// palette
+    u16,            // canvas_width
+    u16,            // canvas_height
+    usize,          // frame_count
+    u8,             // pixel_format_byte
+    u16,            // palette_size
+    [[u8; 4]; 256], // palette
     Vec<MsfFrameEntry>,
-    usize,         // blob_start
-    u16,           // flags
+    usize, // blob_start
+    u16,   // flags
 )> {
     if data.len() < 28 || &data[0..4] != MSF_MAGIC {
         return None;
@@ -223,8 +223,18 @@ fn parse_msf_structure(
             offset_y: i16::from_le_bytes([data[ft_off + 2], data[ft_off + 3]]),
             width: u16::from_le_bytes([data[ft_off + 4], data[ft_off + 5]]),
             height: u16::from_le_bytes([data[ft_off + 6], data[ft_off + 7]]),
-            data_offset: u32::from_le_bytes([data[ft_off + 8], data[ft_off + 9], data[ft_off + 10], data[ft_off + 11]]),
-            data_length: u32::from_le_bytes([data[ft_off + 12], data[ft_off + 13], data[ft_off + 14], data[ft_off + 15]]),
+            data_offset: u32::from_le_bytes([
+                data[ft_off + 8],
+                data[ft_off + 9],
+                data[ft_off + 10],
+                data[ft_off + 11],
+            ]),
+            data_length: u32::from_le_bytes([
+                data[ft_off + 12],
+                data[ft_off + 13],
+                data[ft_off + 14],
+                data[ft_off + 15],
+            ]),
         });
         ft_off += FRAME_ENTRY_SIZE;
     }
@@ -236,7 +246,12 @@ fn parse_msf_structure(
             return None;
         }
         let chunk_id = &data[ext_off..ext_off + 4];
-        let chunk_len = u32::from_le_bytes([data[ext_off + 4], data[ext_off + 5], data[ext_off + 6], data[ext_off + 7]]) as usize;
+        let chunk_len = u32::from_le_bytes([
+            data[ext_off + 4],
+            data[ext_off + 5],
+            data[ext_off + 6],
+            data[ext_off + 7],
+        ]) as usize;
         ext_off += 8;
         if chunk_id == CHUNK_END {
             break;
@@ -244,11 +259,26 @@ fn parse_msf_structure(
         ext_off += chunk_len;
     }
 
-    Some((canvas_width, canvas_height, frame_count, pixel_format_byte, palette_size as u16, palette, frame_entries, ext_off, flags))
+    Some((
+        canvas_width,
+        canvas_height,
+        frame_count,
+        pixel_format_byte,
+        palette_size as u16,
+        palette,
+        frame_entries,
+        ext_off,
+        flags,
+    ))
 }
 
 /// Get decompressed blob from MSF data
-fn get_blob<'a>(data: &'a [u8], blob_start: usize, flags: u16, buf: &'a mut Vec<u8>) -> Option<&'a [u8]> {
+fn get_blob<'a>(
+    data: &'a [u8],
+    blob_start: usize,
+    flags: u16,
+    buf: &'a mut Vec<u8>,
+) -> Option<&'a [u8]> {
     if (flags & 1) != 0 {
         *buf = zstd_decompress(&data[blob_start..])?;
         Some(buf.as_slice())
@@ -322,7 +352,9 @@ pub fn decode_msf_frames(data: &[u8], output: &Uint8Array) -> u32 {
                 for y in 0..fh {
                     for x in 0..fw {
                         let src = y * fw + x;
-                        if src >= raw.len() { continue; }
+                        if src >= raw.len() {
+                            continue;
+                        }
                         let dst = frame_start + ((oy + y) * cw + ox + x) * 4;
                         if dst + 4 <= all_pixels.len() {
                             lookup_indexed8(&palette, raw[src], &mut all_pixels[dst..dst + 4]);
@@ -334,9 +366,13 @@ pub fn decode_msf_frames(data: &[u8], output: &Uint8Array) -> u32 {
                 for y in 0..fh {
                     for x in 0..fw {
                         let src = (y * fw + x) * 2;
-                        if src + 1 >= raw.len() { continue; }
+                        if src + 1 >= raw.len() {
+                            continue;
+                        }
                         let alpha = raw[src + 1];
-                        if alpha == 0 { continue; }
+                        if alpha == 0 {
+                            continue;
+                        }
                         let dst = frame_start + ((oy + y) * cw + ox + x) * 4;
                         if dst + 4 <= all_pixels.len() {
                             let c = &palette[raw[src] as usize];
@@ -353,7 +389,9 @@ pub fn decode_msf_frames(data: &[u8], output: &Uint8Array) -> u32 {
                     let src_start = y * fw * 4;
                     let dst_start = frame_start + ((oy + y) * cw + ox) * 4;
                     let row_bytes = fw * 4;
-                    if src_start + row_bytes <= raw.len() && dst_start + row_bytes <= all_pixels.len() {
+                    if src_start + row_bytes <= raw.len()
+                        && dst_start + row_bytes <= all_pixels.len()
+                    {
                         all_pixels[dst_start..dst_start + row_bytes]
                             .copy_from_slice(&raw[src_start..src_start + row_bytes]);
                     }
@@ -379,18 +417,24 @@ fn decode_frame_pixels(
     match pixel_format {
         PixelFormat::Indexed8 => {
             for p in 0..npixels {
-                if p >= raw.len() { break; }
+                if p >= raw.len() {
+                    break;
+                }
                 lookup_indexed8(palette, raw[p], &mut dst[p * 4..p * 4 + 4]);
             }
         }
         PixelFormat::Indexed8Alpha8 => {
             for p in 0..npixels {
                 let src = p * 2;
-                if src + 1 >= raw.len() { break; }
+                if src + 1 >= raw.len() {
+                    break;
+                }
                 let alpha = raw[src + 1];
-                if alpha == 0 { continue; }
+                if alpha == 0 {
+                    continue;
+                }
                 let c = &palette[raw[src] as usize];
-                dst[p * 4]     = c[0];
+                dst[p * 4] = c[0];
                 dst[p * 4 + 1] = c[1];
                 dst[p * 4 + 2] = c[2];
                 dst[p * 4 + 3] = alpha;
@@ -407,15 +451,25 @@ fn decode_frame_pixels(
 
 /// Find tight bounding box of non-transparent pixels in an RGBA buffer
 fn find_tight_bbox(buf: &[u8], fw: usize, fh: usize) -> (usize, usize, usize, usize) {
-    let mut min_r = fh; let mut max_r = 0usize;
-    let mut min_c = fw; let mut max_c = 0usize;
+    let mut min_r = fh;
+    let mut max_r = 0usize;
+    let mut min_c = fw;
+    let mut max_c = 0usize;
     for row in 0..fh {
         for col in 0..fw {
             if buf[(row * fw + col) * 4 + 3] > 0 {
-                if row < min_r { min_r = row; }
-                if row + 1 > max_r { max_r = row + 1; }
-                if col < min_c { min_c = col; }
-                if col + 1 > max_c { max_c = col + 1; }
+                if row < min_r {
+                    min_r = row;
+                }
+                if row + 1 > max_r {
+                    max_r = row + 1;
+                }
+                if col < min_c {
+                    min_c = col;
+                }
+                if col + 1 > max_c {
+                    max_c = col + 1;
+                }
             }
         }
     }
@@ -476,11 +530,16 @@ pub fn decode_msf_individual_frames(
     let mut out_offset = 0usize;
 
     // Temporary buffer for decoding one full frame before tight-crop (only needed for tight-crop)
-    let max_frame_pixels = entries.iter()
+    let max_frame_pixels = entries
+        .iter()
         .map(|e| (e.width as usize) * (e.height as usize))
         .max()
         .unwrap_or(0);
-    let mut frame_buf = if do_tight_crop { vec![0u8; max_frame_pixels * 4] } else { Vec::new() };
+    let mut frame_buf = if do_tight_crop {
+        vec![0u8; max_frame_pixels * 4]
+    } else {
+        Vec::new()
+    };
 
     for (i, entry) in entries.iter().enumerate() {
         let fw = entry.width as usize;
@@ -517,11 +576,11 @@ pub fn decode_msf_individual_frames(
             let tw = c1 - c0;
             let th = r1 - r0;
 
-            canvas_offsets[i * 2]     = entry.offset_x + c0 as i16;
+            canvas_offsets[i * 2] = entry.offset_x + c0 as i16;
             canvas_offsets[i * 2 + 1] = entry.offset_y + r0 as i16;
-            frame_sizes[i * 2]        = tw as u32;
-            frame_sizes[i * 2 + 1]    = th as u32;
-            frame_offsets[i]          = out_offset as u32;
+            frame_sizes[i * 2] = tw as u32;
+            frame_sizes[i * 2 + 1] = th as u32;
+            frame_offsets[i] = out_offset as u32;
 
             for row in r0..r1 {
                 let src_start = (row * fw + c0) * 4;
@@ -562,7 +621,10 @@ pub fn decode_msf_individual_frames(
     frame_offsets_output.copy_from(&offsets_bytes);
 
     if let Some(ref co) = canvas_offsets_output {
-        let co_bytes: Vec<u8> = canvas_offsets.iter().flat_map(|v| v.to_le_bytes()).collect();
+        let co_bytes: Vec<u8> = canvas_offsets
+            .iter()
+            .flat_map(|v| v.to_le_bytes())
+            .collect();
         co.copy_from(&co_bytes);
     }
 
