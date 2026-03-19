@@ -76,13 +76,20 @@ RUN pnpm --filter @miu2d/server gen:trpc
 COPY packages/web/src ./packages/web/src
 COPY packages/web/public ./packages/web/public
 
-# 接收构建参数（commit hash / 版本号）
+# 接收构建参数（commit hash / 版本号 / 运行时环境变量）
 ARG COMMIT_HASH=unknown
 ARG APP_VERSION=0.0.0
+# VITE 环境变量在构建时 bake 进静态产物，必须通过 --build-arg 传入
+ARG VITE_DEMO_RESOURCES_DOMAIN=
+ARG VITE_S3_BASE_URL=/s3/miu2d
 
 # 构建 web 应用
 WORKDIR /app/packages/web
-RUN COMMIT_HASH=$COMMIT_HASH APP_VERSION=$APP_VERSION pnpm build
+RUN COMMIT_HASH=$COMMIT_HASH \
+    APP_VERSION=$APP_VERSION \
+    VITE_DEMO_RESOURCES_DOMAIN=$VITE_DEMO_RESOURCES_DOMAIN \
+    VITE_S3_BASE_URL=$VITE_S3_BASE_URL \
+    pnpm build
 
 # 生产阶段 - 使用 nginx 静态服务
 FROM nginx:alpine AS runner
