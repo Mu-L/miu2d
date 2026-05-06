@@ -393,6 +393,12 @@ make dev            # web + server + db studio concurrently
 
 > This is a fan-made learning project. Game assets and IP belong to their original creators.
 
+## License
+
+The engine source code is licensed under the [MIT License](LICENSE).
+
+Game resources (images, audio, maps, scripts, etc.) are **not** covered by this license and remain the property of their original creators (Kingsoft / 西山居).
+
 ---
 
 <div align="center">
