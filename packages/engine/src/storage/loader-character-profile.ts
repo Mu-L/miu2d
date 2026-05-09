@@ -157,9 +157,11 @@ export class CharacterProfileLoader {
     const key = this.resolveNpcKey(npc.name);
     const profile = this.store.getOrCreate(key);
 
-    const base = extractFlatDataFromCharacter(npc, false);
+    // 存全量（含 name/npcIni 等身份字段），过滤只在 apply-to-NPC 时做。
+    // 这样后续 PlayerChange 走 loadProfileToPlayer 能拿到完整身份。
+    const base = extractFlatDataFromCharacter(npc, true);
     base.dir = npc.currentDirection;
-    profile.player = this.filterProfileForNpcApply(base) as unknown as PlayerSaveData;
+    profile.player = base as unknown as PlayerSaveData;
 
     profile.magicContainer = npc.magicInventory
       ? SaveDataCollector.collectMagicContainer(npc.magicInventory)

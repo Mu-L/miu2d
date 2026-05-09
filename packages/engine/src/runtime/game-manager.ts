@@ -57,6 +57,7 @@ import type { GoodsItemInfo } from "../player/goods/goods-list-manager";
 import type { PlayerMagicInventory } from "../player/magic/player-magic-inventory";
 import type { PartnerListManager } from "../player/partner-list";
 import { Player } from "../player/player";
+import { findApiPlayerByIndex } from "../storage/loader-data-helpers";
 import type { ScreenEffects } from "../renderer/screen-effects";
 import { clearAsfCache } from "../resource/format/asf";
 import { clearMpcCache } from "../resource/format/mpc";
@@ -547,7 +548,20 @@ export class GameManager {
       setMapTime: (time) => this.setMapTime(time),
       saveMapTrap: () => this.saveMapTrap(),
       changePlayer: async (index) => {
+        // 1. 若目标 index 当前是伙伴 → 先 flush 其成长数据并从队伍移除（避免重复）
+        const targetApi = findApiPlayerByIndex(index);
+        const targetName = targetApi?.name;
+        if (targetName) {
+          const partnerNpc = this.npcManager.getNpc(targetName);
+          if (partnerNpc?.isPartner) {
+            this.loader.flushNpcToProfile(partnerNpc);
+            this.npcManager.deleteNpc(targetName);
+            logger.log(`[changePlayer] removed partner ${targetName} → becoming player`);
+          }
+        }
+        // 2. flush 当前主角 → profile[idx:oldIdx]
         this.loader.flushCurrentPlayerToProfile();
+        // 3. 切换 index 并从档案恢复
         this.player.setPlayerIndexSilent(index);
         await this.loader.loadProfileToPlayer();
         this.config.notifyPlayerStateChanged();
