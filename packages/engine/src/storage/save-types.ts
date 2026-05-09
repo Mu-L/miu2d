@@ -415,6 +415,19 @@ export interface PartnerRegistryItem {
 }
 
 /**
+ * 统一角色档案（主角与伙伴共享）
+ * key 格式：API 注册角色用 "idx:N"，临时伙伴用 "name:xxx"
+ */
+export interface CharacterProfile {
+  /** 角色属性快照（兼容 Player 与 NPC 共享字段） */
+  player: PlayerSaveData | null;
+  magicContainer: MagicContainerSave;
+  goodsContainer: GoodsContainerSave;
+  /** 备忘录，仅曾任主角时存在 */
+  memo?: string[];
+}
+
+/**
  * 完整存档数据
  */
 export interface SaveData {
@@ -449,12 +462,19 @@ export interface SaveData {
   /** 截图预览 (base64) */
   screenshot?: string;
   /**
-   * 多角色存档数据 (可选，兼容旧存档)
-   * key: playerIndex (0-4)
-   * 保存在 PlayerChange 切换过程中保存到内存的角色数据
+   * 统一角色档案（替换 otherCharacters + partnerRegistry）
+   * key 格式：API 注册角色用 "idx:N"，临时伙伴用 "name:xxx"
+   */
+  characterProfiles?: Record<string, CharacterProfile>;
+  /**
+   * @deprecated 已被 characterProfiles 取代，仅为兼容旧存档保留
+   * 多角色存档数据，key: playerIndex (0-4)
    */
   otherCharacters?: Record<number, CharacterSaveSlot>;
-  /** 伙伴注册表（所有曾入队伙伴的完整数据，离队后保留） */
+  /**
+   * @deprecated 已被 characterProfiles 取代，仅为兼容旧存档保留
+   * 伙伴注册表（所有曾入队伙伴的完整数据，离队后保留）
+   */
   partnerRegistry?: Record<string, PartnerRegistryItem>;
 }
 
