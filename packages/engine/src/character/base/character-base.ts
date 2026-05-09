@@ -241,7 +241,7 @@ export abstract class CharacterBase extends Sprite implements CharacterInstance 
   backgroundTextureEquip: string = "";
 
   // === Level Config ===
-  readonly levelManager: LevelManager = new LevelManager();
+  levelManager: LevelManager = new LevelManager();
 
   get levelIniFile(): string {
     return this.levelManager.getLevelFile();

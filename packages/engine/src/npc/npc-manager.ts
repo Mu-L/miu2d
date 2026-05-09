@@ -109,7 +109,6 @@ export class NpcManager {
       removeAllPartner: () => this.removeAllPartner(),
       addNpcWithConfig: (c, x, y, d) => this.addNpcWithConfig(c, x, y, d),
       getCurrentMapName: () => this.engine.getCurrentMapName(),
-      getPlayerLevelIniFile: () => this._player.levelIniFile,
     };
   }
 
