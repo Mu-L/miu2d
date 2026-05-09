@@ -200,12 +200,14 @@ export function collectNpcSnapshot(npcs: Map<string, Npc>, partnersOnly: boolean
 
     // 伙伴武功/物品容器
     if (npc.isPartner && npc.magicInventory) {
-      (base as unknown as NpcSaveItem).magicContainer =
-        SaveDataCollector.collectMagicContainer(npc.magicInventory);
+      (base as unknown as NpcSaveItem).magicContainer = SaveDataCollector.collectMagicContainer(
+        npc.magicInventory
+      );
     }
     if (npc.isPartner && npc.goodsManager) {
-      (base as unknown as NpcSaveItem).goodsContainer =
-        SaveDataCollector.collectGoodsContainer(npc.goodsManager);
+      (base as unknown as NpcSaveItem).goodsContainer = SaveDataCollector.collectGoodsContainer(
+        npc.goodsManager
+      );
     }
 
     items.push(base as unknown as NpcSaveItem);

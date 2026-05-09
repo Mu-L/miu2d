@@ -28,8 +28,8 @@ import type { ObjManager } from "../obj";
 import type { Player } from "../player/player";
 import type { ScreenEffects } from "../renderer/screen-effects";
 import type { ScriptExecutor } from "../script/executor";
-import { CharacterMemoryStore } from "./character-memory-store";
-import { CharacterMemoryManager } from "./loader-character-memory";
+import { CharacterProfileStore } from "./character-profile-store";
+import { CharacterProfileLoader } from "./loader-character-profile";
 import {
   collectTrapGroups,
   collectTrapSnapshot,
@@ -140,18 +140,18 @@ export class Loader {
   private deps: LoaderDependencies;
 
   /**
-   * 多角色内存存储
-   * key: playerIndex (0-4)
+   * 统一角色档案存储（主角 + 伙伴）
+   * key: "idx:N" (API 注册角色) | "name:xxx" (临时伙伴)
    * 当加载存档或开始新游戏时清空
    */
-  private readonly characterMemoryStore = new CharacterMemoryStore();
-  private readonly characterMemoryManager: CharacterMemoryManager;
+  private readonly characterProfileStore = new CharacterProfileStore();
+  private readonly characterProfileLoader: CharacterProfileLoader;
 
   constructor(deps: LoaderDependencies) {
     this.deps = deps;
-    this.characterMemoryManager = new CharacterMemoryManager(
+    this.characterProfileLoader = new CharacterProfileLoader(
       { player: deps.player, memoListManager: deps.memoListManager },
-      this.characterMemoryStore
+      this.characterProfileStore
     );
   }
 
@@ -196,8 +196,8 @@ export class Loader {
     resetEventId();
     resetGameTime();
 
-    // 清空多角色内存存储（新游戏从资源文件加载初始数据）
-    this.characterMemoryStore.clear();
+    // 清空多角色档案存储（新游戏从资源文件加载初始数据）
+    this.characterProfileStore.clear();
 
     // 清空分组存储（新游戏无历史 SaveNpc/SaveObj 数据）
     this.deps.npcManager.clearNpcGroups();
@@ -438,19 +438,29 @@ export class Loader {
   // ============= 多主角切换 =============
 
   /**
-   * 保存当前玩家数据到内存
+   * 将当前主角数据写入档案存储
    * 在切换角色前调用
    */
-  saveCurrentPlayerToMemory(): void {
-    this.characterMemoryManager.saveCurrentPlayer();
+  flushCurrentPlayerToProfile(): void {
+    this.characterProfileLoader.flushPlayerToProfile();
   }
 
   /**
-   * 从内存加载玩家数据
+   * 从档案存储恢复主角数据
    * 在切换角色后调用
    */
-  async loadPlayerDataFromMemory(): Promise<void> {
-    await this.characterMemoryManager.loadPlayerData();
+  async loadProfileToPlayer(): Promise<void> {
+    await this.characterProfileLoader.loadProfileToPlayer();
+  }
+
+  /** 将伙伴写入档案存储（暴露给 ScriptCommandContext 注入） */
+  flushNpcToProfile(npc: import("../npc/npc").Npc): void {
+    this.characterProfileLoader.flushNpcToProfile(npc);
+  }
+
+  /** 从档案存储恢复伙伴（暴露给 ScriptCommandContext 注入） */
+  async loadProfileToNpc(npc: import("../npc/npc").Npc): Promise<void> {
+    await this.characterProfileLoader.loadProfileToNpc(npc);
   }
 
   /**
@@ -502,7 +512,7 @@ export class Loader {
       npcManager.clearAllNpc();
       objManager.clearAll();
       audioManager.stopMusic();
-      this.characterMemoryStore.clear();
+      this.characterProfileStore.clear();
       npcManager.clearNpcGroups();
       objManager.clearObjGroups();
       this.deps.map.resetTrapState();
@@ -641,12 +651,59 @@ export class Loader {
       if (data.groups?.npc) npcManager.setNpcGroups(data.groups.npc);
       if (data.groups?.obj) objManager.setObjGroups(data.groups.obj);
 
-      // 恢复伙伴注册表
-      if (data.partnerRegistry) {
-        npcManager.setPartnerRegistry(data.partnerRegistry);
-        for (const [name, entry] of Object.entries(data.partnerRegistry)) {
-          const magicCount = entry.magicContainer?.panelMagics?.filter(Boolean).length ?? 0;
-          logger.log(`[Load] Registry ${name}: ${magicCount} magics`);
+      // 恢复统一角色档案（characterProfiles 优先；否则从旧字段迁移）
+      if (data.characterProfiles) {
+        this.characterProfileStore.deserialize(data.characterProfiles);
+        for (const [key, profile] of Object.entries(data.characterProfiles)) {
+          const magicCount = profile.magicContainer?.panelMagics?.filter(Boolean).length ?? 0;
+          logger.log(`[Load] Profile ${key}: ${magicCount} magics`);
+        }
+      } else {
+        // 兼容旧存档：合并 otherCharacters + partnerRegistry → characterProfiles
+        const migrated: Record<string, import("./save-types").CharacterProfile> = {};
+        if (data.otherCharacters) {
+          for (const [idx, slot] of Object.entries(data.otherCharacters)) {
+            migrated[`idx:${idx}`] = {
+              player: slot.player ?? null,
+              magicContainer: slot.magicContainer ?? {
+                panelMagics: [],
+                xiuLianMagic: null,
+                bottomMagics: [],
+                hiddenMagics: [],
+              },
+              goodsContainer: slot.goodsContainer ?? {
+                bagItems: [],
+                equipItems: [],
+                bottomItems: [],
+              },
+              memo: slot.memo ?? undefined,
+            };
+          }
+        }
+        if (data.partnerRegistry) {
+          const players = getPlayersData();
+          for (const [name, entry] of Object.entries(data.partnerRegistry)) {
+            const apiPlayer = players?.find((p) => p.name === name);
+            const key = apiPlayer ? `idx:${apiPlayer.index}` : `name:${name}`;
+            if (migrated[key]) {
+              logger.log(
+                `[Load] Migration conflict on ${key} (partner ${name}); keeping existing player profile`
+              );
+              migrated[key].magicContainer = entry.magicContainer ?? migrated[key].magicContainer;
+              migrated[key].goodsContainer = entry.goodsContainer ?? migrated[key].goodsContainer;
+            } else {
+              migrated[key] = {
+                player: entry.character as unknown as import("./save-types").PlayerSaveData,
+                magicContainer: entry.magicContainer,
+                goodsContainer: entry.goodsContainer,
+              };
+            }
+            const magicCount = entry.magicContainer?.panelMagics?.filter(Boolean).length ?? 0;
+            logger.log(`[Load] Migrated partner ${name} → ${key} (${magicCount} magics)`);
+          }
+        }
+        if (Object.keys(migrated).length > 0) {
+          this.characterProfileStore.deserialize(migrated);
         }
       }
 
@@ -740,10 +797,7 @@ export class Loader {
       this.deps.centerCameraOnPlayer();
       this.deps.onLoadComplete?.();
 
-      // 恢复其他角色数据到内存
-      if (data.otherCharacters) {
-        this.characterMemoryStore.restoreFromSave(data.otherCharacters);
-      }
+      // 注：旧版 otherCharacters 已在前面与 partnerRegistry 一起迁移到 characterProfiles
 
       // 执行淡入效果
       screenEffects.fadeIn();
@@ -881,30 +935,22 @@ export class Loader {
         trap: collectTrapGroups(this.deps.map),
       },
 
-      // 多角色数据 (PlayerChange 切换过的角色)
-      otherCharacters: this.characterMemoryStore.collectForSave(),
-
-      // 伙伴注册表（持久化所有曾入队伙伴的完整数据）
-      partnerRegistry: (() => {
-        // 从当前活跃伙伴更新注册表
+      // 统一角色档案（主角 + 所有伙伴）
+      characterProfiles: (() => {
+        // 先把当前所有活跃伙伴写入档案
         for (const partner of npcManager.getAllPartner()) {
-          const entry = partner.collectPartnerRegistry();
-          if (entry) {
-            npcManager.updatePartnerRegistryEntry(partner.name, entry);
-            const magicCount = entry.magicContainer?.panelMagics?.filter(Boolean).length ?? 0;
-            logger.log(
-              `[Save] Partner ${partner.name} → registry (${magicCount} magics, kind=${partner.kind})`
-            );
+          this.characterProfileLoader.flushNpcToProfile(partner);
+        }
+        // 再写入当前主角
+        this.characterProfileLoader.flushPlayerToProfile();
+        const profiles = this.characterProfileStore.serialize();
+        if (profiles) {
+          for (const [key, profile] of Object.entries(profiles)) {
+            const magicCount = profile.magicContainer?.panelMagics?.filter(Boolean).length ?? 0;
+            logger.log(`[Save] Profile ${key}: ${magicCount} magics`);
           }
         }
-        const registry = npcManager.serializePartnerRegistry();
-        if (registry) {
-          for (const [name, entry] of Object.entries(registry)) {
-            const magicCount = entry.magicContainer?.panelMagics?.filter(Boolean).length ?? 0;
-            logger.log(`[Save] Registry ${name}: ${magicCount} magics`);
-          }
-        }
-        return registry;
+        return profiles;
       })(),
     };
 

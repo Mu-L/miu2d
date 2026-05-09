@@ -547,11 +547,13 @@ export class GameManager {
       setMapTime: (time) => this.setMapTime(time),
       saveMapTrap: () => this.saveMapTrap(),
       changePlayer: async (index) => {
-        this.loader.saveCurrentPlayerToMemory();
+        this.loader.flushCurrentPlayerToProfile();
         this.player.setPlayerIndexSilent(index);
-        await this.loader.loadPlayerDataFromMemory();
+        await this.loader.loadProfileToPlayer();
         this.config.notifyPlayerStateChanged();
       },
+      flushNpcToProfile: (npc) => this.loader.flushNpcToProfile(npc),
+      loadProfileToNpc: (npc) => this.loader.loadProfileToNpc(npc),
       onScriptStart: this.debugManager.onScriptStart,
       onLineExecuted: this.debugManager.onLineExecuted,
       clearMouseInput: this.clearMouseInput,

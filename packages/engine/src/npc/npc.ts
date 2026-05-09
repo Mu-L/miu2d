@@ -4,20 +4,13 @@
  */
 
 import { Character } from "../character";
-import {
-  applyFlatDataToCharacter,
-  extractFlatDataFromCharacter,
-  loadCharacterConfig,
-} from "../character/character-config";
+import { loadCharacterConfig } from "../character/character-config";
 import { logger } from "../core/logger";
 import type { CharacterConfig, Vector2 } from "../core/types";
 import { CharacterKind, CharacterState } from "../core/types";
 import type { MagicData } from "../magic/types";
 import { GoodsListManager } from "../player/goods/goods-list-manager";
 import { PlayerMagicInventory } from "../player/magic/player-magic-inventory";
-import { SaveDataCollector } from "../storage/save-data-collector";
-import { loadGoodsContainer, loadMagicContainer } from "../storage/loader-data-helpers";
-import type { PartnerRegistryItem } from "../storage/save-types";
 import type { AsfData } from "../resource/format/asf";
 import { generateId, tileToPixel } from "../utils";
 import { getPositionInDirection } from "../utils/direction";
@@ -54,6 +47,9 @@ export class Npc extends Character {
   private _magicInventory: PlayerMagicInventory | null = null;
   private _goodsManager: GoodsListManager | null = null;
 
+  /** API 注册角色 index（仅当 NPC 对应 API 玩家时设置） */
+  playerIndex?: number;
+
   constructor(id?: string) {
     super();
     this._id = id || generateId();
@@ -86,44 +82,8 @@ export class Npc extends Character {
     if (!this._goodsManager) {
       this._goodsManager = new GoodsListManager();
     }
-    // 伙伴共享主角的等级配置管理器
-    this.levelManager = this.engine.player.levelManager;
-  }
-
-  /** 从伙伴注册表恢复角色属性 + 武功 + 物品 */
-  async applyPartnerRegistry(data: PartnerRegistryItem): Promise<void> {
-    this.initPartnerContainers();
-    applyFlatDataToCharacter(data.character as unknown as Record<string, unknown>, this, false);
-    this.applyConfigSetters();
-    if (data.magicContainer && this._magicInventory) {
-      await loadMagicContainer(data.magicContainer, this._magicInventory);
-      const count = this._magicInventory.getStoreMagics().filter((m) => m?.magic).length;
-      logger.log(`[Npc] ${this.name} applyPartnerRegistry: restored ${count} magics`);
-    }
-    if (data.goodsContainer && this._goodsManager) {
-      loadGoodsContainer(data.goodsContainer, this._goodsManager);
-    }
-  }
-
-  /** 收集当前伙伴数据到注册表条目 */
-  collectPartnerRegistry(): PartnerRegistryItem | null {
-    if (!this.isPartner) return null;
-    const character = extractFlatDataFromCharacter(this, false) as unknown as import("../storage/save-types").CharacterSaveBase;
-    character.dir = this.currentDirection;
-    const magicContainer = this._magicInventory
-      ? SaveDataCollector.collectMagicContainer(this._magicInventory)
-      : { panelMagics: [], xiuLianMagic: null, bottomMagics: [], hiddenMagics: [] };
-    const magicCount = magicContainer.panelMagics.filter(Boolean).length;
-    logger.log(
-      `[Npc] ${this.name} collectPartnerRegistry: ${magicCount} magics, kind=${this.kind}`
-    );
-    return {
-      character,
-      magicContainer,
-      goodsContainer: this._goodsManager
-        ? SaveDataCollector.collectGoodsContainer(this._goodsManager)
-        : { bagItems: [], equipItems: [], bottomItems: [] },
-    };
+    // 伙伴共享 NpcManager 持有的等级配置管理器
+    this.levelManager = this.npcManager.getLevelManager();
   }
 
   // === Manager 访问（通过 EngineContext）===

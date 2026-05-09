@@ -6,10 +6,7 @@ import type { Character } from "../../character/character";
 import { LevelManager } from "../../character/level/level-manager";
 import { logger } from "../../core/logger";
 import { CharacterState } from "../../core/types";
-import { getPlayersData } from "../../data/game-data-api";
 import { getMagic, preloadMagicAsf } from "../../magic/magic-config-loader";
-import { loadGoodsFromJSON, loadMagicsFromJSON } from "../../storage/loader-data-helpers";
-import type { GoodsItemData, MagicItemData } from "../../storage/save-types";
 import { ResourcePath } from "../../resource/resource-paths";
 import { tileToPixel } from "../../utils";
 import { PathType } from "../../utils/path-finder";
@@ -24,8 +21,8 @@ export function createNpcAPI(ctx: ScriptCommandContext, resolver: BlockingResolv
 
   /**
    * 处理 NPC kind 变化，统一伙伴入队/离队逻辑。
-   * 入队（→Follower）：从 registry 恢复或从 API 初始数据初始化伙伴容器。
-   * 离队（Follower→其他）：保存到 registry 并解除与主角共享的 LevelManager。
+   * 入队（→Follower）：通过 ctx.loadProfileToNpc 从档案恢复或回退到 API 初始化。
+   * 离队（Follower→其他）：通过 ctx.flushNpcToProfile 写入档案并解除等级管理器共享。
    */
   const applyKindTransition = async (
     npc: import("../../npc/npc").Npc,
@@ -34,14 +31,8 @@ export function createNpcAPI(ctx: ScriptCommandContext, resolver: BlockingResolv
     const wasPartner = npc.isPartner;
 
     if (wasPartner && kind !== 3) {
-      const entry = npc.collectPartnerRegistry();
-      if (entry) {
-        npcManager.updatePartnerRegistryEntry(npc.name, entry);
-        logger.log(
-          `[NpcAPI] Partner ${npc.name} leaving → saved to registry ` +
-            `(magics=${entry.magicContainer?.panelMagics?.filter(Boolean).length ?? 0})`
-        );
-      }
+      ctx.flushNpcToProfile?.(npc);
+      logger.log(`[NpcAPI] Partner ${npc.name} leaving → flushed to profile`);
     }
 
     npc.kind = kind;
@@ -52,38 +43,8 @@ export function createNpcAPI(ctx: ScriptCommandContext, resolver: BlockingResolv
     }
 
     if (kind === 3 && !wasPartner) {
-      const registryEntry = npcManager.getPartnerRegistryEntry(npc.name);
-      if (registryEntry) {
-        await npc.applyPartnerRegistry(registryEntry);
-        const magicCount = registryEntry.magicContainer?.panelMagics?.filter(Boolean).length ?? 0;
-        logger.log(
-          `[NpcAPI] Partner ${npc.name} restored from registry (${magicCount} magics)`
-        );
-        return;
-      }
-      npc.initPartnerContainers();
-      const players = getPlayersData();
-      const apiPlayer = players?.find((p) => p.name === npc.name);
-      if (apiPlayer) {
-        if (apiPlayer.initialMagics?.length > 0 && npc.magicInventory) {
-          const magicItems: MagicItemData[] = apiPlayer.initialMagics.map((m, i) => ({
-            fileName: m.iniFile,
-            level: m.level,
-            exp: m.exp,
-            index: m.index ?? i + 1,
-          }));
-          await loadMagicsFromJSON(magicItems, 0, npc.magicInventory);
-        }
-        if (apiPlayer.initialGoods?.length > 0 && npc.goodsManager) {
-          const goodsItems: GoodsItemData[] = apiPlayer.initialGoods.map((g) => ({
-            fileName: g.iniFile,
-            count: g.number,
-            index: g.index,
-          }));
-          loadGoodsFromJSON(goodsItems, [], npc.goodsManager);
-        }
-      }
-      logger.log(`[NpcAPI] Partner ${npc.name} initialized from API data`);
+      await ctx.loadProfileToNpc?.(npc);
+      logger.log(`[NpcAPI] Partner ${npc.name} loaded from profile`);
     }
   };
 

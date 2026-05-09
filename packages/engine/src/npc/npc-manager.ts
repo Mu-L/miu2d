@@ -7,14 +7,15 @@ import type { Character } from "../character";
 import type { CharacterBase } from "../character/base";
 import { loadCharacterConfig } from "../character/character-config";
 import { getNpcLevelDetail } from "../character/level";
-import { getGameConfig } from "../data/game-data-api";
+import type { LevelManager } from "../character/level/level-manager";
 import { getEngineContext } from "../core/engine-context";
 import { logger } from "../core/logger";
 import type { CharacterConfig, Vector2 } from "../core/types";
 import { CharacterKind, type CharacterState, type Direction } from "../core/types";
+import { getGameConfig } from "../data/game-data-api";
 import { type DropCharacter, getDropObj } from "../loot/good-drop";
 import { resolveScriptPath } from "../resource/resource-paths";
-import type { NpcSaveItem, PartnerRegistryItem } from "../storage/save-types";
+import type { NpcSaveItem } from "../storage/save-types";
 import { getViewTileDistance } from "../utils";
 import { PathType } from "../utils/path-finder";
 import { Npc } from "./npc";
@@ -49,10 +50,10 @@ export class NpcManager {
   private npcGroups: Map<string, NpcSaveItem[]> = new Map();
 
   /**
-   * 伙伴注册表（持久化伙伴数据，离队后保留）
-   * key = 伙伴名字
+   * 伙伴等级配置管理器（NpcManager 持有，伙伴 NPC 共享）
+   * 默认指向主角的 LevelManager；可通过 setLevelManager 显式覆盖
    */
-  private _partnerRegistry: Map<string, PartnerRegistryItem> = new Map();
+  private _levelManager: LevelManager | null = null;
 
   // List of dead NPCs
   private _deadNpcs: Npc[] = [];
@@ -129,18 +130,14 @@ export class NpcManager {
     // 标记该 NPC，死亡动画完成同步删除时跳过，等脚本执行完再删除
     this._npcsPendingDeathScript.add(npc.id);
     logger.log(`[NpcManager] Queueing death script for ${npc.name}: ${fullPath}`);
-    engine.queueScript(
-      fullPath,
-      { type: "npc", id: npc.id },
-      () => {
-        this._npcsPendingDeathScript.delete(npc.id);
-        // 只有当 NPC 真正死亡（isDeath）且无复活时，才删除
-        if (npc.isDeath && npc.reviveMilliseconds === 0) {
-          this.npcs.delete(npc.id);
-          logger.log(`[NpcManager] Removed dead NPC after death script: ${npc.name}`);
-        }
+    engine.queueScript(fullPath, { type: "npc", id: npc.id }, () => {
+      this._npcsPendingDeathScript.delete(npc.id);
+      // 只有当 NPC 真正死亡（isDeath）且无复活时，才删除
+      if (npc.isDeath && npc.reviveMilliseconds === 0) {
+        this.npcs.delete(npc.id);
+        logger.log(`[NpcManager] Removed dead NPC after death script: ${npc.name}`);
       }
-    );
+    });
   }
 
   /**
@@ -848,30 +845,16 @@ export class NpcManager {
     this.npcGroups.clear();
   }
 
-  // === Partner Registry ===
+  // === Partner LevelManager ===
 
-  getPartnerRegistry(): Map<string, PartnerRegistryItem> {
-    return this._partnerRegistry;
+  /** 获取伙伴共享的等级配置管理器（默认 fallback 到主角的 LevelManager） */
+  getLevelManager(): LevelManager {
+    if (this._levelManager) return this._levelManager;
+    return this.engine.player.levelManager;
   }
 
-  setPartnerRegistry(store: Record<string, PartnerRegistryItem>): void {
-    this._partnerRegistry.clear();
-    for (const [key, value] of Object.entries(store)) {
-      this._partnerRegistry.set(key, value);
-    }
-  }
-
-  getPartnerRegistryEntry(name: string): PartnerRegistryItem | undefined {
-    return this._partnerRegistry.get(name);
-  }
-
-  updatePartnerRegistryEntry(name: string, entry: PartnerRegistryItem): void {
-    this._partnerRegistry.set(name, entry);
-  }
-
-  serializePartnerRegistry(): Record<string, PartnerRegistryItem> | undefined {
-    if (this._partnerRegistry.size === 0) return undefined;
-    return Object.fromEntries(this._partnerRegistry);
+  setLevelManager(manager: LevelManager): void {
+    this._levelManager = manager;
   }
 
   async loadPartner(filePath: string): Promise<void> {

@@ -47,7 +47,9 @@ export function saveNpc(deps: NpcSaveLoadDeps, fileName?: string): void {
   deps.setFileName(saveFileName);
   const items = collectSnapshot(deps.npcs, false);
   deps.npcGroups.set(saveFileName.toLowerCase(), items);
-  const npcNames = items.map((i) => (i as unknown as Record<string, unknown>).name ?? "?").join(", ");
+  const npcNames = items
+    .map((i) => (i as unknown as Record<string, unknown>).name ?? "?")
+    .join(", ");
   logger.log(
     `[NpcManager] SaveNpc: ${saveFileName} (${items.length} NPCs saved to groups) [${npcNames}]`
   );
@@ -221,8 +223,12 @@ export async function createNpcFromData(
   // 伙伴武功/物品容器
   if (npc.isPartner) {
     npc.initPartnerContainers();
-    const magicData = (data as Record<string, unknown>).magicContainer as MagicContainerSave | undefined;
-    const goodsData = (data as Record<string, unknown>).goodsContainer as GoodsContainerSave | undefined;
+    const magicData = (data as Record<string, unknown>).magicContainer as
+      | MagicContainerSave
+      | undefined;
+    const goodsData = (data as Record<string, unknown>).goodsContainer as
+      | GoodsContainerSave
+      | undefined;
     if (magicData && npc.magicInventory) {
       await loadMagicContainer(magicData, npc.magicInventory);
     }

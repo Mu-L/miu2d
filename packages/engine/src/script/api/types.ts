@@ -60,6 +60,11 @@ export interface ScriptCommandContext
   loadMap: (mapPath: string) => Promise<void>;
   loadNpcFile: (fileName: string) => Promise<void>;
   loadGameSave: (index: number) => Promise<void>;
+
+  /** 将伙伴运行时数据写入 CharacterProfileStore（由 GameSaveManager 注入） */
+  flushNpcToProfile?: (npc: Npc) => void;
+  /** 从 CharacterProfileStore 恢复伙伴运行时数据（由 GameSaveManager 注入） */
+  loadProfileToNpc?: (npc: Npc) => Promise<void>;
   setMapTrap: (trapIndex: number, trapFileName: string, mapName?: string) => void;
   checkTrap: (tile: Vector2) => void;
   cameraMoveTo: (direction: number, distance: number, speed: number) => void;
