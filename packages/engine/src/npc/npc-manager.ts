@@ -407,15 +407,6 @@ export class NpcManager {
     if (gameConfig?.effectFormulaAdditive) {
       npc.effectFormulaAdditive = true;
     }
-
-    // 伙伴使用主角的等级配置，确保升级逻辑正常工作
-    if (npc.isPartner) {
-      const playerLevelFile = this._player.levelIniFile;
-      if (playerLevelFile) {
-        await npc.levelManager.setLevelFile(playerLevelFile);
-      }
-    }
-
     this.npcs.set(npc.id, npc);
 
     logger.log(
