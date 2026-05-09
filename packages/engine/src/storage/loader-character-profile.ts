@@ -159,7 +159,7 @@ export class CharacterProfileLoader {
 
     const base = extractFlatDataFromCharacter(npc, false);
     base.dir = npc.currentDirection;
-    profile.player = base as unknown as PlayerSaveData;
+    profile.player = this.filterProfileForNpcApply(base) as unknown as PlayerSaveData;
 
     profile.magicContainer = npc.magicInventory
       ? SaveDataCollector.collectMagicContainer(npc.magicInventory)
@@ -172,6 +172,55 @@ export class CharacterProfileLoader {
     logger.log(`[ProfileLoader] flushNpcToProfile key=${key} magics=${magicCount}`);
   }
 
+  /**
+   * 这些字段属于"当前场景/身份"运行时状态，不应被档案覆盖。
+   * 入队/换主角时 NPC 已经由 LoadNpc + SetNpcPos + SetNpcKind + SetNpcScript 设置好了
+   * 名字、kind、脚本、位置、方向、AI 状态，档案只负责恢复成长性数据
+   * （等级、经验、属性上限/当前值、武功、物品装备）。
+   */
+  private static readonly SCENE_OVERWRITE_BLACKLIST = new Set<string>([
+    "name",
+    "npcIni",
+    "kind",
+    "relation",
+    "group",
+    "fixedPos",
+    "currentFixedPosIndex",
+    "scriptFile",
+    "scriptFileRight",
+    "deathScript",
+    "timerScriptFile",
+    "timerScriptInterval",
+    "aiType",
+    "pathFinder",
+    "noAutoAttackPlayer",
+    "stopFindingTarget",
+    "mapX",
+    "mapY",
+    "dir",
+    "state",
+    "action",
+    "destinationMapPosX",
+    "destinationMapPosY",
+    "isDeath",
+    "isDeathInvoked",
+    "leftMillisecondsToRevive",
+    "isBodyIniAdded",
+    "visibleVariableName",
+    "visibleVariableValue",
+  ]);
+
+  private filterProfileForNpcApply(
+    data: Record<string, unknown>
+  ): Record<string, unknown> {
+    const blacklist = CharacterProfileLoader.SCENE_OVERWRITE_BLACKLIST;
+    const filtered: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(data)) {
+      if (!blacklist.has(k)) filtered[k] = v;
+    }
+    return filtered;
+  }
+
   /** 从 profile 恢复伙伴；若 profile 不存在则回退到 API 初始化 */
   async loadProfileToNpc(npc: Npc): Promise<void> {
     const key = this.resolveNpcKey(npc.name);
@@ -180,7 +229,10 @@ export class CharacterProfileLoader {
     npc.initPartnerContainers();
 
     if (profile?.player) {
-      applyFlatDataToCharacter(profile.player as unknown as Record<string, unknown>, npc, false);
+      const filtered = this.filterProfileForNpcApply(
+        profile.player as unknown as Record<string, unknown>
+      );
+      applyFlatDataToCharacter(filtered, npc, false);
       npc.applyConfigSetters();
     }
 
