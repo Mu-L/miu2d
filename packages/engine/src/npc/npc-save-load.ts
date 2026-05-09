@@ -30,8 +30,6 @@ export interface NpcSaveLoadDeps {
     dir?: Direction
   ): Promise<Npc>;
   getCurrentMapName(): string;
-  /** 获取主角的等级配置文件名（伙伴跟随主角难度） */
-  getPlayerLevelIniFile(): string;
 }
 
 // ============= 快照 / Groups =============
@@ -246,11 +244,7 @@ export async function createNpcFromData(
     `[NpcManager] NPC ${npc.name} check: isEnemy=${npc.isEnemy} isPartner=${npc.isPartner} lifeMax=${npc.lifeMax} level=${npc.level}`
   );
   if (npc.isPartner) {
-    // 伙伴使用主角的等级配置（跟随难度）
-    const playerLevelFile = deps.getPlayerLevelIniFile();
-    if (playerLevelFile) {
-      await npc.levelManager.setLevelFile(playerLevelFile);
-    }
+    // 伙伴已通过 initPartnerContainers 共享主角的 LevelManager
     const levelDetail = npc.levelManager.getLevelDetail(npc.level);
     if (levelDetail) {
       const savedLife = npc.life;
@@ -272,7 +266,7 @@ export async function createNpcFromData(
       npc.mana = Math.min(npc.mana, npc.manaMax);
 
       logger.log(
-        `[NpcManager] Partner ${npc.name} stats recalculated from level ${npc.level} (${playerLevelFile}): attack=${npc.attack} defend=${npc.defend} lifeMax=${npc.lifeMax} evade=${npc.evade}`
+        `[NpcManager] Partner ${npc.name} stats recalculated from level ${npc.level}: attack=${npc.attack} defend=${npc.defend} lifeMax=${npc.lifeMax} evade=${npc.evade}`
       );
     } else {
       logger.warn(`[NpcManager] Partner ${npc.name} at level ${npc.level}, no level data found`);

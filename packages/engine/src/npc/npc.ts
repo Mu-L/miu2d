@@ -86,6 +86,8 @@ export class Npc extends Character {
     if (!this._goodsManager) {
       this._goodsManager = new GoodsListManager();
     }
+    // 伙伴共享主角的等级配置管理器
+    this.levelManager = this.engine.player.levelManager;
   }
 
   /** 从伙伴注册表恢复角色属性 + 武功 + 物品 */

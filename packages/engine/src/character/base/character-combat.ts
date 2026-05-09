@@ -6,7 +6,6 @@
  */
 
 import { getCharacterDeathExp } from "../../combat/effect-calc";
-import { getDefaultPlayerLevelKey, getLevelConfigFromCache } from "../../character/level/level-config-loader";
 import { logger } from "../../core/logger";
 import { CharacterState } from "../../core/types";
 import { type AsfData, getCachedAsf, loadAsf } from "../../resource/format/asf";
@@ -104,20 +103,8 @@ export abstract class CharacterCombat extends CharacterMovement {
     }
   }
 
-  /** 确保伙伴有等级配置（从缓存加载主角等级配置） */
-  private ensurePartnerLevelConfig(): ReturnType<typeof getLevelConfigFromCache> {
-    let config = this.levelManager.getLevelConfig();
-    if (!config && this.isPartner) {
-      config = getLevelConfigFromCache(getDefaultPlayerLevelKey());
-      if (config) {
-        this.levelManager.setLevelConfig(config);
-      }
-    }
-    return config;
-  }
-
   private toLevelByExp(exp: number): void {
-    const levelConfig = this.ensurePartnerLevelConfig();
+    const levelConfig = this.levelManager.getLevelConfig();
     if (!levelConfig) return;
 
     const count = levelConfig.size;
@@ -156,7 +143,7 @@ export abstract class CharacterCombat extends CharacterMovement {
    * 升级到指定等级
    */
   levelUpTo(level: number): void {
-    const levelConfig = this.ensurePartnerLevelConfig();
+    const levelConfig = this.levelManager.getLevelConfig();
     if (!levelConfig) {
       this.level = level;
       return;
