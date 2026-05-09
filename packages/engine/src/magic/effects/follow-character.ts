@@ -166,6 +166,24 @@ export const followCharacterEffect: MagicEffect = {
       }
     }
 
+    // 伙伴增益技能也给武功经验
+    if (caster.type === "npc" && caster.npc.isPartner) {
+      const partnerInventory = caster.npc.magicInventory;
+      if (partnerInventory) {
+        const level = caster.npc.level;
+        const magicExp = partnerInventory.getMagicExp(level);
+        if (magicExp > 0) {
+          const currentMagicInfo = partnerInventory.getCurrentMagicInUse();
+          if (currentMagicInfo?.magic) {
+            partnerInventory.addMagicExp(currentMagicInfo, magicExp);
+            logger.log(
+              `[FollowCharacter] Partner "${caster.npc.name}" magic "${currentMagicInfo.magic.name}" gains ${magicExp} buff exp (level=${level})`
+            );
+          }
+        }
+      }
+    }
+
     // 跟随角色类武功不造成伤害
     return 0;
   },
