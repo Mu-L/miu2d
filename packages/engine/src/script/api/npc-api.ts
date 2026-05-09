@@ -3,6 +3,7 @@
  */
 
 import type { Character } from "../../character/character";
+import { LevelManager } from "../../character/level/level-manager";
 import { logger } from "../../core/logger";
 import { CharacterState } from "../../core/types";
 import { getPlayersData } from "../../data/game-data-api";
@@ -20,6 +21,71 @@ import type { ScriptCommandContext } from "./types";
 export function createNpcAPI(ctx: ScriptCommandContext, resolver: BlockingResolver): NpcAPI {
   const { player, npcManager, getCharacterByName, getCharactersByName, isMapObstacleForCharacter } =
     ctx;
+
+  /**
+   * 处理 NPC kind 变化，统一伙伴入队/离队逻辑。
+   * 入队（→Follower）：从 registry 恢复或从 API 初始数据初始化伙伴容器。
+   * 离队（Follower→其他）：保存到 registry 并解除与主角共享的 LevelManager。
+   */
+  const applyKindTransition = async (
+    npc: import("../../npc/npc").Npc,
+    kind: number
+  ): Promise<void> => {
+    const wasPartner = npc.isPartner;
+
+    if (wasPartner && kind !== 3) {
+      const entry = npc.collectPartnerRegistry();
+      if (entry) {
+        npcManager.updatePartnerRegistryEntry(npc.name, entry);
+        logger.log(
+          `[NpcAPI] Partner ${npc.name} leaving → saved to registry ` +
+            `(magics=${entry.magicContainer?.panelMagics?.filter(Boolean).length ?? 0})`
+        );
+      }
+    }
+
+    npc.kind = kind;
+
+    if (wasPartner && kind !== 3) {
+      npc.levelManager = new LevelManager();
+      return;
+    }
+
+    if (kind === 3 && !wasPartner) {
+      const registryEntry = npcManager.getPartnerRegistryEntry(npc.name);
+      if (registryEntry) {
+        await npc.applyPartnerRegistry(registryEntry);
+        const magicCount = registryEntry.magicContainer?.panelMagics?.filter(Boolean).length ?? 0;
+        logger.log(
+          `[NpcAPI] Partner ${npc.name} restored from registry (${magicCount} magics)`
+        );
+        return;
+      }
+      npc.initPartnerContainers();
+      const players = getPlayersData();
+      const apiPlayer = players?.find((p) => p.name === npc.name);
+      if (apiPlayer) {
+        if (apiPlayer.initialMagics?.length > 0 && npc.magicInventory) {
+          const magicItems: MagicItemData[] = apiPlayer.initialMagics.map((m, i) => ({
+            fileName: m.iniFile,
+            level: m.level,
+            exp: m.exp,
+            index: m.index ?? i + 1,
+          }));
+          await loadMagicsFromJSON(magicItems, 0, npc.magicInventory);
+        }
+        if (apiPlayer.initialGoods?.length > 0 && npc.goodsManager) {
+          const goodsItems: GoodsItemData[] = apiPlayer.initialGoods.map((g) => ({
+            fileName: g.iniFile,
+            count: g.number,
+            index: g.index,
+          }));
+          loadGoodsFromJSON(goodsItems, [], npc.goodsManager);
+        }
+      }
+      logger.log(`[NpcAPI] Partner ${npc.name} initialized from API data`);
+    }
+  };
 
   return {
     add: async (npcFile, x, y, direction?) => {
@@ -231,65 +297,16 @@ export function createNpcAPI(ctx: ScriptCommandContext, resolver: BlockingResolv
     setKind: async (name, kind) => {
       const npcs = npcManager.getAllNpcsByName(name);
       for (const npc of npcs) {
-        const wasPartner = npc.isPartner;
-        // 离队前：保存当前伙伴数据到 registry（确保后续入队可恢复）
-        if (wasPartner && kind !== 3) {
-          const entry = npc.collectPartnerRegistry();
-          if (entry) {
-            npcManager.updatePartnerRegistryEntry(npc.name, entry);
-            logger.log(
-              `[NpcAPI] Partner ${npc.name} leaving → saved to registry ` +
-                `(magics=${entry.magicContainer?.panelMagics?.filter(Boolean).length ?? 0})`
-            );
-          }
-        }
-        npc.kind = kind;
-        // 伙伴入队：初始化容器并加载数据
-        if (kind === 3 && !wasPartner) {
-          const registryEntry = npcManager.getPartnerRegistryEntry(npc.name);
-          if (registryEntry) {
-            // 从注册表恢复
-            await npc.applyPartnerRegistry(registryEntry);
-            const magicCount = registryEntry.magicContainer?.panelMagics?.filter(Boolean).length ?? 0;
-            logger.log(
-              `[NpcAPI] Partner ${npc.name} restored from registry (${magicCount} magics)`
-            );
-          } else {
-            // 首次入队：从 API 初始数据加载
-            npc.initPartnerContainers();
-            const players = getPlayersData();
-            const apiPlayer = players?.find((p) => p.name === npc.name);
-            if (apiPlayer) {
-              if (apiPlayer.initialMagics?.length > 0 && npc.magicInventory) {
-                const magicItems: MagicItemData[] = apiPlayer.initialMagics.map((m, i) => ({
-                  fileName: m.iniFile,
-                  level: m.level,
-                  exp: m.exp,
-                  index: m.index ?? i + 1,
-                }));
-                await loadMagicsFromJSON(magicItems, 0, npc.magicInventory);
-              }
-              if (apiPlayer.initialGoods?.length > 0 && npc.goodsManager) {
-                const goodsItems: GoodsItemData[] = apiPlayer.initialGoods.map((g) => ({
-                  fileName: g.iniFile,
-                  count: g.number,
-                  index: g.index,
-                }));
-                loadGoodsFromJSON(goodsItems, [], npc.goodsManager);
-              }
-            }
-            logger.log(`[NpcAPI] Partner ${npc.name} initialized from API data`);
-          }
-        }
+        await applyKindTransition(npc, kind);
       }
       if (player.name === name) {
         player.kind = kind;
       }
     },
-    setKindById: (id, kind) => {
+    setKindById: async (id, kind) => {
       const npc = npcManager.getNpcById(id);
       if (npc) {
-        npc.kind = kind;
+        await applyKindTransition(npc, kind);
       }
     },
     setMagicFile: async (name, magicFile) => {

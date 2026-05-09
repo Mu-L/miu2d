@@ -387,8 +387,7 @@ export class Player extends PlayerCombat {
       }
     }
 
-    this.exp += amount;
-    this.checkLevelUp();
+    super.addExp(amount);
   }
 
   /**
@@ -443,16 +442,15 @@ export class Player extends PlayerCombat {
     logger.log(`[Player] Magic "${newMagic.name}" leveled up - stats added`);
   }
 
-  private checkLevelUp(): void {
-    while (this.exp >= this.levelUpExp && this.levelUpExp > 0) {
-      this.exp -= this.levelUpExp;
-      this.levelUp();
-    }
-  }
-
+  /**
+   * 升 1 级（用于调试/脚本）。
+   * Reference: JxqyHD/Engine/Player.cs - LevelUp()
+   * @returns 已达到最高等级时返回 false
+   */
   levelUp(): boolean {
-    const newLevel = this.level + 1;
-    return this.levelUpTo(newLevel);
+    if (this.levelUpExp <= 0) return false;
+    this.addExp(this.levelUpExp - this.exp + 1);
+    return true;
   }
 
   setLevelTo(level: number): void {
@@ -566,36 +564,6 @@ export class Player extends PlayerCombat {
    */
   async setLevelFile(filePath: string): Promise<void> {
     await this.levelManager.setLevelFile(filePath);
-  }
-
-  levelUpTo(targetLevel: number): boolean {
-    const currentLevel = this.level;
-    if (targetLevel <= currentLevel) return false;
-
-    const maxLevel = this.levelManager.getMaxLevel();
-
-    if (targetLevel > maxLevel) {
-      if (currentLevel < maxLevel) {
-        return this.levelUpTo(maxLevel);
-      }
-      this.exp = 0;
-      this.levelUpExp = 0;
-      return false;
-    }
-
-    const result = this.levelManager.calculateLevelUp(currentLevel, targetLevel);
-    if (result) {
-      this.applyLevelUpResult(result);
-    }
-    this.level = targetLevel;
-
-    if (targetLevel >= maxLevel) {
-      this.exp = 0;
-      this.levelUpExp = 0;
-    }
-
-    this.showMessage(`${this.name}的等级提升了`);
-    return true;
   }
 
   async initializeFromLevelConfig(level: number = 1): Promise<void> {

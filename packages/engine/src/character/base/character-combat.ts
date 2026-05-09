@@ -12,6 +12,7 @@ import { type AsfData, getCachedAsf, loadAsf } from "../../resource/format/asf";
 import { ResourcePath } from "../../resource/resource-paths";
 import { distance, getViewTileDistance, tileToPixel } from "../../utils";
 import type { LevelUpResult } from "../level/level-manager";
+import { levelFromExp } from "../level/level-manager";
 import type { CharacterBase, MagicToUseInfoItem } from "./character-base";
 import { CharacterMovement } from "./character-movement";
 
@@ -90,10 +91,11 @@ export abstract class CharacterCombat extends CharacterMovement {
   }
 
   /**
-   * 增加经验
+   * 增加经验。主角与伙伴共用此逻辑（伙伴通过 initPartnerContainers 共享主角的 LevelManager）
+   * Reference: JxqyHD/Engine/Character.cs - AddExp() / ToLevel()
    */
   addExp(amount: number): void {
-    if (this.levelUpExp <= 0 || (this.canLevelUp <= 0 && !this.isPartner)) return;
+    if (this.levelUpExp <= 0) return;
 
     this.exp += amount;
     if (this.exp > this.levelUpExp) {
@@ -103,20 +105,13 @@ export abstract class CharacterCombat extends CharacterMovement {
     }
   }
 
+  /**
+   * 根据当前累计经验跳转到对应等级。
+   */
   private toLevelByExp(exp: number): void {
     const levelConfig = this.levelManager.getLevelConfig();
     if (!levelConfig) return;
-
-    const count = levelConfig.size;
-    let targetLevel = 1;
-    for (let i = 1; i <= count; i++) {
-      const detail = levelConfig.get(i);
-      if (detail && detail.levelUpExp > exp) {
-        break;
-      }
-      targetLevel = i;
-    }
-    this.levelUpTo(targetLevel);
+    this.levelUpTo(levelFromExp(levelConfig, exp));
   }
 
   /**
@@ -140,7 +135,8 @@ export abstract class CharacterCombat extends CharacterMovement {
   }
 
   /**
-   * 升级到指定等级
+   * 升级到指定等级（也用于降级 - 例如调试工具）
+   * Reference: JxqyHD/Engine/Character.cs - LevelUpTo()
    */
   levelUpTo(level: number): void {
     const levelConfig = this.levelManager.getLevelConfig();
@@ -154,7 +150,6 @@ export abstract class CharacterCombat extends CharacterMovement {
     if (!levelConfig.has(targetLevel)) {
       if (targetLevel > levelConfig.size) {
         isMaxLevel = true;
-        // 找到最大可用等级
         for (let i = targetLevel; i >= 1; i--) {
           if (levelConfig.has(i)) {
             targetLevel = i;
@@ -176,7 +171,7 @@ export abstract class CharacterCombat extends CharacterMovement {
       this.levelUpExp = 0;
     }
 
-    this.level = level;
+    this.level = targetLevel;
   }
 
   isDead(): boolean {

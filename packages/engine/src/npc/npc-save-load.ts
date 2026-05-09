@@ -232,7 +232,9 @@ export async function createNpcFromData(
   }
 
   // 等级配置（异步加载配置文件）
-  if (npc.levelIniFile) {
+  // 伙伴共享主角的 LevelManager（在 initPartnerContainers 中已设置），
+  // 不允许覆盖，否则会污染主角的等级配置。
+  if (npc.levelIniFile && !npc.isPartner) {
     await npc.levelManager.setLevelFile(npc.levelIniFile);
   }
 
