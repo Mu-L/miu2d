@@ -63,6 +63,30 @@ export function calculateLevelUp(
   };
 }
 
+/**
+ * 根据累计经验值，从等级配置中计算应当对应的等级。
+ *
+ * 等级配置中 `levelUpExp` 为离开该等级所需的累计经验阈值；
+ * 选择第一个 `exp < levelUpExp` 的等级为目标等级（即"达到但未超过"的等级）。
+ * 若超过最高等级阈值，则返回最高等级。
+ *
+ * Reference: JxqyHD/Engine/Character.cs - ToLevel()
+ */
+export function levelFromExp(
+  config: Map<number, LevelDetail> | null,
+  exp: number
+): number {
+  if (!config || config.size === 0) return 1;
+  const count = config.size;
+  let target = 1;
+  for (; target <= count; target++) {
+    const detail = config.get(target);
+    if (detail && detail.levelUpExp > exp) break;
+  }
+  if (target > count) target = count;
+  return target;
+}
+
 // 全局 NPC 等级配置
 let _npcConfig: Map<number, LevelDetail> | null = null;
 

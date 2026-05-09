@@ -17,4 +17,5 @@ export {
   getNpcLevelDetail,
   initNpcLevelConfig,
   LevelManager,
+  levelFromExp,
 } from "./level-manager";

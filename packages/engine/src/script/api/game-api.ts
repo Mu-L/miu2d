@@ -121,8 +121,8 @@ export interface NpcAPI {
   save(fileName?: string): Promise<void>;
   watch(char1: string, char2: string, watchType: number): void;
   setAIEnabled(enabled: boolean): void;
-  setKind(name: string, kind: number): void;
-  setKindById(id: string, kind: number): void;
+  setKind(name: string, kind: number): void | Promise<void>;
+  setKindById(id: string, kind: number): void | Promise<void>;
   setMagicFile(name: string, magicFile: string): Promise<void>;
   setResource(name: string, resFile: string): void | Promise<void>;
   setAction(name: string, action: number, x?: number, y?: number): void;

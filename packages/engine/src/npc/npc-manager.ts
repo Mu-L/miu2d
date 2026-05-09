@@ -6,7 +6,7 @@
 import type { Character } from "../character";
 import type { CharacterBase } from "../character/base";
 import { loadCharacterConfig } from "../character/character-config";
-import { getLevelConfigFromCache, getNpcLevelDetail } from "../character/level";
+import { getNpcLevelDetail } from "../character/level";
 import { getGameConfig } from "../data/game-data-api";
 import { getEngineContext } from "../core/engine-context";
 import { logger } from "../core/logger";
@@ -909,22 +909,15 @@ export class NpcManager {
   /**
    * Set NPC level and update stats from level config
    * Reference: JxqyHD/Engine/Character.cs - SetLevelTo()
-   * Partners use player's level config (same difficulty)
+   * 伙伴通过 initPartnerContainers 已共享主角的 LevelManager，
+   * 因此使用 npc.levelManager 即可命中正确的等级表。
    */
   setNpcLevel(name: string, level: number): boolean {
     return this.withNpc(name, (npc) => {
       npc.level = level;
 
       let detail = npc.levelManager.getLevelDetail(level);
-
-      // 伙伴跟随主角难度配置；其他 NPC 回退到全局 NPC 等级配置
-      if (!detail && npc.isPartner) {
-        const playerFile = this._player.levelIniFile;
-        if (playerFile) {
-          const cfg = getLevelConfigFromCache(playerFile);
-          detail = cfg?.get(level) ?? null;
-        }
-      }
+      // 普通敌对/中立 NPC 没有自己的 LevelIni 时，回退到全局 NPC 等级配置
       if (!detail) {
         detail = getNpcLevelDetail(level);
       }
