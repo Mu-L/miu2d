@@ -89,6 +89,15 @@ export async function loadPlayerFromJSON(data: PlayerSaveData, player: Player): 
     await player.levelManager.setLevelFile(data.levelIniFile);
     logger.debug(`[Loader] Loaded player level config: ${data.levelIniFile}`);
   }
+
+  const maxLevel = player.levelManager.getMaxLevel();
+  if (maxLevel > 0 && player.level >= maxLevel && (player.exp !== 0 || player.levelUpExp !== 0)) {
+    logger.warn(
+      `[Loader] ${player.name} 已达满级(${maxLevel})但存档 exp=${player.exp} levelUpExp=${player.levelUpExp}，已归零修正`
+    );
+    player.exp = 0;
+    player.levelUpExp = 0;
+  }
 }
 
 /**
