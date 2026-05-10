@@ -145,20 +145,14 @@ export abstract class CharacterCombat extends CharacterMovement {
       return;
     }
 
+    const maxLevel = this.levelManager.getMaxLevel();
     let targetLevel = level;
     let isMaxLevel = false;
-    if (!levelConfig.has(targetLevel)) {
-      if (targetLevel > levelConfig.size) {
-        isMaxLevel = true;
-        for (let i = targetLevel; i >= 1; i--) {
-          if (levelConfig.has(i)) {
-            targetLevel = i;
-            break;
-          }
-        }
-      } else {
-        logger.warn(`[Character] ${this.name} LevelIni 没有设置等级 ${level}`);
-      }
+    if (targetLevel >= maxLevel) {
+      targetLevel = maxLevel;
+      isMaxLevel = true;
+    } else if (!levelConfig.has(targetLevel)) {
+      logger.warn(`[Character] ${this.name} LevelIni 没有设置等级 ${level}`);
     }
 
     const result = this.levelManager.calculateLevelUp(this.level, targetLevel);
