@@ -33,6 +33,12 @@ interface PendingInteraction {
   useRightScript: boolean;
   interactDistance: number; // 1 for obj, dialogRadius for NPC
   isRun: boolean;
+  /**
+   * 上一次 retry 时玩家所在的 tile
+   * 用于"目标 8 邻位全堵 → directionWalk 兜底 → 玩家走到障碍前 stand"场景：
+   * 若 retry 时玩家 tile 与上次相同 (没再前进)，说明真的卡死了，取消交互避免死循环
+   */
+  lastRetryTile: Vector2 | null;
 }
 
 /**
@@ -147,6 +153,23 @@ export class InputHandler {
           ? (this.pendingInteraction.target as Npc).tilePosition
           : (this.pendingInteraction.target as Obj).tilePosition;
 
+      // 卡住检测：本帧玩家 tile 与上次 retry 时一致 → 走不动了，取消交互
+      // 避免 NPC 完全被障碍包围时 directionWalk 兜底反复 stand 形成死循环
+      const playerTile = player.tilePosition;
+      const stuck =
+        this.pendingInteraction.lastRetryTile !== null &&
+        this.pendingInteraction.lastRetryTile.x === playerTile.x &&
+        this.pendingInteraction.lastRetryTile.y === playerTile.y;
+
+      if (stuck) {
+        const dist = getViewTileDistance(playerTile, targetTile);
+        logger.warn(
+          `[InputHandler] Stuck at (${playerTile.x}, ${playerTile.y}), distance=${dist}, required=${this.pendingInteraction.interactDistance} - canceling`
+        );
+        this.pendingInteraction = null;
+        return;
+      }
+
       // Try to find a new path to target
       const { isTileWalkable } = this.deps;
       const destTile = this.findWalkableDestination(
@@ -155,9 +178,9 @@ export class InputHandler {
         isTileWalkable
       );
 
+      const retryIsRun = this.pendingInteraction.isRun && player.canRunCheck();
       if (destTile) {
-        // Found a walkable destination, try again
-        const retryIsRun = this.pendingInteraction.isRun && player.canRunCheck();
+        // Found a walkable adjacency tile - try again
         if (retryIsRun) {
           player.runToTile(destTile.x, destTile.y);
         } else {
@@ -167,14 +190,18 @@ export class InputHandler {
           `[InputHandler] Retrying path to (${destTile.x}, ${destTile.y}) for target at (${targetTile.x}, ${targetTile.y})`
         );
       } else {
-        // No walkable path found - cancel interaction
-        const playerTile = player.tilePosition;
-        const dist = getViewTileDistance(playerTile, targetTile);
-        logger.warn(
-          `[InputHandler] Cannot find path to target at (${targetTile.x}, ${targetTile.y}), distance=${dist}, required=${this.pendingInteraction.interactDistance} - canceling`
-        );
-        this.pendingInteraction = null;
+        // No adjacency tile reachable - fallback to direction walk toward target.
+        // _findPathAndMove will use directionWalk to bring the player as close as
+        // possible; on the next standing frame the stuck check above will cancel
+        // if no further progress is made.
+        if (retryIsRun) {
+          player.runToTile(targetTile.x, targetTile.y);
+        } else {
+          player.walkToTile(targetTile.x, targetTile.y);
+        }
+        logger.log(`[InputHandler] Retry direction walk toward (${targetTile.x}, ${targetTile.y})`);
       }
+      this.pendingInteraction.lastRetryTile = { x: playerTile.x, y: playerTile.y };
     }
   }
 
@@ -640,6 +667,7 @@ export class InputHandler {
         useRightScript,
         interactDistance,
         isRun,
+        lastRetryTile: null,
       };
       // Walk/run towards NPC (stop at interactDistance away)
       this.walkToTarget(npcTile, interactDistance, isRun);
@@ -713,6 +741,7 @@ export class InputHandler {
         useRightScript,
         interactDistance,
         isRun,
+        lastRetryTile: null,
       };
       // Walk/run towards Object (stop at interactDistance away)
       this.walkToTarget(objTile, interactDistance, isRun);
@@ -780,11 +809,20 @@ export class InputHandler {
     const destTile = this.findWalkableDestination(targetTile, interactDistance, isTileWalkable);
 
     if (!destTile) {
-      // 所有方向都不可达，取消交互
+      // C++ 兼容：path-find 找不到可达邻位时不取消交互（Player.cpp changeWalk
+      // 在 getPath 返回空时只是 beginStand，不清除 destGE）。改为以 NPC tile 本身
+      // 为目标调用 walkToTile —— character-movement._findPathAndMove 会自动回退到
+      // directionWalk，让玩家朝 NPC 方向走到障碍前停下。下一帧 update() 检查距离，
+      // 若已进入 dialogRadius 就触发对话；若仍够不到且玩家位置无变化则卡住，最终
+      // 由 update() 的 lastRetryTile 卡住检测兜底取消。
       logger.log(
-        `[InputHandler] Cannot find walkable path to target at (${targetTile.x}, ${targetTile.y})`
+        `[InputHandler] No reachable adjacency tile around (${targetTile.x}, ${targetTile.y}), falling back to direction walk`
       );
-      this.pendingInteraction = null;
+      if (isRun && player.canRunCheck()) {
+        player.runToTile(targetTile.x, targetTile.y);
+      } else {
+        player.walkToTile(targetTile.x, targetTile.y);
+      }
       return;
     }
 
