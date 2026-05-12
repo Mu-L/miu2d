@@ -258,7 +258,10 @@ export class MagicCollisionHandler implements CollisionHandler {
   characterHited(sprite: MagicSprite, character: Character | null): boolean {
     if (character === null) return false;
 
-    const charId = character.isPlayer ? "player" : (character as Npc).id;
+    // 优先使用引用对比：character.kind 可能被旧存档/PlayerChange 流程污染
+    // 导致 isPlayer getter 返回 false，因此不能只依赖 kind 判断。
+    const isPlayerCharacter = character === this.player || character.isPlayer;
+    const charId = isPlayerCharacter ? "player" : (character as Npc).id;
     const charRef = this.charHelper.getCharacterRef(charId);
     if (!charRef) {
       logger.warn(
