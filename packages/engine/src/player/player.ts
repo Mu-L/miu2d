@@ -15,10 +15,11 @@ import type { Player as PlayerType } from "@miu2d/types";
 import type { Character } from "../character";
 import { applyFlatDataToCharacter } from "../character/character-config";
 import { getEffectAmount } from "../combat/effect-calc";
-import { getGameConfig } from "../data/game-data-api";
+import { CharacterKind } from "../core/character-types";
 import { logger } from "../core/logger";
 import type { Vector2 } from "../core/types";
 import { CharacterState, RUN_SPEED_FOLD } from "../core/types";
+import { getGameConfig } from "../data/game-data-api";
 import type { MagicSprite } from "../magic/magic-sprite";
 import type { MagicData } from "../magic/types";
 import { MagicMoveKind, MagicSpecialKind } from "../magic/types";
@@ -618,6 +619,11 @@ export class Player extends PlayerCombat {
       // 统一赋值所有 FIELD_DEFS 中定义的字段（纯赋值，无副作用）
       applyFlatDataToCharacter(mapped, this, true);
 
+      // Player 实例的 kind 必须始终为 Player；characterProfiles 中的伙伴 profile
+      // 可能因 flushNpcToProfile 把 NPC 的 kind（Fighter/Follower 等）写入，
+      // PlayerChange 切回时会被 applyFlatDataToCharacter 覆盖，需要强制纠正。
+      this.kind = CharacterKind.Player;
+
       // 需要副作用的字段
       if (data.npcIni) await this.setNpcIni(data.npcIni);
       this.setPosition(data.mapX, data.mapY);
@@ -646,6 +652,11 @@ export class Player extends PlayerCombat {
 
     // 所有字段名已统一，直接赋值（无需 rename mapping）
     applyFlatDataToCharacter(data as unknown as Record<string, unknown>, this, true);
+
+    // Player 实例的 kind 必须始终为 Player；characterProfiles 中的伙伴 profile
+    // 可能因 flushNpcToProfile 把 NPC 的 kind（Fighter/Follower 等）写入，
+    // PlayerChange 切回时会被 applyFlatDataToCharacter 覆盖，需要强制纠正。
+    this.kind = CharacterKind.Player;
 
     // 需要副作用的字段
     if (data.npcIni) this.setNpcIni(data.npcIni);

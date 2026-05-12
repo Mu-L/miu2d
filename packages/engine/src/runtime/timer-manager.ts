@@ -55,8 +55,15 @@ export class TimerManager {
     this.state.seconds = seconds;
     this.state.isHidden = false;
     this.state.elapsedMilliseconds = 0;
-    this.state.timeScripts = [];
-    logger.log(`[TimerManager] OpenTimeLimit: ${seconds} seconds`);
+    // 保留 OpenTimeLimit 之前通过 SetTimeScript 排队的脚本
+    // 例如 map116 Trap01.txt 的调用顺序：SetTimeScript(0, ...) -> OpenTimeLimit(60)
+    logger.log(
+      `[TimerManager] OpenTimeLimit: ${seconds} seconds${
+        this.state.timeScripts.length > 0
+          ? ` (with ${this.state.timeScripts.length} pending script)`
+          : ""
+      }`
+    );
   }
 
   /**
@@ -93,11 +100,9 @@ export class TimerManager {
    * @param scriptFileName 脚本文件名
    */
   setTimeScript(triggerSeconds: number, scriptFileName: string): void {
-    if (!this.state.isRunning) {
-      logger.warn(`[TimerManager] SetTimeScript ignored: timer not running`);
-      return;
-    }
-
+    // 原版 C# 在 timer 未启动时会忽略本次调用，但部分原版脚本
+    // （如 map116/Trap01.txt）使用了 SetTimeScript -> OpenTimeLimit 的顺序，
+    // 因此放宽限制：允许提前排队，OpenTimeLimit 时保留之。
     // 原版行为：覆盖之前设置的 TimeScript，而不是累加
     // ScriptExecuter._timeScriptSeconds, _timeScriptFileName, _isTimeScriptSet
     this.state.timeScripts = [
@@ -106,7 +111,11 @@ export class TimerManager {
         scriptFileName,
       },
     ];
-    logger.log(`[TimerManager] SetTimeScript: at ${triggerSeconds}s run "${scriptFileName}"`);
+    logger.log(
+      `[TimerManager] SetTimeScript: at ${triggerSeconds}s run "${scriptFileName}"${
+        this.state.isRunning ? "" : " (queued, timer not running yet)"
+      }`
+    );
   }
 
   /**
