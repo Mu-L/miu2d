@@ -27,6 +27,7 @@ import { getDirectionIndex } from "../../utils/direction";
 import { getNeighbors } from "../../utils/neighbors";
 import {
   findDistanceTileInDirection as findDistanceTileInDirectionUtil,
+  // biome-ignore lint/correctness/noUnusedImports: 暂时注释方向行走回退（见 _findPathAndMove），保留 import 以便恢复
   findPathInDirection,
   PathType,
 } from "../../utils/path-finder";
@@ -494,6 +495,7 @@ export abstract class CharacterMovement extends CharacterBase {
     const usePathType = pathTypeOverride === PathType.End ? this.getPathType() : pathTypeOverride;
 
     const startTile = { x: this._mapX, y: this._mapY };
+    // biome-ignore lint/style/useConst: 保留 let，方向行走回退恢复后会重新赋值 actualDestTile
     let actualDestTile = destTile;
 
     let path = this._dispatchFindPath(startTile, actualDestTile, usePathType, 8);
@@ -503,27 +505,29 @@ export abstract class CharacterMovement extends CharacterBase {
     // 注意：仅对玩家启用此回退，NPC 寻路失败应直接停止，避免鬼畜行为
     // 脚本命令（PlayerGoto 等）传入 skipDirectionFallback=true，匹配 C++ 原版行为：
     // A* 失败则直接放弃，脚本继续执行，避免方向行走回退导致的无限循环
-    if (path.length === 0 && !skipDirectionFallback && this.shouldFallbackToDirectionWalk()) {
-      const isMapObstacle = (tile: Vector2): boolean => this.checkMapObstacleForCharacter(tile);
-      const isHardObstacle = (tile: Vector2): boolean => this.checkHardObstacle(tile);
-      const directionResult = findPathInDirection(
-        startTile,
-        destTile,
-        isMapObstacle,
-        isHardObstacle
-      );
-
-      if (directionResult.path.length > 1) {
-        path = directionResult.path;
-        // 保持原始目标 T（不用贪心路径的中间终点 M）
-        // 原因：若 actualDestTile = M ≠ T，_destinationMoveTilePosition 被设为 M，
-        // handleInput 的 guard（destMatch && hasPath）每帧都会失效，
-        // 从而每帧重跑 A*→回退→重置路径，玩家逻辑位置与像素位置频繁错位 → 穿墙。
-        // 保持 actualDestTile = destTile，guard 在跟随贪心路径期间正常阻止重算；
-        // 玩家走完 50 步后自然停止，handleInput 再从当前位置重路径到 T。
-        actualDestTile = destTile;
-      }
-    }
+    // TODO: 暂时注释掉方向行走回退 —— A* 失败时主角会沿某方向走，体验不符合预期；
+    // 改为 A* 失败直接停下。日后排查 A* 失败原因后再决定是否恢复。
+    // if (path.length === 0 && !skipDirectionFallback && this.shouldFallbackToDirectionWalk()) {
+    //   const isMapObstacle = (tile: Vector2): boolean => this.checkMapObstacleForCharacter(tile);
+    //   const isHardObstacle = (tile: Vector2): boolean => this.checkHardObstacle(tile);
+    //   const directionResult = findPathInDirection(
+    //     startTile,
+    //     destTile,
+    //     isMapObstacle,
+    //     isHardObstacle
+    //   );
+    //
+    //   if (directionResult.path.length > 1) {
+    //     path = directionResult.path;
+    //     // 保持原始目标 T（不用贪心路径的中间终点 M）
+    //     // 原因：若 actualDestTile = M ≠ T，_destinationMoveTilePosition 被设为 M，
+    //     // handleInput 的 guard（destMatch && hasPath）每帧都会失效，
+    //     // 从而每帧重跑 A*→回退→重置路径，玩家逻辑位置与像素位置频繁错位 → 穿墙。
+    //     // 保持 actualDestTile = destTile，guard 在跟随贪心路径期间正常阻止重算；
+    //     // 玩家走完 50 步后自然停止，handleInput 再从当前位置重路径到 T。
+    //     actualDestTile = destTile;
+    //   }
+    // }
 
     if (path.length === 0) {
       this.path = [];
