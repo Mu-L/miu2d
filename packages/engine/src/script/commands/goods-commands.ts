@@ -108,7 +108,7 @@ const delMagicCommand: CommandHandler = (params, _result, helpers) => {
  */
 const buyGoodsCommand: CommandHandler = async (params, _result, helpers) => {
   const buyFile = helpers.resolveString(params[0] || "");
-  const canSellSelfGoods = params.length >= 2 && helpers.resolveNumber(params[1]) !== 0;
+  const canSellSelfGoods = params.length >= 2 ? helpers.resolveNumber(params[1]) !== 0 : true;
   await helpers.api.goods.buy(buyFile, canSellSelfGoods);
   return true;
 };
