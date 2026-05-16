@@ -511,19 +511,25 @@ export abstract class PlayerCombat extends PlayerBase {
       return { canUse: false, reason: "需要满血才能使用此武功" };
     }
 
-    // if (Mana < MagicUse.ManaCost || ManaLimit)
-    if (this.mana < magic.manaCost || this._manaLimit) {
-      return { canUse: false, reason: "没有足够的内力使用这种武功" };
-    }
+    // 无敌模式下跳过内力和体力检查
+    if (!this.engine.debugManager.isGodMode()) {
+      if (this.mana < magic.manaCost || this._manaLimit) {
+        return { canUse: false, reason: "没有足够的内力使用这种武功" };
+      }
 
-    if (this.thew < magic.thewCost) {
-      return { canUse: false, reason: "没有足够的体力使用这种武功" };
+      if (this.thew < magic.thewCost) {
+        return { canUse: false, reason: "没有足够的体力使用这种武功" };
+      }
     }
 
     return { canUse: true };
   }
 
   consumeMagicCost(magic: { manaCost: number; thewCost: number; lifeCost: number }): void {
+    // 无敌模式下不消耗内力、体力、生命
+    if (this.engine.debugManager.isGodMode()) {
+      return;
+    }
     this.mana = Math.max(0, this.mana - magic.manaCost);
     this.thew = Math.max(0, this.thew - magic.thewCost);
     if (magic.lifeCost !== 0) {

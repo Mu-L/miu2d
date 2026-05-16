@@ -38,6 +38,12 @@ function getCharacterInstance(ref: CharacterRef): Character {
 export function deductCost(ctx: CastContext): void {
   const { caster, magic, guiManager } = ctx;
 
+  // 无敌模式下不消耗内力、体力、生命
+  const character = getCharacterInstance(caster);
+  if (character.isInGodMode()) {
+    return;
+  }
+
   // 扣内力
   if (magic.manaCost > 0) {
     const currentMana = getMana(caster);
