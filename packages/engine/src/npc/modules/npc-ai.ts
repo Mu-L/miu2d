@@ -271,6 +271,14 @@ export class NpcAI {
       return;
     }
 
+    // 目标已死亡，清除目标
+    if (npc.followTarget?.isDeathInvoked) {
+      npc.followTarget = null;
+      npc.isFollowTargetFound = false;
+      npc.cancelAttackTarget();
+      return;
+    }
+
     // 强制重新计算路径
     npc.moveTargetChanged = true;
 

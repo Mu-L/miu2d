@@ -177,14 +177,19 @@ export abstract class CharacterCombat extends CharacterMovement {
   // === Damage Methods ===
   // =============================================
 
+  /** 是否处于调试无敌模式（玩家或入队配角） */
+  isInGodMode(): boolean {
+    return (this.isPlayer || this.isPartner) && this.engine.debugManager.isGodMode();
+  }
+
   /**
    * 受到伤害
    */
   takeDamage(damage: number, attacker: CharacterBase | null): void {
     if (this.isDeathInvoked || this.isDeath) return;
 
-    // 调试无敌模式
-    if (this.isPlayer && this.engine.debugManager.isGodMode()) {
+    // 调试无敌模式（玩家及入队配角）
+    if (this.isInGodMode()) {
       return;
     }
 
@@ -258,7 +263,7 @@ export abstract class CharacterCombat extends CharacterMovement {
   ): number {
     if (this.isDeathInvoked || this.isDeath) return 0;
 
-    if (this.isPlayer && this.engine.debugManager.isGodMode()) {
+    if (this.isInGodMode()) {
       return 0;
     }
 
@@ -736,6 +741,7 @@ export abstract class CharacterCombat extends CharacterMovement {
   notifyFighterAndAllNeighbor(target: CharacterBase | null): void {
     if (
       target === null ||
+      target.isDeathInvoked ||
       (!this.isEnemy && !this.isNoneFighter) ||
       this.followTarget !== null ||
       this.isNotFightBackWhenBeHit
