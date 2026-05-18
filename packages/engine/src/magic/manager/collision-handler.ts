@@ -612,6 +612,14 @@ export class MagicCollisionHandler implements CollisionHandler {
         logger.log(`[CollisionHandler] Kill! Player gains ${exp} exp`);
         this.player.addExp(exp, true);
 
+        // 主角击杀时，配角也获得经验
+        if (isPlayerCaster) {
+          this.npcManager.forEachPartner((partner) => {
+            const partnerExp = getCharacterDeathExp(target, partner);
+            partner.addExp(partnerExp);
+          });
+        }
+
         if (belongCharacter.canLevelUp > 0 || belongCharacter.isPartner) {
           let shouldGiveNpcExp = isPartner;
           if (

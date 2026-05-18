@@ -194,6 +194,12 @@ export abstract class Character extends CharacterCombat {
     if (player && poisonKillerName === player.name) {
       const exp = getCharacterDeathExp(this, player);
       player.addExp(exp, true);
+      // 主角毒杀时，配角也获得经验
+      const npcManager = this.engine.npcManager;
+      npcManager.forEachPartner((partner) => {
+        const partnerExp = getCharacterDeathExp(this, partner);
+        partner.addExp(partnerExp);
+      });
     } else {
       const npcManager = this.engine.npcManager;
       const poisoner = npcManager.getNpc(poisonKillerName);
