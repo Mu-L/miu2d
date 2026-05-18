@@ -243,6 +243,14 @@ export abstract class CharacterCombat extends CharacterMovement {
           const npcExp = getCharacterDeathExp(this, attacker);
           (attacker as CharacterCombat).addExp(npcExp);
         }
+        // 主角击杀时，配角也获得经验
+        if (attacker.isPlayer) {
+          const npcManager = this.engine.npcManager;
+          npcManager.forEachPartner((partner) => {
+            const partnerExp = getCharacterDeathExp(this, partner);
+            partner.addExp(partnerExp);
+          });
+        }
       }
 
       this.death(attacker as CharacterCombat | null);
