@@ -503,8 +503,8 @@ export class MagicSprite extends Sprite {
         framesToPlay = framesPerDir;
       }
     } else if (this._magic.lifeFrame === 0) {
-      // 其他非飞行类魔法，LifeFrame=0 播放一轮动画
-      framesToPlay = framesPerDir;
+      // 其他非飞行类魔法，LifeFrame=0：持续播放直到碰撞
+      framesToPlay = 9999;
     }
 
     // PlayFrames(count) 设置 _leftFrameToPlay = count
