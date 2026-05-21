@@ -35,6 +35,10 @@ export function isCharacterMoveEnd(
 
     const path = character.path;
     if (!path || path.length === 0) {
+      // 路径为空但角色还在移动（路径被正常消耗完），等角色停下再判断
+      if (!character.isStanding()) {
+        return false;
+      }
       character.standingImmediately();
     } else if (
       path.length === 1 &&

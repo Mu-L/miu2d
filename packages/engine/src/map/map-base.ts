@@ -82,6 +82,8 @@ export class MapBase {
   private _ignoredTrapsIndex: Set<number> = new Set();
   /** 是否正在执行陷阱脚本 */
   private _isInRunMapTrap: boolean = false;
+  /** 当前正在执行的陷阱索引（-1 = 无） */
+  private _currentTrapIndex: number = -1;
 
   /**
    * 设置地图数据（由外部加载后设置）
@@ -675,6 +677,7 @@ export class MapBase {
 
     // _isInRunMapTrap = true
     this._isInRunMapTrap = true;
+    this._currentTrapIndex = trapIndex;
 
     // 添加到忽略列表（不会再次触发）
     this._ignoredTrapsIndex.add(trapIndex);
@@ -700,6 +703,14 @@ export class MapBase {
    */
   set isInRunMapTrap(value: boolean) {
     this._isInRunMapTrap = value;
+    if (!value) this._currentTrapIndex = -1;
+  }
+
+  /**
+   * 当前正在执行的陷阱索引（-1 = 无陷阱执行中）
+   */
+  get currentTrapIndex(): number {
+    return this._currentTrapIndex;
   }
 
   /**
@@ -708,6 +719,7 @@ export class MapBase {
   clearAll(): void {
     this._ignoredTrapsIndex.clear();
     this._traps.clear();
+    this._currentTrapIndex = -1;
     this._isInRunMapTrap = false;
   }
 
@@ -807,6 +819,7 @@ export class MapBase {
 
       // 设置陷阱执行标志
       this._isInRunMapTrap = true;
+      this._currentTrapIndex = trapIndex;
 
       // Globals.ThePlayer.StandingImmediately()
       onTrapTriggered?.();

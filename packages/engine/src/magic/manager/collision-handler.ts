@@ -577,7 +577,7 @@ export class MagicCollisionHandler implements CollisionHandler {
   /**
    * 处理命中时的经验
    */
-  private handleExpOnHit(sprite: MagicSprite, target: Character, wasAliveBeforeHit: boolean): void {
+  handleExpOnHit(sprite: MagicSprite, target: Character, wasAliveBeforeHit: boolean): void {
     const belongCharacter = this.charHelper.getBelongCharacter(sprite.belongCharacterId);
     if (!belongCharacter) return;
 

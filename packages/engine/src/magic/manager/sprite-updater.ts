@@ -404,6 +404,7 @@ export class SpriteUpdater {
     // SuperMode 全屏攻击
     if (sprite.isSuperMode || sprite.magic.moveKind === MagicMoveKind.SuperMode) {
       sprite.flyingAsfPath = undefined;
+      sprite.vanishAsfPath = undefined;
       this.applySuperModeToAllEnemies(sprite);
       if (sprite.superModeDestroySprites.length === 0) {
         sprite.isDestroyed = true;
@@ -448,6 +449,7 @@ export class SpriteUpdater {
         if (targetChar.isDeath || targetChar.isDeathInvoked) continue;
 
         const targetPos = getCharPosition(targetRef);
+        const wasAliveBeforeHit = !targetChar.isDeath && !targetChar.isDeathInvoked;
 
         if (sprite.magic.vanishImage && !sprite.magic.vanishImage.endsWith("/")) {
           const effectSprite = sprite.createEffectSprite(targetPos);
@@ -468,6 +470,7 @@ export class SpriteUpdater {
           }
         }
 
+        this.collision.handleExpOnHit(sprite, targetChar, wasAliveBeforeHit);
         this.callbacks.triggerExplodeMagic(sprite, targetPos);
       }
     }
