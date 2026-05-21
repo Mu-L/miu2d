@@ -4,7 +4,7 @@
  */
 
 import type { AsfData } from "@miu2d/engine/resource/format/asf";
-import { getFrameCanvas } from "@miu2d/engine/resource/format/asf";
+import { getCompositeFrameCanvas } from "@miu2d/engine/resource/format/asf";
 import { decodeAsfWasm } from "@miu2d/engine/wasm/wasm-asf-decoder";
 import { initWasm } from "@miu2d/engine/wasm/wasm-manager";
 import { useEffect, useRef, useState } from "react";
@@ -112,8 +112,7 @@ export function AsfPreviewTooltip({ gameSlug, path, position, onClose }: AsfPrev
     const frameIndex = currentFrame;
     if (frameIndex >= asf.frames.length) return;
 
-    const frame = asf.frames[frameIndex];
-    const frameCanvas = getFrameCanvas(frame);
+    const frameCanvas = getCompositeFrameCanvas(asf, frameIndex);
 
     // 限制最大尺寸
     const maxSize = 128;
@@ -332,8 +331,7 @@ export function MiniAsfPreview({ gameSlug, path, size = 48, onPathResolved }: Mi
     if (!ctx) return;
 
     const frameIndex = currentFrame % asf.frames.length;
-    const frame = asf.frames[frameIndex];
-    const frameCanvas = getFrameCanvas(frame);
+    const frameCanvas = getCompositeFrameCanvas(asf, frameIndex);
 
     canvas.width = size;
     canvas.height = size;

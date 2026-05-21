@@ -11,7 +11,7 @@
  */
 
 import type { AsfData } from "@miu2d/engine/resource/format/asf";
-import { getFrameCanvas } from "@miu2d/engine/resource/format/asf";
+import { getCompositeFrameCanvas } from "@miu2d/engine/resource/format/asf";
 import { decodeAsfWasm } from "@miu2d/engine/wasm/wasm-asf-decoder";
 import type { Npc, NpcRes, NpcState } from "@miu2d/types";
 import { getNpcImageCandidates, NpcStateLabels, npcStateToResourceKey } from "@miu2d/types";
@@ -229,7 +229,7 @@ export function NpcPreview({ gameSlug, npc, resource }: NpcPreviewProps) {
 
       // 绘制帧
       if (frameIndex < frames.length) {
-        const frameCanvas = getFrameCanvas(frames[frameIndex]);
+        const frameCanvas = getCompositeFrameCanvas(asfData, frameIndex);
         if (frameCanvas) {
           // 居中绘制，放大 2 倍
           const scale = 2;

@@ -13,7 +13,7 @@
 
 import type { Vector2 } from "@miu2d/engine/core/types";
 import type { AsfData } from "@miu2d/engine/resource/format/asf";
-import { getFrameCanvas } from "@miu2d/engine/resource/format/asf";
+import { getCompositeFrameCanvas } from "@miu2d/engine/resource/format/asf";
 import {
   getDirection8,
   getDirection32List,
@@ -1051,7 +1051,7 @@ export function MagicPreview({ gameSlug, magic, level = 1 }: MagicPreviewProps) 
         if (!frame) continue;
 
         try {
-          const frameCanvas = getFrameCanvas(frame);
+          const frameCanvas = getCompositeFrameCanvas(asf, frameIdx);
 
           // 居中绘制
           const drawX = sprite.x - asf.width / 2;
@@ -1069,13 +1069,13 @@ export function MagicPreview({ gameSlug, magic, level = 1 }: MagicPreviewProps) 
           // 引擎中 Lum 范围是 0-31，这里转换为可见效果
           if (currentLum > 0) {
             // 先绘制原图
-            ctx.drawImage(frameCanvas, drawX, drawY, asf.width, asf.height);
+            ctx.drawImage(frameCanvas, drawX, drawY);
             // 叠加亮度效果（使用 screen 混合模式）
             ctx.globalCompositeOperation = "screen";
             ctx.globalAlpha = currentLum / 31;
-            ctx.drawImage(frameCanvas, drawX, drawY, asf.width, asf.height);
+            ctx.drawImage(frameCanvas, drawX, drawY);
           } else {
-            ctx.drawImage(frameCanvas, drawX, drawY, asf.width, asf.height);
+            ctx.drawImage(frameCanvas, drawX, drawY);
           }
 
           ctx.restore();

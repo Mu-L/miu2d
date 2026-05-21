@@ -5,7 +5,7 @@
  * 数据来源：magic tRPC 接口
  */
 
-import { getFrameCanvas } from "@miu2d/engine/resource/format/asf";
+import { getCompositeFrameCanvas } from "@miu2d/engine/resource/format/asf";
 import { decodeAsfWasm } from "@miu2d/engine/wasm/wasm-asf-decoder";
 import { initWasm } from "@miu2d/engine/wasm/wasm-manager";
 import { trpc } from "@miu2d/shared";
@@ -666,7 +666,7 @@ function MagicIcon({ iconPath, gameSlug, size = 32 }: MagicIconProps) {
         if (!decodedAsf || !decodedAsf.frames || decodedAsf.frames.length === 0 || cancelled)
           return;
 
-        const canvas = getFrameCanvas(decodedAsf.frames[0]);
+        const canvas = getCompositeFrameCanvas(decodedAsf, 0);
         if (!canvas || cancelled) return;
 
         const dataUrlResult = canvas.toDataURL();

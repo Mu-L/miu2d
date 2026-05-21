@@ -2,7 +2,7 @@
  * 物品编辑页面 - 完整实现
  */
 
-import { getFrameCanvas } from "@miu2d/engine/resource/format/asf";
+import { getCompositeFrameCanvas } from "@miu2d/engine/resource/format/asf";
 import { decodeAsfWasm, initWasm } from "@miu2d/engine/wasm";
 import { trpc } from "@miu2d/shared";
 import type { EquipPosition, Good, GoodKind } from "@miu2d/types";
@@ -73,7 +73,7 @@ function useDashboardAsfImage(gameSlug: string | undefined, url: string | null):
         const asfData = decodeAsfWasm(buffer);
         if (!asfData || asfData.frames.length === 0 || cancelled) return;
 
-        const canvas = getFrameCanvas(asfData.frames[0]);
+        const canvas = getCompositeFrameCanvas(asfData, 0);
         const dataUrl = canvas.toDataURL();
 
         if (!cancelled) {

@@ -24,7 +24,7 @@ import { createRenderer, type Renderer, type RendererBackend } from "@miu2d/engi
 import type { AsfData } from "@miu2d/engine/resource/format/asf";
 import {
   getFrameAtlasInfo,
-  getFrameCanvas,
+  getCompositeFrameCanvas,
   getFrameIndex,
 } from "@miu2d/engine/resource/format/asf";
 import { getOuterEdge } from "@miu2d/engine/sprite/edge-detection";
@@ -865,7 +865,7 @@ export const MapViewer = memo(
                 if (frameIdx >= 0 && frameIdx < activeAsf.frames.length) {
                   const frame = activeAsf.frames[frameIdx];
                   if (frame && frame.width > 0 && frame.height > 0) {
-                    const canvas = getFrameCanvas(frame);
+                    const canvas = getCompositeFrameCanvas(activeAsf, frameIdx);
                     const drawX = pixelPos.x - camX - offsetX + (objOffX ?? 0);
                     const drawY = pixelPos.y - camY - offsetY + (objOffY ?? 0);
                     tileRenderer.drawSource(canvas, drawX, drawY);
@@ -1015,7 +1015,7 @@ export const MapViewer = memo(
                     : 0;
                 const frameIdx = getFrameIndex(activeAsf, direction, animFrame);
                 if (frameIdx >= 0 && frameIdx < activeAsf.frames.length) {
-                  const canvas = getFrameCanvas(activeAsf.frames[frameIdx]);
+                  const canvas = getCompositeFrameCanvas(activeAsf, frameIdx);
                   const edgeCanvas = getOuterEdge(canvas, edgeColor);
                   if (isObj) {
                     tileRenderer.drawSource(
