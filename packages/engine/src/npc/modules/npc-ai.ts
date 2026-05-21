@@ -119,6 +119,10 @@ export class NpcAI {
     if (this.npcManager.isGlobalAIDisabled || npc.isAIDisabled || npc.blindMilliseconds > 0) {
       npc.followTarget = null;
       npc.isFollowTargetFound = false;
+      // Partner 仍需跟随玩家
+      if (npc.isPartner && !this.npcManager.isPartnerBlockingPlayer) {
+        this.moveToPlayer();
+      }
       return;
     }
 
