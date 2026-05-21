@@ -6,7 +6,7 @@ import { type GameDataResponse, setGameData } from "@miu2d/engine/data/game-data
 import { getObjResFromCache } from "@miu2d/engine/obj/obj-config-loader";
 import { setResourcePaths } from "@miu2d/engine/resource";
 import type { AsfData } from "@miu2d/engine/resource/format/asf";
-import { getFrameCanvas, loadAsf } from "@miu2d/engine/resource/format/asf";
+import { getCompositeFrameCanvas, loadAsf } from "@miu2d/engine/resource/format/asf";
 import { ResourcePath } from "@miu2d/engine/resource/resource-paths";
 import { trpc } from "@miu2d/shared";
 import type { SceneNpcEntry, SceneObjEntry } from "@miu2d/types";
@@ -30,7 +30,7 @@ export interface SpriteInfo {
 /** 将 AsfData 转为 SpriteInfo（取第一方向所有帧 + 保留 ASF 引用） */
 export function asfToSpriteInfo(asf: AsfData, isObj = false): SpriteInfo {
   const fpd = asf.framesPerDirection || asf.frames.length;
-  const frames = asf.frames.slice(0, fpd).map((f) => getFrameCanvas(f));
+  const frames = asf.frames.slice(0, fpd).map((_, i) => getCompositeFrameCanvas(asf, i));
   return {
     frames,
     interval: asf.interval || 150,

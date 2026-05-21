@@ -4,7 +4,7 @@
  */
 
 import type { AsfData } from "@miu2d/engine/resource/format/asf";
-import { getFrameCanvas } from "@miu2d/engine/resource/format/asf";
+import { getCompositeFrameCanvas } from "@miu2d/engine/resource/format/asf";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface AsfViewerProps {
@@ -74,8 +74,7 @@ export function AsfViewer({ asf, fileName, isLoading, error }: AsfViewerProps) {
     const frameIndex = startFrame + currentFrame;
     if (frameIndex >= asf.frames.length) return;
 
-    const frame = asf.frames[frameIndex];
-    const frameCanvas = getFrameCanvas(frame);
+    const frameCanvas = getCompositeFrameCanvas(asf, frameIndex);
 
     // 设置 canvas 大小
     const displayWidth = asf.width * zoom;
