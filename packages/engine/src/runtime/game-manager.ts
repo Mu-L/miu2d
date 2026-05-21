@@ -955,10 +955,11 @@ export class GameManager {
 
   /** Save map trap (Web version: data persists in memory, saved with collectSaveData) */
   saveMapTrap(): void {
-    const { ignoreList, mapTraps } = this.map.collectTrapDataForSave();
-    logger.log(
-      `[GameManager] SaveMapTrap: ${ignoreList.length} indices, ${Object.keys(mapTraps).length} trap groups`
-    );
+    // TODO: 当前陷阱逻辑暂不使用，等后续完善
+    // const { ignoreList, mapTraps } = this.map.collectTrapDataForSave();
+    // logger.log(
+    //   `[GameManager] SaveMapTrap: ${ignoreList.length} indices, ${Object.keys(mapTraps).length} trap groups`
+    // );
   }
 
   // ============= Camera =============

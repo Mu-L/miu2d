@@ -147,9 +147,7 @@ export class MagicRenderer {
       for (const effectSprite of sprite.superModeDestroySprites) {
         this.renderSingleSprite(renderer, effectSprite, cameraX, cameraY);
       }
-      // 调用完 superModeDestroySprites 后也调用 base.Draw
-      // 但因为 flyingAsfPath 已被清除（Texture = null），base.Draw 实际不会绘制任何东西
-      // 这里为了完全一致，我们也尝试渲染主精灵（会因为 asfPath 为空而跳过）
+      // flyingAsfPath 和 vanishAsfPath 均已清除，主精灵不会绘制任何内容
       this.renderSingleSprite(renderer, sprite, cameraX, cameraY);
       return;
     }

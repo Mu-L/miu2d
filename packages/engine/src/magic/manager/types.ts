@@ -88,6 +88,8 @@ export interface CollisionHandler {
   checkCollisionAtTile(sprite: MagicSprite, tileX: number, tileY: number): boolean;
   checkMapObstacle(sprite: MagicSprite): boolean;
   characterHited(sprite: MagicSprite, character: Character | null): boolean;
+  /** 处理命中时的经验（供 SuperMode 等绕过碰撞流程的场景调用） */
+  handleExpOnHit(sprite: MagicSprite, target: Character, wasAliveBeforeHit: boolean): void;
 }
 
 /**
