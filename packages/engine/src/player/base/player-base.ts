@@ -753,10 +753,9 @@ export abstract class PlayerBase extends Character {
    * Player uses PerfectMaxPlayerTry when _pathFinder=1, otherwise PathOneStep
    */
   override getPathType(): PathType {
-    if (this.pathFinder === 1) {
-      return PathType.PerfectMaxPlayerTry;
-    }
-    return PathType.PathOneStep;
+    // 主角始终使用 A* 寻路（4000 次尝试），不受 pathFinder 配置影响
+    // PathOneStep（贪心 10 步）无法到达远距离目的地，会导致 PlayerGoto 死循环
+    return PathType.PerfectMaxPlayerTry;
   }
 
   get money(): number {

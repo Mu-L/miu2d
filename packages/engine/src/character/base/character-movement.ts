@@ -304,6 +304,7 @@ export abstract class CharacterMovement extends CharacterBase {
 
         if (this.path.length === 0) {
           // 到达最终目的地
+          logger.log(`[moveAlongPath] path consumed, at (${this._mapX},${this._mapY}), dest=(${this._destinationMoveTilePosition?.x},${this._destinationMoveTilePosition?.y})`);
           this._destinationMoveTilePosition = { x: 0, y: 0 };
           this.state = this.selectFightOrNormalState(
             CharacterState.FightStand,
@@ -500,6 +501,14 @@ export abstract class CharacterMovement extends CharacterBase {
 
     let path = this._dispatchFindPath(startTile, actualDestTile, usePathType, 8);
 
+    // DEBUG: 打印 WASM A* 返回的原始路径（trim 之前）
+    if (path.length > 0) {
+      const rawLast = path[path.length - 1];
+      logger.log(`[_findPathAndMove] raw path from (${startTile.x},${startTile.y}) to (${actualDestTile.x},${actualDestTile.y}): length=${path.length}, lastTile=(${rawLast.x},${rawLast.y}), destMatch=${rawLast.x === actualDestTile.x && rawLast.y === actualDestTile.y}`);
+    } else {
+      logger.log(`[_findPathAndMove] raw path EMPTY from (${startTile.x},${startTile.y}) to (${actualDestTile.x},${actualDestTile.y})`);
+    }
+
     // 如果寻路失败（目标可能是障碍物），尝试沿方向行走
     // 这样点击障碍物时角色会朝那个方向尽可能走远，而不是完全不动
     // 注意：仅对玩家启用此回退，NPC 寻路失败应直接停止，避免鬼畜行为
@@ -530,6 +539,7 @@ export abstract class CharacterMovement extends CharacterBase {
     // }
 
     if (path.length === 0) {
+      logger.log(`[_findPathAndMove] A* failed: from (${startTile.x},${startTile.y}) to (${destTile.x},${destTile.y}), skipDir=${skipDirectionFallback}`);
       this.path = [];
       this.standingImmediately();
       return false;
@@ -539,12 +549,15 @@ export abstract class CharacterMovement extends CharacterBase {
     // WASM A* 总是将终点加入路径（find_valid_neighbors 对 destination 不检查动态障碍），
     // 否则 moveAlongPath 后续会触发 standingImmediately() 并清空 _destinationAttackTilePosition。
     // 路径停在可通行的最近相邻瓦片，由 onReachedDestination() 触发攻击。
-    if (path.length >= 2 && this.hasObstacle(path[path.length - 1])) {
+    const lastTile = path[path.length - 1];
+    if (path.length >= 2 && this.hasObstacle(lastTile)) {
+      logger.log(`[_findPathAndMove] trim dest (${lastTile.x},${lastTile.y}), path ${path.length}→${path.length - 1}`);
       path = path.slice(0, -1);
     }
 
     this.path = path.slice(1);
     this._destinationMoveTilePosition = { ...actualDestTile };
+    logger.log(`[_findPathAndMove] path set: length=${this.path.length}, from (${startTile.x},${startTile.y}) to (${destTile.x},${destTile.y}), lastPathTile=(${this.path.length > 0 ? this.path[this.path.length - 1].x : '-'},${this.path.length > 0 ? this.path[this.path.length - 1].y : '-'})`);
     return true;
   }
 

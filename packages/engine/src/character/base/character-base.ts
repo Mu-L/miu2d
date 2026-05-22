@@ -969,10 +969,13 @@ export abstract class CharacterBase extends Sprite implements CharacterInstance 
    * Player 和 Npc 子类的 hasObstacle 都包含这三项检查
    */
   protected hasEntityObstacle(tilePosition: Vector2): boolean {
-    if (this.engine.npcManager.isObstacle(tilePosition.x, tilePosition.y)) return true;
-    if (this.engine.objManager.isObstacle(tilePosition.x, tilePosition.y)) return true;
-    if (this.engine.magicSpriteManager.isObstacle(tilePosition)) return true;
-    return false;
+    const npc = this.engine.npcManager.isObstacle(tilePosition.x, tilePosition.y);
+    const obj = this.engine.objManager.isObstacle(tilePosition.x, tilePosition.y);
+    const magic = this.engine.magicSpriteManager.isObstacle(tilePosition);
+    if (npc || obj || magic) {
+      logger.log(`[hasEntityObstacle] (${tilePosition.x},${tilePosition.y}): npc=${npc}, obj=${obj}, magic=${magic}, caller=${this.constructor.name}`);
+    }
+    return npc || obj || magic;
   }
 
   /** 检查是否有动态障碍物 */
