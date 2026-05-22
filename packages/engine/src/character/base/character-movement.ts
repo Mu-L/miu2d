@@ -444,6 +444,9 @@ export abstract class CharacterMovement extends CharacterBase {
     const result = this._findPathAndMove(destTile, pathTypeOverride, skipDirectionFallback);
     if (!result) return false;
 
+    // 路径修剪后为空（终点不可达）：不改变状态，避免 Walk+空路径导致的无限循环
+    if (this.path.length === 0) return true;
+
     this.cancelAttackTarget();
     this.state = this.selectFightOrNormalState(CharacterState.FightWalk, CharacterState.Walk);
     return true;
@@ -466,6 +469,9 @@ export abstract class CharacterMovement extends CharacterBase {
 
     const result = this._findPathAndMove(destTile, pathTypeOverride, skipDirectionFallback);
     if (!result) return false;
+
+    // 路径修剪后为空（终点不可达）：不改变状态，避免 Run+空路径导致的无限循环
+    if (this.path.length === 0) return true;
 
     this.state = this.selectFightOrNormalState(CharacterState.FightRun, CharacterState.Run);
     return true;
@@ -558,6 +564,14 @@ export abstract class CharacterMovement extends CharacterBase {
     this.path = path.slice(1);
     this._destinationMoveTilePosition = { ...actualDestTile };
     logger.log(`[_findPathAndMove] path set: length=${this.path.length}, from (${startTile.x},${startTile.y}) to (${destTile.x},${destTile.y}), lastPathTile=(${this.path.length > 0 ? this.path[this.path.length - 1].x : '-'},${this.path.length > 0 ? this.path[this.path.length - 1].y : '-'})`);
+
+    // 路径修剪后为空（终点被 NPC/Obj 占据且相邻）：角色已在最近可达位置
+    // 设为站立状态并返回 true，避免 isCharacterMoveEnd 的重试循环
+    if (this.path.length === 0) {
+      logger.log(`[_findPathAndMove] path empty after trim, already at closest reachable tile`);
+      this.standingImmediately();
+    }
+
     return true;
   }
 
