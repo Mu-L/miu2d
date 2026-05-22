@@ -80,9 +80,7 @@ export function createPlayerAPI(ctx: ScriptCommandContext, resolver: BlockingRes
     walkTo: async (x, y) => {
       const target = getPlayerKindCharacter();
       const destination = { x, y };
-      logger.log(`[playerWalkTo] start: (${x}, ${y}), player at (${target.tilePosition.x}, ${target.tilePosition.y}), state=${target.state}`);
-      const walkResult = target.walkTo(destination, PathType.End, true);
-      logger.log(`[playerWalkTo] walkTo returned: ${walkResult}, path.length=${target.path?.length ?? 'null'}, state=${target.state}`);
+      target.walkTo(destination, PathType.End, true);
       if (
         isCharacterMoveEnd(
           target,
@@ -92,27 +90,16 @@ export function createPlayerAPI(ctx: ScriptCommandContext, resolver: BlockingRes
           "playerWalkTo"
         )
       ) {
-        logger.log(`[playerWalkTo] sync done (first check returned true)`);
         return;
       }
-      logger.log(`[playerWalkTo] entering waitForCondition poll loop...`);
-      let pollCount = 0;
       await resolver.waitForCondition(() => {
-        pollCount++;
-        const result = isCharacterMoveEnd(
+        return isCharacterMoveEnd(
           target,
           destination,
           (_c, d) => target.walkTo(d, PathType.End, true),
           isMapObstacleForCharacter,
           "playerWalkTo"
         );
-        if (result) {
-          logger.log(`[playerWalkTo] poll done after ${pollCount} frames, at (${target.tilePosition.x}, ${target.tilePosition.y}), state=${target.state}`);
-        } else if (pollCount % 60 === 0) {
-          // 每秒打印一次进度
-          logger.log(`[playerWalkTo] polling... frame=${pollCount}, at (${target.tilePosition.x}, ${target.tilePosition.y}), state=${target.state}, path.length=${target.path?.length ?? 'null'}`);
-        }
-        return result;
       });
     },
 
