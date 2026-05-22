@@ -304,7 +304,6 @@ export abstract class CharacterMovement extends CharacterBase {
 
         if (this.path.length === 0) {
           // 到达最终目的地
-          logger.log(`[moveAlongPath] path consumed, at (${this._mapX},${this._mapY}), dest=(${this._destinationMoveTilePosition?.x},${this._destinationMoveTilePosition?.y})`);
           this._destinationMoveTilePosition = { x: 0, y: 0 };
           this.state = this.selectFightOrNormalState(
             CharacterState.FightStand,

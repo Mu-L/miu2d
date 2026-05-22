@@ -378,14 +378,6 @@ export function findPathWasm(
     path[i >> 1] = { x: result[i], y: result[i + 1] };
   }
 
-  // DEBUG: 路径不以目的地结尾时打印
-  if (path.length > 0) {
-    const last = path[path.length - 1];
-    if (last.x !== endTile.x || last.y !== endTile.y) {
-      logger.log(`[findPathWasm] BUG: path from (${startTile.x},${startTile.y}) to (${endTile.x},${endTile.y}), but ends at (${last.x},${last.y}), length=${path.length}`);
-    }
-  }
-
   return path;
 }
 
