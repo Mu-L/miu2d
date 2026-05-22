@@ -29,38 +29,40 @@ export function isCharacterMoveEnd(
   const atDestination = pos.x === destination.x && pos.y === destination.y;
 
   if (!atDestination) {
-    if (character.isStanding()) {
-      logger.log(`[${tag}] not at dest, standing at (${pos.x},${pos.y}), reissuing move to (${destination.x},${destination.y}), state=${character.state}`);
-      reissueMove(character, destination);
-      logger.log(`[${tag}] after reissue: path.length=${character.path?.length ?? 'null'}, state=${character.state}, standing=${character.isStanding()}`);
+    const path = character.path;
+
+    // 路径消耗完毕（或为空），角色站立但未到达目的地 → 放弃
+    // 寻路已用最强算法 (PerfectMaxPlayerTry)，走不到就是走不到，重试无意义
+    if (character.isStanding() && (!path || path.length === 0)) {
+      // logger.log(`[${tag}] reached (${pos.x},${pos.y}), dest (${destination.x},${destination.y}) unreachable, giving up`);
+      return true;
     }
 
-    const path = character.path;
     if (!path || path.length === 0) {
-      // 路径为空但角色还在移动（路径被正常消耗完），等角色停下再判断
-      if (!character.isStanding()) {
-        logger.log(`[${tag}] path empty, not standing (state=${character.state}), waiting...`);
-        return false;
-      }
-      logger.log(`[${tag}] path empty + standing → giving up move to (${destination.x},${destination.y})`);
-      character.standingImmediately();
-    } else if (
+      // 路径为空但角色还在移动，等角色停下再判断
+      return false;
+    }
+
+    if (
       path.length === 1 &&
       (pos.x !== path[0].x || pos.y !== path[0].y) &&
       character.hasObstacle(path[0])
     ) {
-      logger.log(`[${tag}] last step blocked by obstacle at (${path[0].x},${path[0].y}), giving up`);
+      // logger.log(`[${tag}] last step blocked by obstacle at (${path[0].x},${path[0].y}), giving up`);
       character.standingImmediately();
-    } else if (isMapObstacle(pos.x, pos.y)) {
-      logger.warn(
-        `[${tag}] stuck on map obstacle at (${pos.x}, ${pos.y}), giving up move to (${destination.x}, ${destination.y})`
-      );
-      character.standingImmediately();
-    } else {
-      // path valid, character still walking
-      return false;
+      return true;
     }
-    return true;
+
+    if (isMapObstacle(pos.x, pos.y)) {
+      // logger.warn(
+      //   `[${tag}] stuck on map obstacle at (${pos.x}, ${pos.y}), giving up move to (${destination.x}, ${destination.y})`
+      // );
+      character.standingImmediately();
+      return true;
+    }
+
+    // path valid, character still walking
+    return false;
   }
 
   // At destination but still moving → not done yet

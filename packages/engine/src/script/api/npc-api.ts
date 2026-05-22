@@ -85,7 +85,7 @@ export function createNpcAPI(ctx: ScriptCommandContext, resolver: BlockingResolv
         return isCharacterMoveEnd(
           character,
           destination,
-          (c, d) => c.walkTo(d),
+          (c, d) => c.walkTo(d, PathType.PerfectMaxPlayerTry),
           isMapObstacleForCharacter,
           `npcWalkTo(${name})`
         );
