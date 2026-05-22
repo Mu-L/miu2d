@@ -66,6 +66,7 @@ export const Game = forwardRef<GameHandle, GameProps>(
   ) => {
     const canvasRef = useRef<GameCanvasHandle>(null);
     const containerRef = useRef<HTMLDivElement>(null);
+    const hasBeenReadyRef = useRef(false);
 
     // 使用游戏引擎 hook
     const { engine, state, loadProgress, loadingText, isReady, error } = useGameEngine({
@@ -74,6 +75,8 @@ export const Game = forwardRef<GameHandle, GameProps>(
       autoStart: true,
       initialSaveData,
     });
+
+    if (isReady) hasBeenReadyRef.current = true;
 
     // 引擎就绪时通知父组件（onEngineReady 回调）
     useEffect(() => {
@@ -198,8 +201,12 @@ export const Game = forwardRef<GameHandle, GameProps>(
           gameName={gameName}
         />
 
-        {/* Game UI Components */}
-        {!isLoading && <GameUI engine={engine} width={width} height={height} uiTheme={uiTheme} />}
+        {/* Game UI Components - 曾 ready 过就始终挂载，加载时隐藏，避免过地图时整棵 UI 树卸载重建 */}
+        {hasBeenReadyRef.current && engine && (
+          <div style={{ visibility: isLoading ? "hidden" : "visible", pointerEvents: isLoading ? "none" : "auto" }}>
+            <GameUI engine={engine} width={width} height={height} uiTheme={uiTheme} />
+          </div>
+        )}
       </div>
     );
   }
