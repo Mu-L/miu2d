@@ -306,13 +306,17 @@ impl PathFinder {
 
         let result = match path_type {
             PathType::PathOneStep => {
-                self.find_path_step(start, end, max_try, can_move_direction_count)
+                let r = self.find_path_step(start, end, max_try, can_move_direction_count);
+                web_sys::console::log_1(&format!("[WASM] PathOneStep from ({},{}) to ({},{}): max_try={}, result_len={}, last=({},{})", start_x, start_y, end_x, end_y, max_try, r.len()/2, if r.len()>=2 {r[r.len()-2]} else {-1}, if r.len()>=1 {r[r.len()-1]} else {-1}).into());
+                r
             }
             PathType::SimpleMaxNpcTry => {
                 self.find_path_simple(start, end, max_try, can_move_direction_count)
             }
             PathType::PerfectMaxNpcTry | PathType::PerfectMaxPlayerTry => {
-                self.find_path_perfect(start, end, max_try, can_move_direction_count)
+                let r = self.find_path_perfect(start, end, max_try, can_move_direction_count);
+                web_sys::console::log_1(&format!("[WASM] {:?} from ({},{}) to ({},{}): max_try={}, result_len={}, last=({},{})", path_type, start_x, start_y, end_x, end_y, max_try, r.len()/2, if r.len()>=2 {r[r.len()-2]} else {-1}, if r.len()>=1 {r[r.len()-1]} else {-1}).into());
+                r
             }
             PathType::PathStraightLine => self.find_straight_line(start, end),
         };

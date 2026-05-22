@@ -142,6 +142,9 @@ export class Npc extends Character {
       }
 
       // 目标变了：立即重算路径
+      logger.debug(
+        `[NpcAI] ${this._id} walkTo: target moved to (${destTile.x},${destTile.y}), repathing`
+      );
     }
     return super.walkTo(destTile, pathTypeOverride, skipDirectionFallback);
   }
