@@ -232,6 +232,12 @@ export const DialogBox: React.FC<DialogBoxProps> = ({ state, onClose, onSelectio
 
   const panelWidth = Math.min(600, screenWidth - 40);
   const panelHeight = 150;
+  const portraitMaxHeight = 200;
+  const portraitAspect = portraitImage.width > 0 ? portraitImage.height / portraitImage.width : 0;
+  const portraitDisplayWidth = portraitAspect > 0 && panelWidth * portraitAspect > portraitMaxHeight
+    ? Math.round(portraitMaxHeight / portraitAspect)
+    : panelWidth;
+  const portraitDisplayHeight = Math.round(portraitDisplayWidth * portraitAspect);
 
   // 使用引擎的 textProgress 计算显示文本
   const displayedText = useMemo(() => {
@@ -244,7 +250,7 @@ export const DialogBox: React.FC<DialogBoxProps> = ({ state, onClose, onSelectio
     () => ({
       position: "absolute",
       left: (screenWidth - panelWidth) / 2,
-      bottom: 100, // 往上移：40 -> 100
+      bottom: 100,
       width: panelWidth,
       display: "flex",
       ...glassEffect.standard,
@@ -295,32 +301,21 @@ export const DialogBox: React.FC<DialogBoxProps> = ({ state, onClose, onSelectio
       )}
 
       <div style={{ ...panelStyle, zIndex: 101 }} onClick={handleClick}>
-        {/* 头像区域 */}
+        {/* 头像 - 在面板上方，左对齐，最大高度限制 */}
         {portraitImage.dataUrl && (
-          <div
+          <img
+            src={portraitImage.dataUrl}
+            alt="portrait"
             style={{
-              width: 120,
-              minHeight: panelHeight,
-              background: "rgba(0, 0, 0, 0.2)",
-              borderRight: `1px solid ${modernColors.border.glass}`,
-              borderTopLeftRadius: borderRadius.lg,
-              borderBottomLeftRadius: borderRadius.lg,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: spacing.sm,
+              position: "absolute",
+              left: 0,
+              top: -(portraitDisplayHeight + 2),
+              width: portraitDisplayWidth,
+              height: portraitDisplayHeight,
+              imageRendering: "pixelated",
+              pointerEvents: "none",
             }}
-          >
-            <img
-              src={portraitImage.dataUrl}
-              alt="portrait"
-              style={{
-                maxWidth: 100,
-                maxHeight: 130,
-                imageRendering: "pixelated",
-              }}
-            />
-          </div>
+          />
         )}
 
         {/* 对话内容 */}

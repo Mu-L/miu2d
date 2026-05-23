@@ -8,7 +8,7 @@
 import { logger } from "@miu2d/engine/core/logger";
 import type { UIGoodData } from "@miu2d/engine/gui/ui-types";
 import type { Npc } from "@miu2d/engine/npc/npc";
-import { EquipPosition } from "@miu2d/engine/player/goods/good";
+import { EquipPosition, GoodKind } from "@miu2d/engine/player/goods/good";
 import type React from "react";
 import { useCallback, useMemo, useState } from "react";
 import { GameUIContext } from "../contexts";
@@ -110,6 +110,9 @@ export const ModernGameUIWrapper: React.FC<ModernGameUIWrapperProps> = ({
     handleShopItemMouseEnter,
     handleShopItemRightClick,
     handleShopClose,
+    setTooltip,
+    setMagicDragData,
+    setBottomMagicDragData,
   } = logic;
 
   // 玩家状态 - 直接内联计算，与老面板保持一致
@@ -253,17 +256,74 @@ export const ModernGameUIWrapper: React.FC<ModernGameUIWrapperProps> = ({
   );
 
   const handlePartnerBottomMagicDrop = useCallback(
-    (targetBottomSlot: number, source: MagicDragData | BottomMagicDragData) => {
+    (targetBottomSlot: number, source: MagicDragData | BottomMagicDragData, targetStoreIndex?: number) => {
       if (!selectedNpc?.magicInventory) return;
       const mi = selectedNpc.magicInventory;
-      if ("storeIndex" in source && source.storeIndex > 0) {
+      if ("bottomSlot" in source) {
+        // 来源是快捷栏
+        if (targetStoreIndex !== undefined) {
+          // 拖到面板指定位置：移到面板该位置（交换）
+          mi.moveBottomToPanelSlot(source.bottomSlot, targetStoreIndex);
+        } else {
+          // 拖到另一个快捷栏：交换两个快捷栏
+          mi.swapBottomSlots(source.bottomSlot, targetBottomSlot);
+        }
+      } else if ("storeIndex" in source) {
+        // 来源是面板：放到快捷栏
         mi.assignMagicToBottomSlot(source.storeIndex, targetBottomSlot);
-      } else if ("listIndex" in source && source.listIndex > 0) {
-        mi.assignMagicToBottomSlot(source.listIndex, targetBottomSlot);
       }
       setPartnerUpdateTrigger((n) => n + 1);
     },
     [selectedNpc]
+  );
+
+  // 右键物品自动装备到伙伴
+  const handlePartnerPlayerItemRightClick = useCallback(
+    (bagIndex: number) => {
+      if (!selectedNpc || !engine) return;
+      const playerGm = engine.player.getGoodsListManager();
+      const item = playerGm.getItemInfo(bagIndex);
+      if (!item) return;
+      if (item.good.kind === GoodKind.Equipment) {
+        const equipPos = item.good.part as EquipPosition;
+        if (equipPos > 0) {
+          selectedNpc.equipFromPlayerBag(playerGm, bagIndex, equipPos);
+          setPartnerUpdateTrigger((n) => n + 1);
+        }
+      }
+    },
+    [selectedNpc, engine]
+  );
+
+  // 伙伴装备拖拽开始
+  const handlePartnerEquipDragStart = useCallback(
+    (slot: EquipSlotType, good: UIGoodData) => {
+      setDragData({ type: "equip", index: 0, good, sourceSlot: slot });
+    },
+    [setDragData]
+  );
+
+  // 伙伴武功拖拽
+  const handlePartnerMagicDragStart = useCallback(
+    (data: MagicDragData) => {
+      setMagicDragData(data);
+      setBottomMagicDragData(null);
+    },
+    [setMagicDragData, setBottomMagicDragData]
+  );
+  const handlePartnerMagicDragEnd = useCallback(() => {
+    setMagicDragData(null);
+  }, [setMagicDragData]);
+  const handlePartnerBottomMagicDragStart = useCallback(
+    (bottomSlot: number) => {
+      if (!selectedNpc?.magicInventory) return;
+      const info = selectedNpc.magicInventory.getBottomMagicInfo(bottomSlot);
+      if (info) {
+        setBottomMagicDragData({ bottomSlot, listIndex: 0 });
+        setMagicDragData(null);
+      }
+    },
+    [selectedNpc, setBottomMagicDragData, setMagicDragData]
   );
 
   // 主角背包物品 (用于伙伴装备)
@@ -329,13 +389,29 @@ export const ModernGameUIWrapper: React.FC<ModernGameUIWrapperProps> = ({
             equips={partnerPanelData.equips as EquipSlots}
             onEquipDrop={handlePartnerEquipDrop}
             onEquipRightClick={handlePartnerEquipRightClick}
+            onEquipDragStart={handlePartnerEquipDragStart}
+            onEquipMouseEnter={(slot, good, rect) =>
+              good && setTooltip({ isVisible: true, good, isRecycle: false, position: { x: rect.right + 8, y: rect.top } })
+            }
+            onEquipMouseLeave={() => setTooltip((t) => ({ ...t, isVisible: false }))}
             magicInfos={partnerPanelData.magicInfos}
             bottomMagics={partnerPanelData.bottomMagics}
             onMagicRightClick={handlePartnerMagicRightClick}
+            onMagicDragStart={handlePartnerMagicDragStart}
+            onMagicDragEnd={handlePartnerMagicDragEnd}
             onMagicDrop={handlePartnerMagicDrop}
             onBottomMagicDrop={handlePartnerBottomMagicDrop}
+            onBottomMagicDragStart={handlePartnerBottomMagicDragStart}
+            onMagicHover={handleMagicHover}
+            onMagicLeave={handleMagicLeave}
             playerItems={playerGoodsItems}
             playerMoney={goodsData.money}
+            onPlayerItemRightClick={handlePartnerPlayerItemRightClick}
+            onPlayerItemDragStart={handleGoodsDragStart}
+            onPlayerItemHover={(good, x, y) =>
+              good && setTooltip({ isVisible: true, good, isRecycle: false, position: { x, y } })
+            }
+            onPlayerItemLeave={() => setTooltip((t) => ({ ...t, isVisible: false }))}
             onClose={() => togglePanel("npcEquip")}
             dragData={dragData}
             magicDragData={magicDragData}

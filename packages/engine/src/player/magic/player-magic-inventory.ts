@@ -953,6 +953,27 @@ export class PlayerMagicInventory {
     this.updateView();
   }
 
+  /**
+   * 将快捷栏武功移动到面板指定位置（交换）
+   * 如果面板目标位置为空，直接移入；如果有武功，则交换
+   */
+  moveBottomToPanelSlot(bottomSlot: number, panelIndex: number): boolean {
+    if (bottomSlot < 0 || bottomSlot >= MAGIC_LIST_CONFIG.bottomSlotCount) return false;
+    if (!this.indexInRange(panelIndex)) return false;
+
+    const bottomMagic = this.bottomSlots[bottomSlot];
+    if (!bottomMagic) return false;
+
+    const activeList = this.getActiveMagicList();
+    const panelMagic = activeList[panelIndex];
+
+    activeList[panelIndex] = bottomMagic;
+    this.bottomSlots[bottomSlot] = panelMagic;
+
+    this.updateView();
+    return true;
+  }
+
   // ============= 快捷栏存档支持 =============
 
   /**
