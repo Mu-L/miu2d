@@ -45,7 +45,8 @@ export type PanelType =
   | "magic"
   | "memo"
   | "system"
-  | "littleMap";
+  | "littleMap"
+  | "npcEquip";
 
 export interface GameUIContextValue {
   screenWidth: number;

@@ -11,13 +11,15 @@ import { borderRadius, glassEffect, modernColors, typography } from "./theme";
 interface PartnerPortraitsProps {
   partners: PartnerInfo[];
   onPartnerClick?: (index: number, partner: PartnerInfo) => void;
+  onPartnerHover?: (partner: PartnerInfo | null) => void;
 }
 
 /** 单个伙伴头像 */
 const PartnerHead: React.FC<{
   partner: PartnerInfo;
   onClick?: () => void;
-}> = ({ partner, onClick }) => {
+  onHover?: (hovered: boolean) => void;
+}> = ({ partner, onClick, onHover }) => {
   const portraitPath = `asf/ui/littlehead/${partner.name}.asf`;
   const portrait = useAsfImage(portraitPath, 0);
 
@@ -43,9 +45,11 @@ const PartnerHead: React.FC<{
         if (partner.canEquip) {
           e.currentTarget.style.borderColor = "rgba(255,255,255,0.4)";
         }
+        onHover?.(true);
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
+        onHover?.(false);
       }}
       title={partner.canEquip ? `${partner.name} - 点击打开装备` : partner.name}
     >
@@ -82,6 +86,7 @@ const PartnerHead: React.FC<{
 export const PartnerPortraits: React.FC<PartnerPortraitsProps> = ({
   partners,
   onPartnerClick,
+  onPartnerHover,
 }) => {
   if (partners.length === 0) return null;
 
@@ -106,6 +111,7 @@ export const PartnerPortraits: React.FC<PartnerPortraitsProps> = ({
           key={partner.name}
           partner={partner}
           onClick={() => onPartnerClick?.(index, partner)}
+          onHover={(hovered) => onPartnerHover?.(hovered ? partner : null)}
         />
       ))}
     </div>

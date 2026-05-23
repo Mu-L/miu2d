@@ -21,7 +21,7 @@ import { MAGIC_LIST_CONFIG } from "@miu2d/engine/player/magic/magic-list-config"
 import type { GameEngine } from "@miu2d/engine/runtime/game-engine";
 import type { TimerState } from "@miu2d/engine/runtime/timer-manager";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MagicHoverData, PlayerVitals } from "../../contexts";
+import type { MagicHoverData, PanelType, PlayerVitals } from "../../contexts";
 import { useUIBridge } from "../adapters";
 import type { DragData, EquipSlotType } from "../ui/classic";
 import { slotTypeToEquipPosition } from "../ui/classic";
@@ -525,9 +525,7 @@ export function useGameUILogic({ engine }: UseGameUILogicOptions) {
   // ============= Panel Toggles =============
 
   const togglePanel = useCallback(
-    (
-      panel: "state" | "equip" | "xiulian" | "goods" | "magic" | "memo" | "system" | "littleMap"
-    ) => {
+    (panel: PanelType) => {
       dispatch({ type: "TOGGLE_PANEL", panel });
     },
     [dispatch]
@@ -870,6 +868,7 @@ export function useGameUILogic({ engine }: UseGameUILogicOptions) {
 
     // NPC hover
     hoveredNpc,
+    setHoveredNpc,
     npcUpdateKey,
 
     // Drag-drop state

@@ -397,6 +397,9 @@ export class GuiManager {
   toggleMemoGui(): void {
     this.togglePanel("memo", this.rightPanels);
   }
+  toggleNpcEquipGui(): void {
+    this.togglePanel("npcEquip", []);
+  }
 
   showSystem(show: boolean = true): void {
     this.state.panels.system = show;

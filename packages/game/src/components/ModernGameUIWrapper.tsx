@@ -6,11 +6,14 @@
  */
 
 import { logger } from "@miu2d/engine/core/logger";
+import type { UIGoodData } from "@miu2d/engine/gui/ui-types";
+import type { Npc } from "@miu2d/engine/npc/npc";
+import { EquipPosition } from "@miu2d/engine/player/goods/good";
 import type React from "react";
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { GameUIContext } from "../contexts";
 import { EngineWatermark } from "./common/EngineWatermark";
-import type { GameUILogic } from "./hooks";
+import type { BottomMagicDragData, GameUILogic, MagicDragData } from "./hooks";
 import { useBuildGameUIContextValue, useTouchDropHandlers } from "./hooks";
 import type { GoodItemData } from "./ui/classic";
 import { FogOfWarMap } from "./ui/classic/FogOfWarMap";
@@ -29,6 +32,8 @@ import {
   MemoPanel,
   MessageBox,
   NpcLifeBar,
+  PartnerPanel,
+  type PartnerDisplayData,
   PartnerPortraits,
   SelectionMultipleUI,
   SelectionUI,
@@ -37,6 +42,8 @@ import {
   TopBar,
   XiuLianPanel,
 } from "./ui/modern";
+import type { EquipSlotType, EquipSlots } from "./ui/classic/EquipGui";
+import { slotTypeToEquipPosition } from "./ui/classic/EquipGui";
 
 interface ModernGameUIWrapperProps {
   logic: GameUILogic;
@@ -68,6 +75,7 @@ export const ModernGameUIWrapper: React.FC<ModernGameUIWrapperProps> = ({
     magicData,
     buyData,
     hoveredNpc,
+    setHoveredNpc,
     partnersData,
     npcUpdateKey,
     dragData,
@@ -149,6 +157,120 @@ export const ModernGameUIWrapper: React.FC<ModernGameUIWrapperProps> = ({
     handleXiuLianTouchDrop,
   } = useTouchDropHandlers(logic);
 
+  // ============= Partner Panel State =============
+
+  const [selectedPartnerIndex, setSelectedPartnerIndex] = useState(0);
+  const [partnerUpdateTrigger, setPartnerUpdateTrigger] = useState(0);
+
+  // 获取当前选中的伙伴 NPC 对象
+  const selectedNpc = useMemo((): Npc | null => {
+    if (!engine) return null;
+    const partners = engine.npcManager.getAllPartner();
+    return partners[selectedPartnerIndex] ?? null;
+  }, [engine, selectedPartnerIndex, partnersData, partnerUpdateTrigger]);
+
+  // 伙伴面板显示数据
+  const partnerPanelData = useMemo(() => {
+    if (!selectedNpc) return null;
+    const gm = selectedNpc.goodsManager;
+    const mi = selectedNpc.magicInventory;
+
+    const equips: Record<string, { good: UIGoodData; count: number } | null> = {};
+    if (gm) {
+      const slotNamesArr: string[] = ["head", "neck", "body", "back", "hand", "wrist", "foot"];
+      for (let i = 0; i < 7; i++) {
+        const info = gm.getEquipAtSlotIndex(i);
+        equips[slotNamesArr[i]] = info?.good ? { good: info.good, count: info.count } : null;
+      }
+    }
+
+    const storeMagics = mi?.getStoreMagics() ?? [];
+    const bottomMagicsArr = mi?.getBottomMagics() ?? [];
+
+    return { equips, magicInfos: storeMagics, bottomMagics: bottomMagicsArr };
+  }, [selectedNpc, partnerUpdateTrigger]);
+
+  // 伙伴装备列表 (PartnerDisplayData[])
+  const partnerDisplayList = useMemo((): PartnerDisplayData[] => {
+    return partnersData.map((p) => ({
+      name: p.name,
+      level: p.level,
+      portraitPath: `asf/ui/littlehead/${p.name}.asf`,
+      canEquip: p.canEquip,
+    }));
+  }, [partnersData]);
+
+  // 伙伴装备拖拽处理
+  const handlePartnerEquipDrop = useCallback(
+    (slot: EquipSlotType, data: { type: string; index: number; good: UIGoodData }) => {
+      if (!selectedNpc || !engine) return;
+      if (data.type !== "goods") return;
+      const playerGm = engine.player.getGoodsListManager();
+      const equipPos = slotTypeToEquipPosition(slot) as EquipPosition;
+      selectedNpc.equipFromPlayerBag(playerGm, data.index, equipPos);
+      setPartnerUpdateTrigger((n) => n + 1);
+    },
+    [selectedNpc, engine]
+  );
+
+  const handlePartnerEquipRightClick = useCallback(
+    (slot: EquipSlotType) => {
+      if (!selectedNpc || !engine) return;
+      const playerGm = engine.player.getGoodsListManager();
+      const equipPos = slotTypeToEquipPosition(slot) as EquipPosition;
+      selectedNpc.unequipToPlayerBag(playerGm, equipPos);
+      setPartnerUpdateTrigger((n) => n + 1);
+    },
+    [selectedNpc, engine]
+  );
+
+  // 伙伴武功处理
+  const handlePartnerMagicRightClick = useCallback(
+    (storeIndex: number) => {
+      if (!selectedNpc?.magicInventory) return;
+      const mi = selectedNpc.magicInventory;
+      for (let i = 0; i < 5; i++) {
+        if (!mi.getBottomMagicInfo(i)) {
+          mi.assignMagicToBottomSlot(storeIndex, i);
+          break;
+        }
+      }
+      setPartnerUpdateTrigger((n) => n + 1);
+    },
+    [selectedNpc]
+  );
+
+  const handlePartnerMagicDrop = useCallback(
+    (targetStoreIndex: number, source: MagicDragData) => {
+      if (!selectedNpc?.magicInventory) return;
+      const mi = selectedNpc.magicInventory;
+      if (source.storeIndex > 0) {
+        mi.exchangeListItem(source.storeIndex, targetStoreIndex);
+      }
+      setPartnerUpdateTrigger((n) => n + 1);
+    },
+    [selectedNpc]
+  );
+
+  const handlePartnerBottomMagicDrop = useCallback(
+    (targetBottomSlot: number, source: MagicDragData | BottomMagicDragData) => {
+      if (!selectedNpc?.magicInventory) return;
+      const mi = selectedNpc.magicInventory;
+      if ("storeIndex" in source && source.storeIndex > 0) {
+        mi.assignMagicToBottomSlot(source.storeIndex, targetBottomSlot);
+      } else if ("listIndex" in source && source.listIndex > 0) {
+        mi.assignMagicToBottomSlot(source.listIndex, targetBottomSlot);
+      }
+      setPartnerUpdateTrigger((n) => n + 1);
+    },
+    [selectedNpc]
+  );
+
+  // 主角背包物品 (用于伙伴装备)
+  const playerGoodsItems = useMemo((): (GoodItemData | null)[] => {
+    return goodsData.items;
+  }, [goodsData]);
+
   // ======= GameUIContext value ======= (must be before early-return to satisfy Rules of Hooks)
   const gameUIContextValue = useBuildGameUIContextValue(logic, width, height);
 
@@ -177,11 +299,47 @@ export const ModernGameUIWrapper: React.FC<ModernGameUIWrapperProps> = ({
         {partnersData.length > 0 && (
           <PartnerPortraits
             partners={partnersData}
-            onPartnerClick={(_index, partner) => {
+            onPartnerClick={(index, partner) => {
               if (partner.canEquip) {
-                logger.debug(`[ModernGameUI] Partner clicked: ${partner.name}`);
+                setSelectedPartnerIndex(index);
+                togglePanel("npcEquip");
               }
             }}
+            onPartnerHover={(partner) => {
+              if (!engine || !partner) {
+                setHoveredNpc(null);
+                engine.interactionManager.setHoverLock(null);
+                return;
+              }
+              const all = engine.npcManager.getAllPartner();
+              const npc = all.find((n) => n.name === partner.name) ?? null;
+              setHoveredNpc(npc);
+              engine.interactionManager.setHoverLock(npc);
+            }}
+          />
+        )}
+
+        {/* 伙伴管理面板 */}
+        {panels?.npcEquip && partnerPanelData && (
+          <PartnerPanel
+            isVisible={true}
+            partners={partnerDisplayList}
+            selectedPartnerIndex={selectedPartnerIndex}
+            onSelectPartner={(i) => setSelectedPartnerIndex(i)}
+            equips={partnerPanelData.equips as EquipSlots}
+            onEquipDrop={handlePartnerEquipDrop}
+            onEquipRightClick={handlePartnerEquipRightClick}
+            magicInfos={partnerPanelData.magicInfos}
+            bottomMagics={partnerPanelData.bottomMagics}
+            onMagicRightClick={handlePartnerMagicRightClick}
+            onMagicDrop={handlePartnerMagicDrop}
+            onBottomMagicDrop={handlePartnerBottomMagicDrop}
+            playerItems={playerGoodsItems}
+            playerMoney={goodsData.money}
+            onClose={() => togglePanel("npcEquip")}
+            dragData={dragData}
+            magicDragData={magicDragData}
+            bottomMagicDragData={bottomMagicDragData}
           />
         )}
 

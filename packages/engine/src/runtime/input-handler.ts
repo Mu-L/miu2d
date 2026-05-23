@@ -262,6 +262,11 @@ export class InputHandler {
       return true;
     }
 
+    // Block gameplay input during SuperMode
+    if (this.engine.magicSpriteManager.isInSuperMagicMode) {
+      return true;
+    }
+
     // Item hotkeys: Z, X, C (slots 0-2)
     // HandleKeyboardInput() - Keys.Z, Keys.X, Keys.C
     const itemHotkeys: Record<string, number> = {
@@ -450,6 +455,11 @@ export class InputHandler {
 
     // Don't process clicks when script is running (no movement allowed)
     if (scriptExecutor.isRunning()) {
+      return;
+    }
+
+    // Block gameplay clicks during SuperMode
+    if (this.engine.magicSpriteManager.isInSuperMagicMode) {
       return;
     }
 

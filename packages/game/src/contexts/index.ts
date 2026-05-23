@@ -2,6 +2,7 @@ export {
   GameUIContext,
   type GameUIContextValue,
   type MagicHoverData,
+  type PanelType,
   type PlayerVitals,
   useGameUIContext,
 } from "./GameUIContext";

@@ -843,6 +843,7 @@ export class GameEngine implements EngineContext {
       memo: () => g.toggleMemoGui(),
       system: () => g.toggleSystemGui(),
       littleMap: () => g.toggleMinimap(),
+      npcEquip: () => g.toggleNpcEquipGui(),
     };
     togglers[panel]?.();
   }
