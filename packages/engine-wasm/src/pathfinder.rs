@@ -14,47 +14,6 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use wasm_bindgen::prelude::*;
 
-// === Debug logging (only in WASM + debug builds; no-op in release & native tests) ===
-
-#[cfg(all(target_arch = "wasm32", debug_assertions))]
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_namespace = console, js_name = debug)]
-    fn console_debug(s: &str);
-}
-
-#[cfg(all(target_arch = "wasm32", debug_assertions))]
-fn perf_now() -> f64 {
-    js_sys::Reflect::get(&js_sys::global(), &JsValue::from_str("performance"))
-        .ok()
-        .and_then(|p| js_sys::Reflect::get(&p, &JsValue::from_str("now")).ok())
-        .and_then(|f| f.dyn_into::<js_sys::Function>().ok())
-        .and_then(|f| {
-            f.call0(
-                &js_sys::Reflect::get(&js_sys::global(), &JsValue::from_str("performance"))
-                    .unwrap_or(JsValue::NULL),
-            )
-            .ok()
-        })
-        .and_then(|v| v.as_f64())
-        .unwrap_or(0.0)
-}
-
-/// 寻路计时日志（仅 WASM debug 构建有效，release 和 native test 均编译为空操作）
-macro_rules! pathfind_log {
-    ($path_type:expr, $sx:expr, $sy:expr, $ex:expr, $ey:expr, $result:expr, $t0:expr) => {
-        #[cfg(all(target_arch = "wasm32", debug_assertions))]
-        {
-            let dt = perf_now() - $t0;
-            let len = $result.len() / 2;
-            console_debug(&format!(
-                "[WASM PathFinder] {:?} ({},{})→({},{}) {}pts {:.3}ms",
-                $path_type, $sx, $sy, $ex, $ey, len, dt
-            ));
-        }
-    };
-}
-
 /// 寻路类型枚举
 #[wasm_bindgen]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -275,9 +234,6 @@ impl PathFinder {
         path_type: PathType,
         can_move_direction_count: i32,
     ) -> Vec<i32> {
-        #[cfg(all(target_arch = "wasm32", debug_assertions))]
-        let t0 = perf_now();
-
         let start = Vec2::new(start_x, start_y);
         let end = Vec2::new(end_x, end_y);
 
@@ -298,9 +254,7 @@ impl PathFinder {
             // C++ 使用 128*128=16384；500 对远距离目标不够，A* 频繁失败触发贪心回退 → 穿墙
             PathType::PerfectMaxPlayerTry => 4000,
             PathType::PathStraightLine => {
-                let result = self.find_straight_line(start, end);
-                pathfind_log!(path_type, start_x, start_y, end_x, end_y, result, t0);
-                return result;
+                return self.find_straight_line(start, end);
             }
         };
 
@@ -316,8 +270,6 @@ impl PathFinder {
             }
             PathType::PathStraightLine => self.find_straight_line(start, end),
         };
-
-        pathfind_log!(path_type, start_x, start_y, end_x, end_y, result, t0);
 
         result
     }
