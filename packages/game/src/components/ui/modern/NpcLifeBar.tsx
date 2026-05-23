@@ -15,9 +15,9 @@ import { borderRadius, modernColors, typography } from "./theme";
 
 // Colors matching InfoDrawer.cs (adapted for modern style)
 const LIFE_COLORS = {
-  enemy: "#ff4444", // Red for enemies
-  friend: "#44ff44", // Green for friends
-  none: "#4488ff", // Blue for neutral
+  enemy: "rgba(163, 18, 21, 0.9)",   // EnemyLifeColor
+  friend: "rgba(16, 165, 28, 0.9)",  // FriendLifeColor
+  none: "rgba(40, 30, 245, 0.9)",    // NoneLifeColor
 } as const;
 
 const NAME_COLORS = {
@@ -28,7 +28,7 @@ const NAME_COLORS = {
 // Default config
 const DEFAULT_CONFIG = {
   width: 200,
-  height: 12,
+  height: 18,
   topAdjust: 50,
 } as const;
 
@@ -133,6 +133,7 @@ export const NpcLifeBar: React.FC<NpcLifeBarProps> = ({ npc, screenWidth }) => {
           borderRadius: borderRadius.sm,
           overflow: "hidden",
           border: "1px solid rgba(255, 255, 255, 0.2)",
+          position: "relative",
         }}
       >
         {/* 血条填充 */}
@@ -140,23 +141,28 @@ export const NpcLifeBar: React.FC<NpcLifeBarProps> = ({ npc, screenWidth }) => {
           style={{
             width: `${lifePercent}%`,
             height: "100%",
-            background: `linear-gradient(to bottom, ${lifeColor}, ${lifeColor}cc)`,
+            background: lifeColor,
             borderRadius: borderRadius.sm,
-            transition: "width 0.2s ease, background 0.3s ease",
-            boxShadow: `0 0 6px ${lifeColor}66`,
+            transition: "width 0.2s ease",
           }}
         />
-      </div>
-
-      {/* 血量数值 */}
-      <div
-        style={{
-          fontSize: typography.fontSize.xs,
-          color: modernColors.text.muted,
-          textShadow: "0 1px 2px rgba(0,0,0,0.8)",
-        }}
-      >
-        {Math.floor(npc.life)} / {Math.floor(npc.lifeMax)}
+        {/* 血量数值 - 居中显示在血条上 */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: typography.fontSize.xs,
+            fontWeight: typography.fontWeight.semibold,
+            color: "white",
+            textShadow: "0 1px 2px rgba(0,0,0,0.8)",
+            pointerEvents: "none",
+          }}
+        >
+          {Math.floor(npc.life)} / {Math.floor(npc.lifeMax)}
+        </div>
       </div>
     </div>
   );
