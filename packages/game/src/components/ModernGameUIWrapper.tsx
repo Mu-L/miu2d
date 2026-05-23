@@ -93,7 +93,7 @@ export const ModernGameUIWrapper: React.FC<ModernGameUIWrapperProps> = ({
     handleMagicDropOnBottom,
     handleMagicDropOnXiuLian,
     handleXiuLianDragStart,
-    handleMouseEnter,
+    handleGoodsHover,
     handleMouseLeave,
     handleMagicHover,
     handleMagicLeave,
@@ -244,8 +244,6 @@ export const ModernGameUIWrapper: React.FC<ModernGameUIWrapperProps> = ({
           onSlotRightClick={handleEquipRightClick}
           onSlotDrop={handleEquipDrop}
           onSlotDragStart={handleEquipDragStart}
-          onSlotMouseEnter={handleMouseEnter}
-          onSlotMouseLeave={handleMouseLeave}
           onClose={() => togglePanel("equip")}
           dragData={dragData}
           onTouchDrop={handleEquipTouchDrop}
@@ -260,7 +258,7 @@ export const ModernGameUIWrapper: React.FC<ModernGameUIWrapperProps> = ({
           onItemRightClick={handleGoodsRightClick}
           onItemDragStart={handleGoodsDragStart}
           onItemDrop={handleGoodsDrop}
-          onItemMouseEnter={handleMouseEnter}
+          onItemHover={handleGoodsHover}
           onItemMouseLeave={handleMouseLeave}
           onClose={() => togglePanel("goods")}
           dragData={dragData}

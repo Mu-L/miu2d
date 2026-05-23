@@ -784,6 +784,18 @@ export function useGameUILogic({ engine }: UseGameUILogicOptions) {
     setMagicTooltip((prev) => ({ ...prev, isVisible: false }));
   }, []);
 
+  const handleGoodsHover = useCallback((good: UIGoodData | null, x: number, y: number) => {
+    if (good) {
+      setTooltip({
+        isVisible: true,
+        good,
+        isRecycle: false,
+        shopPrice: undefined,
+        position: { x, y },
+      });
+    }
+  }, []);
+
   // Hide tooltips when panels close
   useEffect(() => {
     if (!panels?.goods && !panels?.equip && !panels?.buy) {
@@ -908,6 +920,7 @@ export function useGameUILogic({ engine }: UseGameUILogicOptions) {
     // Tooltip handlers
     handleMouseEnter,
     handleMouseLeave,
+    handleGoodsHover,
     handleMagicHover,
     handleMagicLeave,
 
