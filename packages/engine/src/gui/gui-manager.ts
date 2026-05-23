@@ -449,6 +449,7 @@ export class GuiManager {
       "system",
       "saveLoad",
       "buy",
+      "npcEquip",
     ];
     for (const key of panelKeys) this.state.panels[key] = false;
 
@@ -459,8 +460,8 @@ export class GuiManager {
   }
 
   isAnyPanelOpen(): boolean {
-    const { state, equip, xiulian, goods, magic, memo, system, saveLoad, buy } = this.state.panels;
-    return state || equip || xiulian || goods || magic || memo || system || saveLoad || buy;
+    const { state, equip, xiulian, goods, magic, memo, system, saveLoad, buy, npcEquip } = this.state.panels;
+    return state || equip || xiulian || goods || magic || memo || system || saveLoad || buy || npcEquip;
   }
 
   // ============= Buy =============
@@ -715,6 +716,12 @@ export class GuiManager {
     // F3 - 修炼面板
     if (code === "F3") {
       this.toggleXiuLianGui();
+      return true;
+    }
+
+    // F4 - 伙伴面板
+    if (code === "F4") {
+      this.toggleNpcEquipGui();
       return true;
     }
 
