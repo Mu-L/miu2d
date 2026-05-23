@@ -307,8 +307,14 @@ export class CameraController {
     let camX = destX - halfViewX;
     let camY = destY - halfViewY;
     if (mapPixelW != null && mapPixelH != null) {
-      camX = Math.max(0, Math.min(camX, mapPixelW - viewW));
-      camY = Math.max(0, Math.min(camY, mapPixelH - viewH));
+      // Use same clamping logic as clampCameraAxis to avoid inconsistency
+      // when map is smaller than viewport (camera gets centered to negative coords)
+      camX = mapPixelW <= viewW
+        ? Math.floor((mapPixelW - viewW) / 2)
+        : Math.max(0, Math.min(camX, mapPixelW - viewW));
+      camY = mapPixelH <= viewH
+        ? Math.floor((mapPixelH - viewH) / 2)
+        : Math.max(0, Math.min(camY, mapPixelH - viewH));
     }
     this.moveToPosition(camX, camY, speed);
   }
