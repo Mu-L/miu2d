@@ -8,8 +8,8 @@ import { loadCharacterConfig } from "../character/character-config";
 import { logger } from "../core/logger";
 import type { CharacterConfig, Vector2 } from "../core/types";
 import { CharacterKind, CharacterState } from "../core/types";
-import type { MagicData } from "../magic/types";
-import { EquipPosition, Good, GoodKind } from "../player/goods/good";
+import { MagicAddonEffect, type MagicData } from "../magic/types";
+import { EquipPosition, Good, GoodEffectType, GoodKind } from "../player/goods/good";
 import {
   equipPositionToSlotIndex,
   GoodsListManager,
@@ -51,6 +51,9 @@ export class Npc extends Character {
   // Partner containers (伙伴武功/物品)
   private _magicInventory: PlayerMagicInventory | null = null;
   private _goodsManager: GoodsListManager | null = null;
+
+  // Weapon additional effect (武器附加效果: 中毒/冰冻/石化)
+  private _flyIniAdditionalEffect: MagicAddonEffect = MagicAddonEffect.None;
 
   /** API 注册角色 index（仅当 NPC 对应 API 玩家时设置） */
   playerIndex?: number;
@@ -103,10 +106,20 @@ export class Npc extends Character {
   // === Partner Equipment Stat Application ===
 
   /**
-   * 装备属性生效（处理基本属性加成和移动速度）
+   * 设置武功的附加效果（中毒/冰冻/石化）
+   */
+  private setFlyIniAdditionalEffect(effect: MagicAddonEffect): void {
+    this._flyIniAdditionalEffect = effect;
+  }
+
+  /**
+   * 装备属性生效（基本属性加成 + 武器效果 + 移动速度）
    */
   equiping(equip: Good | null, currentEquip: Good | null, justEffectType: boolean = false): void {
     if (!equip) return;
+    const savedLife = this.life;
+    const savedThew = this.thew;
+    const savedMana = this.mana;
     // 先卸下被替换的装备
     this.unEquiping(currentEquip, justEffectType);
 
@@ -123,12 +136,26 @@ export class Npc extends Character {
       this.manaMax += equip.manaMax;
     }
 
+    // 武器附加效果
+    const effectType = equip.theEffectType;
+    switch (effectType) {
+      case GoodEffectType.EnemyFrozen:
+        this.setFlyIniAdditionalEffect(MagicAddonEffect.Frozen);
+        break;
+      case GoodEffectType.EnemyPoisoned:
+        this.setFlyIniAdditionalEffect(MagicAddonEffect.Poison);
+        break;
+      case GoodEffectType.EnemyPetrified:
+        this.setFlyIniAdditionalEffect(MagicAddonEffect.Petrified);
+        break;
+    }
+
     this.addMoveSpeedPercent += equip.changeMoveSpeedPercent;
 
-    // 确保当前值不超过新上限
-    this.life = Math.min(this.life, this.lifeMax);
-    this.thew = Math.min(this.thew, this.thewMax);
-    this.mana = Math.min(this.mana, this.manaMax);
+    // 恢复保存的值，但不超过新上限
+    this.life = Math.min(savedLife, this.lifeMax);
+    this.thew = Math.min(savedThew, this.thewMax);
+    this.mana = Math.min(savedMana, this.manaMax);
   }
 
   /**
@@ -148,6 +175,16 @@ export class Npc extends Character {
       this.lifeMax -= equip.lifeMax;
       this.thewMax -= equip.thewMax;
       this.manaMax -= equip.manaMax;
+    }
+
+    // 清除武器附加效果
+    const effectType = equip.theEffectType;
+    switch (effectType) {
+      case GoodEffectType.EnemyFrozen:
+      case GoodEffectType.EnemyPoisoned:
+      case GoodEffectType.EnemyPetrified:
+        this.setFlyIniAdditionalEffect(MagicAddonEffect.None);
+        break;
     }
 
     this.addMoveSpeedPercent -= equip.changeMoveSpeedPercent;
@@ -848,6 +885,14 @@ export class Npc extends Character {
     }
 
     if (magic) {
+      // 应用武器附加效果（中毒/冰冻/石化）到武功
+      if (this._flyIniAdditionalEffect !== MagicAddonEffect.None) {
+        magic = {
+          ...magic,
+          additionalEffect: this._flyIniAdditionalEffect,
+        };
+      }
+
       this.engine.magicSpriteManager.useMagic({
         userId: this._id,
         magic: magic,
