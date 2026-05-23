@@ -9,6 +9,17 @@
 
 import { LOG_LEVELS, type LogLevel, logger } from "@miu2d/engine/core/logger";
 import { useEffect, useState } from "react";
+import {
+  HiOutlineBuildingLibrary,
+  HiOutlineClipboardDocumentList,
+  HiOutlineComputerDesktop,
+  HiOutlineGlobeAlt,
+  HiOutlineMusicalNote,
+  HiOutlinePaintBrush,
+  HiOutlineSpeakerWave,
+  HiOutlineSparkles,
+  HiOutlineXMark,
+} from "react-icons/hi2";
 import type { UITheme } from "../ui";
 
 // ============= LocalStorage 键名 =============
@@ -111,7 +122,7 @@ function PanelHeader({ title, onClose }: { title: string; onClose?: () => void }
           onClick={onClose}
           className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-white hover:bg-gray-700/50 rounded transition-colors"
         >
-          ✕
+          <HiOutlineXMark style={{ strokeWidth: 2.2 }} />
         </button>
       )}
     </div>
@@ -216,7 +227,7 @@ export function SettingsPanel({
           {/* 音乐音量 */}
           <div className="mb-3">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-white/50">🎵 音乐音量</span>
+              <div className="flex items-center gap-1.5 text-xs text-white/50"><HiOutlineMusicalNote className="w-3.5 h-3.5 flex-shrink-0" style={{ strokeWidth: 2.2 }} /> 音乐音量</div>
               <span className="text-xs text-white/30">{Math.round(musicVolume * 100)}%</span>
             </div>
             <input
@@ -233,7 +244,7 @@ export function SettingsPanel({
           {/* 音效音量 */}
           <div className="mb-3">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-white/50">🔈 音效音量</span>
+              <div className="flex items-center gap-1.5 text-xs text-white/50"><HiOutlineSpeakerWave className="w-3.5 h-3.5 flex-shrink-0" style={{ strokeWidth: 2.2 }} /> 音效音量</div>
               <span className="text-xs text-white/30">{Math.round(soundVolume * 100)}%</span>
             </div>
             <input
@@ -250,7 +261,7 @@ export function SettingsPanel({
           {/* 环境音音量 */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-white/50">🌲 环境音音量</span>
+              <div className="flex items-center gap-1.5 text-xs text-white/50"><HiOutlineGlobeAlt className="w-3.5 h-3.5 flex-shrink-0" style={{ strokeWidth: 2.2 }} /> 环境音音量</div>
               <span className="text-xs text-white/30">{Math.round(ambientVolume * 100)}%</span>
             </div>
             <input
@@ -272,7 +283,7 @@ export function SettingsPanel({
           {/* UI 主题切换 */}
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs text-white/50">🎨 界面风格</span>
+              <div className="flex items-center gap-1.5 text-xs text-white/50"><HiOutlinePaintBrush className="w-3.5 h-3.5 flex-shrink-0" style={{ strokeWidth: 2.2 }} /> 界面风格</div>
               <span className="text-xs text-white/30">
                 {uiTheme === "classic" ? "经典" : "现代"}
               </span>
@@ -280,25 +291,25 @@ export function SettingsPanel({
             <div className="flex gap-2">
               <button
                 onClick={() => handleThemeChange("classic")}
-                className={`flex-1 px-2 py-2 text-xs rounded-lg border transition-all ${
+                className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-xs rounded-lg border transition-all ${
                   uiTheme === "classic"
                     ? "bg-amber-500/15 border-amber-500/40 text-amber-200"
                     : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"
                 }`}
               >
-                <div className="text-lg mb-1">🏯</div>
-                <div>经典风格</div>
+                <HiOutlineBuildingLibrary className="w-3.5 h-3.5 flex-shrink-0" style={{ strokeWidth: 2.2 }} />
+                <span>经典风格</span>
               </button>
               <button
                 onClick={() => handleThemeChange("modern")}
-                className={`flex-1 px-2 py-2 text-xs rounded-lg border transition-all ${
+                className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-xs rounded-lg border transition-all ${
                   uiTheme === "modern"
                     ? "bg-blue-500/15 border-blue-500/40 text-blue-200"
                     : "bg-white/5 border-white/10 text-white/40 hover:border-white/20"
                 }`}
               >
-                <div className="text-lg mb-1">✨</div>
-                <div>现代风格</div>
+                <HiOutlineSparkles className="w-3.5 h-3.5 flex-shrink-0" style={{ strokeWidth: 2.2 }} />
+                <span>现代风格</span>
               </button>
             </div>
             <div className="text-xs text-white/25 mt-1">
@@ -311,7 +322,7 @@ export function SettingsPanel({
           {/* 分辨率选择 */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-white/50">🖥️ 分辨率</span>
+              <div className="flex items-center gap-1.5 text-xs text-white/50"><HiOutlineComputerDesktop className="w-3.5 h-3.5 flex-shrink-0" style={{ strokeWidth: 2.2 }} /> 分辨率</div>
               <span className="text-xs text-white/30">
                 {currentResolution
                   ? currentResolution.width === 0
@@ -348,7 +359,7 @@ export function SettingsPanel({
           {/* 日志级别选择 */}
           <div>
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs text-white/50">📋 日志级别</span>
+              <div className="flex items-center gap-1.5 text-xs text-white/50"><HiOutlineClipboardDocumentList className="w-3.5 h-3.5 flex-shrink-0" style={{ strokeWidth: 2.2 }} /> 日志级别</div>
               <span className="text-xs text-white/30">{logLevel.toUpperCase()}</span>
             </div>
             <select

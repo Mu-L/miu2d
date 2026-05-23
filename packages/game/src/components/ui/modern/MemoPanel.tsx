@@ -4,8 +4,9 @@
  */
 import type React from "react";
 import { useMemo, useState } from "react";
+import { HiOutlineDocumentText, HiOutlineXMark } from "react-icons/hi2";
 import { useGameUIContext } from "../../../contexts";
-import { borderRadius, glassEffect, modernColors, spacing, transitions, typography } from "./theme";
+import { borderRadius, glassEffect, iconStyle, modernColors, spacing, transitions, typography } from "./theme";
 
 // 武侠风格配色
 const wuxiaAccent = {
@@ -50,7 +51,7 @@ const CloseBtn: React.FC<{ onClick: () => void }> = ({ onClick }) => (
       e.currentTarget.style.color = modernColors.text.secondary;
     }}
   >
-    ✕
+    <HiOutlineXMark style={{ ...iconStyle, fontSize: 16 }} />
   </button>
 );
 
@@ -167,7 +168,7 @@ export const MemoPanel: React.FC<MemoPanelProps> = ({ isVisible, memos, onClose 
           gap: spacing.sm,
         }}
       >
-        <span style={{ fontSize: 18 }}>📜</span>
+        <HiOutlineDocumentText style={{ ...iconStyle, fontSize: 18 }} />
         <h3
           style={{
             fontSize: typography.fontSize.lg,

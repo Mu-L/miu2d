@@ -10,6 +10,7 @@
 
 import { useAnimatedVisibility } from "@miu2d/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { HiOutlineXMark } from "react-icons/hi2";
 
 // localStorage key
 const LS_KEY = "jxqy_floating_panel_";
@@ -348,7 +349,7 @@ export function FloatingPanel({
           onMouseDown={(e) => e.stopPropagation()}
           className="w-7 h-7 flex items-center justify-center rounded-lg text-white/40 hover:text-white hover:bg-white/10 transition-colors"
         >
-          ✕
+          <HiOutlineXMark style={{ strokeWidth: 2.2 }} />
         </button>
       </div>
 

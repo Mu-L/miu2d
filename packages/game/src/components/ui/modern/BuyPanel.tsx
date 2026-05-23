@@ -6,9 +6,10 @@
 import type { UIGoodData } from "@miu2d/engine/gui/ui-types";
 import type React from "react";
 import { useCallback, useMemo, useState } from "react";
+import { HiOutlineArchiveBox, HiOutlineCurrencyYen } from "react-icons/hi2";
 import { useAsfImage } from "../classic/hooks";
 import { PanelHeader } from "./components";
-import { borderRadius, glassEffect, modernColors, spacing, typography } from "./theme";
+import { borderRadius, glassEffect, iconStyle, modernColors, spacing, typography } from "./theme";
 
 // 商店物品数据（与经典 UI 一致）
 export interface ShopItemData {
@@ -121,7 +122,7 @@ const ShopItemRow: React.FC<ShopItemRowProps> = ({
             }}
           />
         ) : (
-          <span style={{ fontSize: 20, color: modernColors.text.muted }}>📦</span>
+          <HiOutlineArchiveBox style={{ ...iconStyle, fontSize: 20, opacity: 0.5 }} />
         )}
       </div>
 
@@ -163,7 +164,7 @@ const ShopItemRow: React.FC<ShopItemRowProps> = ({
             gap: 4,
           }}
         >
-          💰 {price}
+          <HiOutlineCurrencyYen style={iconStyle} /> {price}
         </div>
       )}
     </div>

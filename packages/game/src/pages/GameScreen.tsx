@@ -21,6 +21,7 @@ import { getResourceUrl, ResourcePath, setResourcePaths } from "@miu2d/engine/re
 import type { SaveData } from "@miu2d/engine/storage";
 import { getResourceDomain, getS3Url, trpc, useMobile } from "@miu2d/shared";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { HiOutlineCog6Tooth } from "react-icons/hi2";
 import { useParams, useSearchParams } from "react-router-dom";
 import type { ToolbarButton } from "../components";
 import {
@@ -430,7 +431,7 @@ export default function GameScreen() {
     () => [
       {
         id: "settings",
-        icon: <span className="text-base">⚙️</span>,
+        icon: <HiOutlineCog6Tooth className="text-white" style={{ strokeWidth: 2.2 }} />,
         tooltip: "设置",
         onClick: handleTitleSettings,
       },

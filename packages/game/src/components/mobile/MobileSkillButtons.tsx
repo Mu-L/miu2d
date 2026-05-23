@@ -5,15 +5,24 @@
  * 右侧区域：攻击按钮、技能按钮、跳跃按钮等
  */
 
+import type { ReactNode } from "react";
 import { useCallback, useRef } from "react";
+import {
+  HiOutlineArrowUp,
+  HiOutlineBars3,
+  HiOutlineChatBubbleBottomCenterText,
+  HiOutlineMap,
+  HiOutlineShieldCheck,
+  HiOutlineShoppingBag,
+} from "react-icons/hi2";
 
 export interface SkillButtonConfig {
   /** 唯一标识 */
   id: string;
   /** 显示标签 */
   label: string;
-  /** 图标（emoji 或 URL） */
-  icon?: string;
+  /** 图标 */
+  icon?: ReactNode;
   /** 按钮颜色 */
   color?: string;
   /** 按钮大小 */
@@ -43,7 +52,7 @@ export interface MobileSkillButtonsProps {
 
 interface SkillButtonProps {
   label: string;
-  icon?: string;
+  icon?: ReactNode;
   color?: string;
   size?: "small" | "medium" | "large";
   disabled?: boolean;
@@ -143,7 +152,7 @@ function QuickButton({
   disabled = false,
 }: {
   label: string;
-  icon: string;
+  icon: ReactNode;
   onPress: () => void;
   disabled?: boolean;
 }) {
@@ -210,19 +219,19 @@ export function MobileSkillButtons({
       <div className="flex gap-2 mb-2">
         <QuickButton
           label="地图"
-          icon="🗺️"
+          icon={<HiOutlineMap className="text-white" style={{ strokeWidth: 2.2 }} />}
           onPress={onOpenMinimap ?? (() => {})}
           disabled={disabled || !onOpenMinimap}
         />
         <QuickButton
           label="背包"
-          icon="🎒"
+          icon={<HiOutlineShoppingBag className="text-white" style={{ strokeWidth: 2.2 }} />}
           onPress={onOpenInventory ?? (() => {})}
           disabled={disabled || !onOpenInventory}
         />
         <QuickButton
           label="菜单"
-          icon="☰"
+          icon={<HiOutlineBars3 className="text-white" style={{ strokeWidth: 2.2 }} />}
           onPress={onOpenMenu ?? (() => {})}
           disabled={disabled || !onOpenMenu}
         />
@@ -234,7 +243,7 @@ export function MobileSkillButtons({
         <div className="absolute" style={{ right: 0, bottom: 0 }}>
           <SkillButton
             label="攻击"
-            icon="⚔️"
+            icon={<HiOutlineShieldCheck className="text-white" style={{ strokeWidth: 2.2 }} />}
             color="rgba(255,80,80,0.8)"
             size="large"
             disabled={disabled}
@@ -246,7 +255,7 @@ export function MobileSkillButtons({
         <div className="absolute" style={{ right: 85, bottom: 50 }}>
           <SkillButton
             label="跳"
-            icon="⬆️"
+            icon={<HiOutlineArrowUp className="text-white" style={{ strokeWidth: 2.2 }} />}
             color="rgba(100,180,255,0.8)"
             size="medium"
             disabled={disabled}
@@ -258,7 +267,7 @@ export function MobileSkillButtons({
         <div className="absolute" style={{ right: 10, bottom: 90 }}>
           <SkillButton
             label="互动"
-            icon="💬"
+            icon={<HiOutlineChatBubbleBottomCenterText className="text-white" style={{ strokeWidth: 2.2 }} />}
             color="rgba(100,255,150,0.8)"
             size="small"
             disabled={disabled}

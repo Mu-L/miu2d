@@ -5,14 +5,25 @@
 
 import type { UIGoodData } from "@miu2d/engine/gui/ui-types";
 import type React from "react";
+import type { ReactNode } from "react";
 import { useCallback, useMemo, useState } from "react";
+import {
+  HiOutlineEye,
+  HiOutlineFingerPrint,
+  HiOutlineHandRaised,
+  HiOutlineShieldCheck,
+  HiOutlineSparkles,
+  HiOutlineSquares2X2,
+  HiOutlineUserCircle,
+  HiOutlineXMark,
+} from "react-icons/hi2";
 import type { TouchDragData } from "../../../contexts";
 import { useGameUIContext } from "../../../contexts";
 import type { DragData, EquipItemData, EquipSlots, EquipSlotType } from "../classic/EquipGui";
 import { slotTypeToEquipPosition } from "../classic/EquipGui";
 import { useAsfImage } from "../classic/hooks";
 import { getItemBorderColor, getItemGlowColor, getItemQuality, ItemQuality } from "./Tooltips";
-import { borderRadius, glassEffect, modernColors, spacing, transitions, typography } from "./theme";
+import { borderRadius, glassEffect, iconStyle, modernColors, spacing, transitions, typography } from "./theme";
 
 // 武侠风格配色
 const wuxiaAccent = {
@@ -50,15 +61,15 @@ const slotNames: Record<EquipSlotType, string> = {
   foot: "靴履",
 };
 
-// 槽位图标 (emoji 占位)
-const slotIcons: Record<EquipSlotType, string> = {
-  head: "👑",
-  neck: "📿",
-  body: "🥋",
-  back: "🧣",
-  hand: "⚔️",
-  wrist: "💎",
-  foot: "👢",
+// 槽位图标
+const slotIcons: Record<EquipSlotType, ReactNode> = {
+  head: <HiOutlineUserCircle />,
+  neck: <HiOutlineFingerPrint />,
+  body: <HiOutlineShieldCheck />,
+  back: <HiOutlineSquares2X2 />,
+  hand: <HiOutlineHandRaised />,
+  wrist: <HiOutlineSparkles />,
+  foot: <HiOutlineEye />,
 };
 
 // 关闭按钮
@@ -92,7 +103,7 @@ const CloseBtn: React.FC<{ onClick: () => void }> = ({ onClick }) => (
       e.currentTarget.style.color = modernColors.text.secondary;
     }}
   >
-    ✕
+    <HiOutlineXMark style={{ ...iconStyle, fontSize: 16 }} />
   </button>
 );
 
@@ -105,6 +116,7 @@ interface EquipSlotItemProps {
   onSlotDragStart?: (e: React.DragEvent) => void;
   onSlotDragOver?: (e: React.DragEvent) => void;
   onSlotMouseEnter?: (e: React.MouseEvent) => void;
+  onSlotMouseMove?: (e: React.MouseEvent) => void;
   onSlotMouseLeave?: () => void;
 }
 
@@ -117,6 +129,7 @@ const EquipSlotItem: React.FC<EquipSlotItemProps> = ({
   onSlotDragStart,
   onSlotDragOver,
   onSlotMouseEnter,
+  onSlotMouseMove,
   onSlotMouseLeave,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
@@ -172,6 +185,9 @@ const EquipSlotItem: React.FC<EquipSlotItemProps> = ({
         onMouseEnter={(e) => {
           setIsHovered(true);
           onSlotMouseEnter?.(e);
+        }}
+        onMouseMove={(e) => {
+          if (item) onSlotMouseMove?.(e);
         }}
         onMouseLeave={() => {
           setIsHovered(false);
@@ -241,6 +257,7 @@ const EquipSlotItem: React.FC<EquipSlotItemProps> = ({
           ) : (
             <span
               style={{
+                ...iconStyle,
                 fontSize: 20,
                 opacity: 0.3,
                 filter: "grayscale(100%)",
@@ -262,13 +279,11 @@ export const EquipPanel: React.FC<EquipPanelProps> = ({
   onSlotRightClick,
   onSlotDrop,
   onSlotDragStart,
-  onSlotMouseEnter,
-  onSlotMouseLeave,
   onClose,
   dragData,
   onTouchDrop,
 }) => {
-  const { screenWidth } = useGameUIContext();
+  const { screenWidth, onGoodsHover, onGoodsLeave } = useGameUIContext();
   const panelWidth = 260;
 
   // 位置: 屏幕中央偏左
@@ -334,10 +349,23 @@ export const EquipPanel: React.FC<EquipPanelProps> = ({
   const handleMouseEnter = useCallback(
     (slot: EquipSlotType) => (e: React.MouseEvent) => {
       const item = equips[slot];
-      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-      onSlotMouseEnter?.(slot, item?.good ?? null, rect);
+      const good = item?.good ?? null;
+      if (good) {
+        onGoodsHover({ good, count: 1 }, e.clientX, e.clientY);
+      }
     },
-    [equips, onSlotMouseEnter]
+    [equips, onGoodsHover]
+  );
+
+  const handleMouseMove = useCallback(
+    (slot: EquipSlotType) => (e: React.MouseEvent) => {
+      const item = equips[slot];
+      const good = item?.good ?? null;
+      if (good) {
+        onGoodsHover({ good, count: 1 }, e.clientX, e.clientY);
+      }
+    },
+    [equips, onGoodsHover]
   );
 
   // 统计已装备数量
@@ -408,9 +436,9 @@ export const EquipPanel: React.FC<EquipPanelProps> = ({
                 justifyContent: "center",
               }}
             >
-              <span style={{ fontSize: 22, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }}>
-                🛡️
-              </span>
+              <HiOutlineShieldCheck
+                style={{ ...iconStyle, fontSize: 22, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }}
+              />
             </div>
           </div>
 
@@ -465,7 +493,8 @@ export const EquipPanel: React.FC<EquipPanelProps> = ({
               onSlotDragStart={handleDragStart(slot)}
               onSlotDragOver={handleDragOver(slot)}
               onSlotMouseEnter={handleMouseEnter(slot)}
-              onSlotMouseLeave={onSlotMouseLeave}
+              onSlotMouseMove={handleMouseMove(slot)}
+              onSlotMouseLeave={onGoodsLeave}
             />
           ))}
         </div>
@@ -483,7 +512,8 @@ export const EquipPanel: React.FC<EquipPanelProps> = ({
               onSlotDragStart={handleDragStart(slot)}
               onSlotDragOver={handleDragOver(slot)}
               onSlotMouseEnter={handleMouseEnter(slot)}
-              onSlotMouseLeave={onSlotMouseLeave}
+              onSlotMouseMove={handleMouseMove(slot)}
+              onSlotMouseLeave={onGoodsLeave}
             />
           ))}
         </div>
@@ -501,7 +531,8 @@ export const EquipPanel: React.FC<EquipPanelProps> = ({
               onSlotDragStart={handleDragStart(slot)}
               onSlotDragOver={handleDragOver(slot)}
               onSlotMouseEnter={handleMouseEnter(slot)}
-              onSlotMouseLeave={onSlotMouseLeave}
+              onSlotMouseMove={handleMouseMove(slot)}
+              onSlotMouseLeave={onGoodsLeave}
             />
           ))}
         </div>

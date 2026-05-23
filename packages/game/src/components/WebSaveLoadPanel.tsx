@@ -10,6 +10,7 @@
 
 import { getS3Url, trpc, useAuth } from "@miu2d/shared";
 import type { SaveSlot } from "@miu2d/types";
+import { HiOutlineXMark } from "react-icons/hi2";
 import { useCallback, useEffect, useState } from "react";
 
 export interface WebSaveLoadPanelProps {
@@ -353,7 +354,7 @@ export function WebSaveLoadPanel({
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
           >
-            ✕
+            <HiOutlineXMark style={{ strokeWidth: 2.2 }} />
           </button>
         </div>
 

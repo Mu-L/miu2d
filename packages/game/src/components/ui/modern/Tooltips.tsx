@@ -6,10 +6,11 @@
 import type { UIGoodData, UIMagicData } from "@miu2d/engine/gui/ui-types";
 import type React from "react";
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { HiOutlineArchiveBox, HiOutlineCurrencyYen } from "react-icons/hi2";
 import { useGameUIContext } from "../../../contexts";
 import { useAsfImage } from "../classic/hooks";
 import { Divider, ProgressBar, StatRow } from "./components";
-import { borderRadius, glassEffect, modernColors, spacing, typography } from "./theme";
+import { borderRadius, glassEffect, iconStyle, modernColors, spacing, typography } from "./theme";
 
 /**
  * 计算 Tooltip 位置
@@ -92,8 +93,7 @@ export const ItemTooltip: React.FC<ItemTooltipProps> = ({
       position: "fixed",
       left: tooltipPosition.x,
       top: tooltipPosition.y,
-      minWidth: 180,
-      maxWidth: 280,
+      width: 300,
       ...glassEffect.dark,
       borderRadius: borderRadius.lg,
       pointerEvents: "none",
@@ -131,7 +131,7 @@ export const ItemTooltip: React.FC<ItemTooltipProps> = ({
               style={{ maxWidth: 40, maxHeight: 40, imageRendering: "pixelated" }}
             />
           ) : (
-            <span style={{ fontSize: 24 }}>📦</span>
+            <HiOutlineArchiveBox style={{ ...iconStyle, fontSize: 24 }} />
           )}
         </div>
 
@@ -147,7 +147,7 @@ export const ItemTooltip: React.FC<ItemTooltipProps> = ({
             {good.name}
           </div>
           <div style={{ fontSize: typography.fontSize.xs, color: modernColors.text.muted }}>
-            {getItemTypeLabel(good.kind)}
+            {getItemTypeLabel(good.kind, good.part)}
           </div>
         </div>
       </div>
@@ -197,7 +197,7 @@ export const ItemTooltip: React.FC<ItemTooltipProps> = ({
             textAlign: "right",
           }}
         >
-          💰 {shopPrice != null ? shopPrice : good.cost}
+          <HiOutlineCurrencyYen style={iconStyle} /> {shopPrice != null ? shopPrice : good.cost}
         </div>
       )}
     </div>
@@ -429,18 +429,23 @@ export function getItemGlowColor(good: { cost: number } | null | undefined): str
   return qualityGlowColors[quality];
 }
 
-function getItemTypeLabel(kind: number): string {
+function getItemTypeLabel(kind: number, part?: number): string {
+  if (kind === 1 && part && part > 0) {
+    const partMap: Record<number, string> = {
+      1: "头饰",
+      2: "项链",
+      3: "衣甲",
+      4: "披风",
+      5: "兵器",
+      6: "护腕",
+      7: "靴履",
+    };
+    return partMap[part] ?? "装备";
+  }
   const typeMap: Record<number, string> = {
     0: "消耗品",
-    1: "头部装备",
-    2: "颈部装备",
-    3: "身体装备",
-    4: "背部装备",
-    5: "手部装备",
-    6: "腕部装备",
-    7: "脚部装备",
-    8: "任务物品",
-    9: "材料",
+    1: "装备",
+    2: "任务物品",
   };
   return typeMap[kind] ?? "其他";
 }

@@ -6,6 +6,7 @@
 import type { DialogGuiState } from "@miu2d/engine/gui/ui-types";
 import type React from "react";
 import { useCallback, useMemo, useState } from "react";
+import { HiOutlineChatBubbleBottomCenterText } from "react-icons/hi2";
 import { useGameUIContext } from "../../../contexts";
 import { useAsfImage } from "../classic/hooks";
 import { getPortraitPathByIndex } from "../portraitUtils";
@@ -345,7 +346,7 @@ export const DialogBox: React.FC<DialogBoxProps> = ({ state, onClose, onSelectio
                 gap: spacing.sm,
               }}
             >
-              <span>💬</span>
+              <HiOutlineChatBubbleBottomCenterText style={{ strokeWidth: 2.2 }} />
               {nameText}
             </div>
           )}

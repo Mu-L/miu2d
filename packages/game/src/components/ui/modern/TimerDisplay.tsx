@@ -6,8 +6,9 @@
 import type { TimerState } from "@miu2d/engine/runtime/timer-manager";
 import type React from "react";
 import { useMemo } from "react";
+import { HiOutlineClock } from "react-icons/hi2";
 import { useGameUIContext } from "../../../contexts";
-import { borderRadius, glassEffect, modernColors, spacing, typography } from "./theme";
+import { borderRadius, glassEffect, iconStyle, modernColors, spacing, typography } from "./theme";
 
 interface TimerDisplayProps {
   timerState: TimerState;
@@ -68,7 +69,7 @@ export const TimerDisplay: React.FC<TimerDisplayProps> = ({ timerState }) => {
             textShadow: urgent ? "0 0 10px rgba(255, 100, 100, 0.5)" : undefined,
           }}
         >
-          ⏱️ {formattedTime}
+          <HiOutlineClock style={iconStyle} /> {formattedTime}
         </div>
       </div>
 

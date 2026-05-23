@@ -9,6 +9,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { HiOutlineXMark } from "react-icons/hi2";
 
 const LS_KEY = "jxqy_docked_panel_";
 
@@ -136,7 +137,7 @@ export function DockedPanel({
           onClick={onClose}
           className="w-6 h-6 flex items-center justify-center rounded text-[#969696] hover:text-[#d4d4d4] hover:bg-white/10 transition-colors text-xs"
         >
-          ✕
+          <HiOutlineXMark style={{ strokeWidth: 2.2 }} />
         </button>
       </div>
 

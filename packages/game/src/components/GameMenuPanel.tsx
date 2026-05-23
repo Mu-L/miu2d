@@ -6,6 +6,7 @@
 
 import { useAnimatedVisibility, useAuth } from "@miu2d/shared";
 import { useEffect, useState } from "react";
+import { HiOutlineXMark } from "react-icons/hi2";
 import { SettingsPanel, type SettingsPanelProps } from "./common/SidePanel";
 import { WebSaveLoadPanel } from "./WebSaveLoadPanel";
 
@@ -128,7 +129,7 @@ export function GameMenuPanel({
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors mr-3"
           >
-            ✕
+            <HiOutlineXMark style={{ strokeWidth: 2.2 }} />
           </button>
         </div>
 
@@ -166,7 +167,7 @@ export function GameMenuPanel({
               onClick={() => setShowFeedback(false)}
               className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-md text-white/40 hover:text-white hover:bg-white/10 transition-colors text-xs"
             >
-              ✕
+              <HiOutlineXMark style={{ strokeWidth: 2.2 }} />
             </button>
             <p className="text-white/80 text-sm mb-1">遇到问题？</p>
             <p className="text-white/40 text-xs mb-4">剧情走不下去、遇到Bug，微信扫码反馈</p>

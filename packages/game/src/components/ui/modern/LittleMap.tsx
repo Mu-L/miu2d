@@ -7,7 +7,8 @@ import type { Vector2 } from "@miu2d/engine/core/types";
 import type { MiuMapData } from "@miu2d/engine/map/types";
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { borderRadius, glassEffect, modernColors, spacing, typography } from "./theme";
+import { HiOutlineMap, HiOutlineXMark } from "react-icons/hi2";
+import { borderRadius, glassEffect, iconStyle, modernColors, spacing, typography } from "./theme";
 
 // 与经典 UI 一致的常量
 const VIEW_WIDTH = 320;
@@ -210,7 +211,7 @@ export const LittleMap: React.FC<LittleMapProps> = ({
             gap: 4,
           }}
         >
-          🗺️ {mapDisplayName || mapName || "小地图"}
+          <HiOutlineMap style={iconStyle} /> {mapDisplayName || mapName || "小地图"}
         </span>
         <button
           onClick={onClose}
@@ -224,7 +225,7 @@ export const LittleMap: React.FC<LittleMapProps> = ({
             padding: 0,
           }}
         >
-          ✕
+          <HiOutlineXMark style={{ ...iconStyle, fontSize: 14 }} />
         </button>
       </div>
 
