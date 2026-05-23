@@ -7,12 +7,13 @@ import type { MagicItemInfo } from "@miu2d/engine/magic";
 import { MAGIC_LIST_CONFIG } from "@miu2d/engine/player/magic/magic-list-config";
 import type React from "react";
 import { useCallback, useMemo, useState } from "react";
+import { HiOutlineShieldCheck, HiOutlineXMark } from "react-icons/hi2";
 import type { TouchDragData } from "../../../contexts";
 import { useGameUIContext } from "../../../contexts";
 import type { BottomMagicDragData } from "../../hooks";
 import { AsfAnimatedSprite } from "../classic/AsfAnimatedSprite";
 import type { MagicDragData, MagicItem } from "../classic/MagicGui";
-import { borderRadius, glassEffect, modernColors, spacing, transitions, typography } from "./theme";
+import { borderRadius, glassEffect, iconStyle, modernColors, spacing, transitions, typography } from "./theme";
 
 interface MagicPanelProps {
   isVisible: boolean;
@@ -95,7 +96,7 @@ const CloseBtn: React.FC<{ onClick: () => void }> = ({ onClick }) => (
       e.currentTarget.style.color = modernColors.text.secondary;
     }}
   >
-    ✕
+    <HiOutlineXMark style={{ ...iconStyle, fontSize: 16 }} />
   </button>
 );
 
@@ -496,9 +497,9 @@ export const MagicPanel: React.FC<MagicPanelProps> = ({
                 justifyContent: "center",
               }}
             >
-              <span style={{ fontSize: 22, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }}>
-                ⚔️
-              </span>
+              <HiOutlineShieldCheck
+                style={{ ...iconStyle, fontSize: 22, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }}
+              />
             </div>
           </div>
 

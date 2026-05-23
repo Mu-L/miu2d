@@ -5,6 +5,7 @@
  */
 
 import { memo, useEffect, useState } from "react";
+import { HiOutlineArchiveBox } from "react-icons/hi2";
 import { useTouchDrag } from "../../contexts";
 import { AsfAnimatedSprite } from "../ui/classic/AsfAnimatedSprite";
 import { useAsfImage } from "../ui/classic/hooks";
@@ -100,7 +101,7 @@ export const TouchDragIndicator = memo(function TouchDragIndicator() {
             }}
           />
         ) : (
-          <span className="text-white text-lg">📦</span>
+          <HiOutlineArchiveBox className="text-white text-lg" style={{ strokeWidth: 2.2 }} />
         )}
       </div>
 

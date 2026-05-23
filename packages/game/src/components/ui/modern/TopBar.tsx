@@ -3,16 +3,26 @@
  * 位置与经典UI一致
  */
 import type React from "react";
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
+import {
+  HiOutlineAcademicCap,
+  HiOutlineChartBar,
+  HiOutlineCog6Tooth,
+  HiOutlineDocumentText,
+  HiOutlineShieldCheck,
+  HiOutlineShoppingBag,
+  HiOutlineSparkles,
+} from "react-icons/hi2";
 import { useGameUIContext } from "../../../contexts";
-import { borderRadius, glassEffect, modernColors, spacing, transitions } from "./theme";
+import { borderRadius, glassEffect, iconStyle, modernColors, spacing, transitions } from "./theme";
 
 // Props removed — screenWidth and panel toggles are read from GameUIContext
 
 interface TopButtonConfig {
   id: string;
   label: string;
-  icon: string;
+  icon: ReactNode;
   shortcut: string;
   onClick: () => void;
 }
@@ -52,7 +62,7 @@ const TopButton: React.FC<{ config: TopButtonConfig }> = ({ config }) => {
       onMouseDown={() => setIsPressed(true)}
       onMouseUp={() => setIsPressed(false)}
     >
-      {config.icon}
+      <span style={iconStyle}>{config.icon}</span>
     </button>
   );
 };
@@ -64,43 +74,43 @@ export const TopBar: React.FC = () => {
       {
         id: "state",
         label: "状态",
-        icon: "📊",
+        icon: <HiOutlineChartBar />,
         shortcut: "F1/T",
         onClick: () => togglePanel("state"),
       },
       {
         id: "equip",
         label: "装备",
-        icon: "⚔️",
+        icon: <HiOutlineShieldCheck />,
         shortcut: "F2/E",
         onClick: () => togglePanel("equip"),
       },
       {
         id: "xiulian",
         label: "修炼",
-        icon: "🧘",
+        icon: <HiOutlineAcademicCap />,
         shortcut: "F3",
         onClick: () => togglePanel("xiulian"),
       },
       {
         id: "goods",
         label: "物品",
-        icon: "🎒",
+        icon: <HiOutlineShoppingBag />,
         shortcut: "F5/I",
         onClick: () => togglePanel("goods"),
       },
       {
         id: "magic",
         label: "武功",
-        icon: "✨",
+        icon: <HiOutlineSparkles />,
         shortcut: "F6/M",
         onClick: () => togglePanel("magic"),
       },
-      { id: "memo", label: "任务", icon: "📜", shortcut: "F7", onClick: () => togglePanel("memo") },
+      { id: "memo", label: "任务", icon: <HiOutlineDocumentText />, shortcut: "F7", onClick: () => togglePanel("memo") },
       {
         id: "system",
         label: "系统",
-        icon: "⚙️",
+        icon: <HiOutlineCog6Tooth />,
         shortcut: "ESC",
         onClick: () => togglePanel("system"),
       },

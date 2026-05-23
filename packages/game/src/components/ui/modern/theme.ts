@@ -134,6 +134,12 @@ export const typography = {
   },
 } as const;
 
+// 图标通用样式（白色加粗）
+export const iconStyle = {
+  color: "white",
+  strokeWidth: 2.2,
+} as const;
+
 // 动画
 export const transitions = {
   fast: "0.15s ease",
@@ -173,6 +179,7 @@ export const modernTheme = {
   transitions,
   shadows,
   zIndex,
+  iconStyle,
 } as const;
 
 export type ModernTheme = typeof modernTheme;

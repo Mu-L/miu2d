@@ -17,6 +17,12 @@ import type { SaveData } from "@miu2d/engine/storage";
 import { useAuth } from "@miu2d/shared";
 import type React from "react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  HiOutlineCamera,
+  HiOutlineCog6Tooth,
+  HiOutlineDocumentArrowDown,
+  HiOutlineWrenchScrewdriver,
+} from "react-icons/hi2";
 import type { GameHandle, ToolbarButton } from "../components";
 import {
   DockedPanel,
@@ -326,21 +332,21 @@ export function GamePlaying({
     () => [
       {
         id: "debug",
-        icon: <span className="text-base">🔧</span>,
+        icon: <HiOutlineWrenchScrewdriver className="text-white" style={{ strokeWidth: 2.2 }} />,
         tooltip: "调试",
         onClick: toggleDebug,
         active: showDebug,
       },
       {
         id: "saveload",
-        icon: <span className="text-base">💾</span>,
+        icon: <HiOutlineDocumentArrowDown className="text-white" style={{ strokeWidth: 2.2 }} />,
         tooltip: "存档",
         onClick: handleSaveClick,
         active: activePanel === "menu" && menuTab === "save",
       },
       {
         id: "settings",
-        icon: <span className="text-base">⚙️</span>,
+        icon: <HiOutlineCog6Tooth className="text-white" style={{ strokeWidth: 2.2 }} />,
         tooltip: "设置",
         onClick: () => {
           setMenuTab("settings");
@@ -350,7 +356,7 @@ export function GamePlaying({
       },
       {
         id: "screenshot",
-        icon: <span className="text-base">📷</span>,
+        icon: <HiOutlineCamera className="text-white" style={{ strokeWidth: 2.2 }} />,
         tooltip: "截图",
         onClick: takeScreenshot,
       },

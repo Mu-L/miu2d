@@ -3,10 +3,12 @@
  * 位置与经典UI一致
  */
 import type React from "react";
+import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
+import { HiOutlineCog6Tooth, HiOutlineDocumentArrowDown } from "react-icons/hi2";
 import { useGameUIContext } from "../../../contexts";
 import { Divider, PanelHeader } from "./components";
-import { borderRadius, glassEffect, modernColors, spacing, typography } from "./theme";
+import { borderRadius, glassEffect, iconStyle, modernColors, spacing, typography } from "./theme";
 
 interface SystemPanelProps {
   isVisible: boolean;
@@ -17,7 +19,7 @@ interface SystemPanelProps {
 }
 
 interface MenuButtonProps {
-  icon: string;
+  icon: ReactNode;
   label: string;
   onClick: () => void;
   color?: string;
@@ -56,7 +58,7 @@ const MenuButton: React.FC<MenuButtonProps> = ({ icon, label, onClick, color }) 
         transform: isPressed ? "scale(0.98)" : "scale(1)",
       }}
     >
-      <span style={{ fontSize: 24 }}>{icon}</span>
+      <span style={{ ...iconStyle, fontSize: 24 }}>{icon}</span>
       <span
         style={{
           fontSize: typography.fontSize.md,
@@ -113,8 +115,8 @@ export const SystemPanel: React.FC<SystemPanelProps> = ({
           gap: spacing.md,
         }}
       >
-        <MenuButton icon="💾" label="存档/读档" onClick={onSaveLoad} />
-        <MenuButton icon="⚙️" label="游戏设置" onClick={onOption} />
+        <MenuButton icon={<HiOutlineDocumentArrowDown />} label="存档/读档" onClick={onSaveLoad} />
+        <MenuButton icon={<HiOutlineCog6Tooth />} label="游戏设置" onClick={onOption} />
 
         <div style={{ flex: 1 }} />
 

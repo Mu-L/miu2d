@@ -7,12 +7,13 @@ import type { MagicItemInfo } from "@miu2d/engine/magic";
 import { MAGIC_LIST_CONFIG } from "@miu2d/engine/player/magic/magic-list-config";
 import type React from "react";
 import { useCallback, useMemo, useState } from "react";
+import { HiOutlineAcademicCap, HiOutlineSparkles, HiOutlineXMark } from "react-icons/hi2";
 import type { TouchDragData } from "../../../contexts";
 import { useGameUIContext } from "../../../contexts";
 import { AsfAnimatedSprite } from "../classic/AsfAnimatedSprite";
 import type { MagicDragData } from "../classic/MagicGui";
 import type { XiuLianMagic } from "../classic/XiuLianGui";
-import { borderRadius, glassEffect, modernColors, spacing, transitions, typography } from "./theme";
+import { borderRadius, glassEffect, iconStyle, modernColors, spacing, transitions, typography } from "./theme";
 
 // BottomGui 的拖拽数据类型
 interface BottomMagicDragData {
@@ -85,7 +86,7 @@ const CloseBtn: React.FC<{ onClick: () => void }> = ({ onClick }) => (
       e.currentTarget.style.color = modernColors.text.secondary;
     }}
   >
-    ✕
+    <HiOutlineXMark style={{ ...iconStyle, fontSize: 16 }} />
   </button>
 );
 
@@ -530,9 +531,9 @@ export const XiuLianPanel: React.FC<XiuLianPanelProps> = ({
                 justifyContent: "center",
               }}
             >
-              <span style={{ fontSize: 22, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }}>
-                🧘
-              </span>
+              <HiOutlineAcademicCap
+                style={{ ...iconStyle, fontSize: 22, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }}
+              />
             </div>
           </div>
 
@@ -627,7 +628,7 @@ export const XiuLianPanel: React.FC<XiuLianPanelProps> = ({
                   opacity: 0.5,
                 }}
               >
-                <span style={{ fontSize: 24 }}>✨</span>
+                <HiOutlineSparkles style={{ ...iconStyle, fontSize: 24 }} />
               </div>
               <span style={{ fontSize: typography.fontSize.sm, textAlign: "center" }}>
                 拖放武功到此处修炼

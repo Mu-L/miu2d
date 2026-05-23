@@ -15,6 +15,7 @@ import type { MagicItemInfo } from "@miu2d/engine/magic/types";
 import { magicNeedsDirectionPointer } from "@miu2d/engine/magic/types";
 import type { GoodsItemInfo } from "@miu2d/engine/player/goods/goods-list-manager";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { HiOutlineBars3 } from "react-icons/hi2";
 import { AsfAnimatedSprite } from "../ui/classic/AsfAnimatedSprite";
 import { useAsfImage } from "../ui/classic/hooks";
 
@@ -524,7 +525,7 @@ const _MenuButton = memo(function MenuButton({
           opacity: disabled ? 0.4 : 1,
         }}
       />
-      <span className="relative z-10 text-white/70 text-lg">☰</span>
+      <HiOutlineBars3 className="relative z-10 text-white/70 text-lg" style={{ strokeWidth: 2.2 }} />
     </div>
   );
 });

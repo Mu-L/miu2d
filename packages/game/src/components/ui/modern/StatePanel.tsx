@@ -4,9 +4,10 @@
  */
 import type React from "react";
 import { useMemo } from "react";
+import { HiOutlineXMark } from "react-icons/hi2";
 import { useAsfImage } from "../classic/hooks";
 import type { PlayerStats } from "../classic/StateGui";
-import { borderRadius, glassEffect, modernColors, spacing, transitions, typography } from "./theme";
+import { borderRadius, glassEffect, iconStyle, modernColors, spacing, transitions, typography } from "./theme";
 
 interface StatePanelProps {
   isVisible: boolean;
@@ -257,7 +258,7 @@ const CloseBtn: React.FC<{ onClick: () => void }> = ({ onClick }) => (
       e.currentTarget.style.color = modernColors.text.secondary;
     }}
   >
-    ✕
+    <HiOutlineXMark style={{ ...iconStyle, fontSize: 16 }} />
   </button>
 );
 

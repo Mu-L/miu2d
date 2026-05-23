@@ -13,6 +13,7 @@ import { type Obj, ObjState } from "@miu2d/engine/obj/obj";
 import type { GameEngine } from "@miu2d/engine/runtime/game-engine";
 import { getViewTileDistance } from "@miu2d/engine/utils";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { HiOutlineArchiveBox, HiOutlineUser } from "react-icons/hi2";
 import { AsfAnimatedSprite } from "../ui/classic/AsfAnimatedSprite";
 
 /** 可交互目标类型 */
@@ -331,8 +332,10 @@ const InteractionButton = memo(function InteractionButton({
               objectFit: "contain",
             }}
           />
+        ) : target.type === "npc" ? (
+          <HiOutlineUser className="text-white/60 text-xl" style={{ strokeWidth: 2.2 }} />
         ) : (
-          <span className="text-white/60 text-xl">{target.type === "npc" ? "👤" : "📦"}</span>
+          <HiOutlineArchiveBox className="text-white/60 text-xl" style={{ strokeWidth: 2.2 }} />
         )}
       </div>
 

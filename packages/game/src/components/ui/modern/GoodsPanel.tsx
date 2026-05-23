@@ -4,14 +4,40 @@
  */
 
 import type { UIGoodData } from "@miu2d/engine/gui/ui-types";
+import { GoodKind } from "@miu2d/engine/player/goods";
 import type React from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  HiOutlineArchiveBox,
+  HiOutlineBeaker,
+  HiOutlineCurrencyYen,
+  HiOutlineDocumentText,
+  HiOutlineShieldCheck,
+  HiOutlineShoppingBag,
+  HiOutlineXMark,
+} from "react-icons/hi2";
 import type { TouchDragData } from "../../../contexts";
 import { useGameUIContext } from "../../../contexts";
 import type { DragData, GoodItemData } from "../classic";
 import { useAsfImage } from "../classic/hooks";
 import { getItemBorderColor, getItemGlowColor, getItemQuality, ItemQuality } from "./Tooltips";
-import { borderRadius, glassEffect, modernColors, spacing, transitions, typography } from "./theme";
+import { borderRadius, glassEffect, iconStyle, modernColors, spacing, transitions, typography } from "./theme";
+
+// 筛选类型
+type FilterKind = "all" | GoodKind;
+
+interface FilterTab {
+  key: FilterKind;
+  label: string;
+  icon: ReactNode;
+}
+
+const filterTabs: FilterTab[] = [
+  { key: "all", label: "全部", icon: <HiOutlineArchiveBox /> },
+  { key: GoodKind.Drug, label: "药品", icon: <HiOutlineBeaker /> },
+  { key: GoodKind.Equipment, label: "装备", icon: <HiOutlineShieldCheck /> },
+  { key: GoodKind.Event, label: "任务", icon: <HiOutlineDocumentText /> },
+];
 
 // 武侠风格配色
 const wuxiaAccent = {
@@ -45,6 +71,7 @@ interface ItemSlotProps {
   index: number;
   actualIndex: number;
   slotSize: number;
+  dimmed?: boolean;
   onClick?: () => void;
   onRightClick?: () => void;
   onDrop?: (e: React.DragEvent) => void;
@@ -86,7 +113,7 @@ const CloseBtn: React.FC<{ onClick: () => void }> = ({ onClick }) => (
       e.currentTarget.style.color = modernColors.text.secondary;
     }}
   >
-    ✕
+    <HiOutlineXMark style={{ ...iconStyle, fontSize: 16 }} />
   </button>
 );
 
@@ -95,6 +122,7 @@ const GoodsSlot: React.FC<ItemSlotProps> = ({
   item,
   actualIndex,
   slotSize,
+  dimmed,
   onClick,
   onRightClick,
   onDrop,
@@ -148,6 +176,8 @@ const GoodsSlot: React.FC<ItemSlotProps> = ({
         cursor: item ? "grab" : "default",
         transition: transitions.fast,
         transform: isHovered && item ? "scale(1.05)" : "scale(1)",
+        opacity: dimmed ? 0.25 : 1,
+        pointerEvents: dimmed ? "none" : "auto",
       }}
       onClick={onClick}
       onContextMenu={(e) => {
@@ -267,6 +297,7 @@ export const GoodsPanel: React.FC<GoodsPanelProps> = ({
 }) => {
   const { screenWidth } = useGameUIContext();
   const [scrollOffset, setScrollOffset] = useState(0);
+  const [filterKind, setFilterKind] = useState<FilterKind>("all");
 
   // 滚动条拖拽状态
   const [isDraggingScrollbar, setIsDraggingScrollbar] = useState(false);
@@ -304,14 +335,32 @@ export const GoodsPanel: React.FC<GoodsPanelProps> = ({
     [screenWidth]
   );
 
+  // 筛选后的物品（保留所有物品，标记不匹配的为 dimmed）
+  const filteredItems = useMemo(() => {
+    if (filterKind === "all") return items.map((item) => ({ item, dimmed: false }));
+    return items.map((item) => ({
+      item,
+      dimmed: item !== null && item.good.kind !== filterKind,
+    }));
+  }, [items, filterKind]);
+
   // 当前显示的物品
   const visibleItems = useMemo(() => {
     const startIndex = scrollOffset * columns;
-    return items.slice(startIndex, startIndex + itemsPerPage);
-  }, [items, scrollOffset, itemsPerPage]);
+    return filteredItems.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredItems, scrollOffset, itemsPerPage]);
 
-  // 最大滚动行数
+  // 最大滚动行数（基于总物品数，筛选不改变布局）
   const maxScrollRows = Math.max(0, Math.ceil(items.length / columns) - rows);
+
+  // 切换筛选时重置滚动
+  const handleFilterChange = useCallback(
+    (kind: FilterKind) => {
+      setFilterKind(kind);
+      setScrollOffset(0);
+    },
+    []
+  );
 
   // 滚动处理
   const handleScroll = useCallback(
@@ -346,37 +395,38 @@ export const GoodsPanel: React.FC<GoodsPanelProps> = ({
   const handleDragStart = useCallback(
     (index: number) => (e: React.DragEvent) => {
       const bagIndex = scrollOffset * columns + index + 1;
-      const item = items[scrollOffset * columns + index];
-      if (item) {
-        onItemDragStart?.(bagIndex, item.good);
+      const entry = filteredItems[scrollOffset * columns + index];
+      if (entry?.item && !entry.dimmed) {
+        onItemDragStart?.(bagIndex, entry.item.good);
         if (e.dataTransfer) {
           e.dataTransfer.effectAllowed = "move";
         }
       }
     },
-    [items, scrollOffset, onItemDragStart]
+    [filteredItems, scrollOffset, onItemDragStart]
   );
 
   const handleMouseEnter = useCallback(
     (index: number) => (e: React.MouseEvent) => {
-      const item = items[scrollOffset * columns + index];
+      const entry = filteredItems[scrollOffset * columns + index];
+      const good = entry?.item?.good ?? null;
       if (onItemHover) {
-        onItemHover(item?.good ?? null, e.clientX, e.clientY);
+        onItemHover(good, e.clientX, e.clientY);
       } else if (onItemMouseEnter) {
         const bagIndex = scrollOffset * columns + index + 1;
         const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-        onItemMouseEnter(bagIndex, item?.good ?? null, rect);
+        onItemMouseEnter(bagIndex, good, rect);
       }
     },
-    [items, scrollOffset, onItemMouseEnter, onItemHover]
+    [filteredItems, scrollOffset, onItemMouseEnter, onItemHover]
   );
 
   const handleMouseMove = useCallback(
     (index: number) => (e: React.MouseEvent) => {
-      const item = items[scrollOffset * columns + index];
-      onItemHover?.(item?.good ?? null, e.clientX, e.clientY);
+      const entry = filteredItems[scrollOffset * columns + index];
+      onItemHover?.(entry?.item?.good ?? null, e.clientX, e.clientY);
     },
-    [items, scrollOffset, onItemHover]
+    [filteredItems, scrollOffset, onItemHover]
   );
 
   // 滚动条拖拽的全局鼠标事件
@@ -431,7 +481,11 @@ export const GoodsPanel: React.FC<GoodsPanelProps> = ({
   );
 
   // 统计物品数量
-  const itemCount = useMemo(() => items.filter((i) => i !== null).length, [items]);
+  const totalItemCount = useMemo(() => items.filter((i) => i !== null).length, [items]);
+  const filteredItemCount = useMemo(
+    () => filteredItems.filter((e) => e.item !== null && !e.dimmed).length,
+    [filteredItems]
+  );
 
   if (!isVisible) return null;
 
@@ -491,9 +545,9 @@ export const GoodsPanel: React.FC<GoodsPanelProps> = ({
                 justifyContent: "center",
               }}
             >
-              <span style={{ fontSize: 22, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }}>
-                🎒
-              </span>
+              <HiOutlineShoppingBag
+                style={{ ...iconStyle, fontSize: 22, filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.5))" }}
+              />
             </div>
           </div>
 
@@ -517,12 +571,79 @@ export const GoodsPanel: React.FC<GoodsPanelProps> = ({
             >
               物品{" "}
               <span style={{ color: wuxiaAccent.gold, fontWeight: typography.fontWeight.semibold }}>
-                {itemCount}
+                {filterKind === "all" ? totalItemCount : filteredItemCount}
               </span>{" "}
-              / {items.length} 件
+              / {totalItemCount} 件
             </div>
           </div>
         </div>
+      </div>
+
+      {/* 筛选标签栏 */}
+      <div
+        style={{
+          display: "flex",
+          gap: spacing.xs,
+          padding: `${spacing.sm}px ${spacing.md}px`,
+          borderBottom: `1px solid ${modernColors.border.glass}`,
+          background: modernColors.bg.glassDark,
+        }}
+      >
+        {filterTabs.map((tab) => {
+          const isActive = filterKind === tab.key;
+          const count =
+            tab.key === "all"
+              ? totalItemCount
+              : items.filter((i) => i !== null && i.good.kind === tab.key).length;
+
+          return (
+            <button
+              key={tab.key}
+              onClick={() => handleFilterChange(tab.key)}
+              style={{
+                flex: 1,
+                padding: `${spacing.xs}px ${spacing.sm}px`,
+                background: isActive ? modernColors.bg.active : "transparent",
+                border: isActive
+                  ? `1px solid ${wuxiaAccent.gold}66`
+                  : `1px solid transparent`,
+                borderRadius: borderRadius.md,
+                color: isActive ? wuxiaAccent.gold : modernColors.text.muted,
+                fontSize: typography.fontSize.xs,
+                fontWeight: isActive ? typography.fontWeight.semibold : typography.fontWeight.normal,
+                cursor: "pointer",
+                transition: transitions.fast,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 1,
+              }}
+              onMouseEnter={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.background = modernColors.bg.hover;
+                  e.currentTarget.style.color = modernColors.text.secondary;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isActive) {
+                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.color = modernColors.text.muted;
+                }
+              }}
+            >
+              <span style={{ ...iconStyle, fontSize: 14 }}>{tab.icon}</span>
+              <span>{tab.label}</span>
+              <span
+                style={{
+                  fontSize: 9,
+                  opacity: 0.7,
+                }}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       {/* 物品网格区域 */}
@@ -542,16 +663,17 @@ export const GoodsPanel: React.FC<GoodsPanelProps> = ({
             justifyContent: "center",
           }}
         >
-          {visibleItems.map((item, idx) => {
+          {visibleItems.map((entry, idx) => {
             const actualIndex = scrollOffset * columns + idx + 1;
-            const contentKey = item?.good?.name ?? "empty";
+            const contentKey = entry.item?.good?.name ?? "empty";
             return (
               <GoodsSlot
                 key={`goods-slot-${idx}-${scrollOffset}-${contentKey}`}
-                item={item}
+                item={entry.item}
                 index={idx}
                 actualIndex={actualIndex}
                 slotSize={slotSize}
+                dimmed={entry.dimmed}
                 onClick={() => onItemClick?.(actualIndex)}
                 onRightClick={() => onItemRightClick?.(actualIndex)}
                 onDrop={handleDrop(idx)}
@@ -611,7 +733,7 @@ export const GoodsPanel: React.FC<GoodsPanelProps> = ({
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: spacing.sm }}>
-          <span style={{ fontSize: 18 }}>💰</span>
+          <HiOutlineCurrencyYen style={{ ...iconStyle, fontSize: 18 }} />
           <span
             style={{
               fontSize: typography.fontSize.sm,

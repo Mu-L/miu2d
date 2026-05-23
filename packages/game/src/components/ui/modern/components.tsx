@@ -3,6 +3,7 @@
  */
 import type React from "react";
 import { useCallback, useState } from "react";
+import { HiOutlineXMark } from "react-icons/hi2";
 import {
   borderRadius,
   glassEffect,
@@ -11,6 +12,7 @@ import {
   spacing,
   transitions,
   typography,
+  iconStyle,
 } from "./theme";
 
 // ============= GlassPanel - 毛玻璃面板 =============
@@ -117,7 +119,7 @@ export const CloseButton: React.FC<CloseButtonProps> = ({ onClick, size = 24 }) 
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      ✕
+      <HiOutlineXMark style={{ ...iconStyle, fontSize: 14 }} />
     </button>
   );
 };

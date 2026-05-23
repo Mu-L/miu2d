@@ -43,18 +43,16 @@ export function GameTopBar({ gameName, logoUrl, toolbarButtons, onLoginClick }: 
             <button
               key={btn.id}
               onClick={btn.onClick}
-              className={`w-8 h-8 flex items-center justify-center rounded-md text-base transition-all duration-150 relative group
+              className={`h-8 px-2 flex items-center gap-1.5 rounded-md text-sm transition-all duration-150
                 ${
                   btn.active
                     ? "bg-white/15 text-white"
-                    : "text-white/50 hover:text-white hover:bg-white/10"
+                    : "text-white/70 hover:text-white hover:bg-white/10"
                 }`}
               title={btn.tooltip}
             >
               {btn.icon}
-              <span className="absolute top-full mt-1 px-2 py-1 bg-black/80 text-white text-xs rounded whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50">
-                {btn.tooltip}
-              </span>
+              <span className="text-xs">{btn.tooltip}</span>
             </button>
           ))}
         </div>

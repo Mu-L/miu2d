@@ -9,6 +9,7 @@
 
 import { useAnimatedVisibility } from "@miu2d/shared";
 import { useEffect } from "react";
+import { HiOutlineXMark } from "react-icons/hi2";
 
 export interface GlassModalProps {
   visible: boolean;
@@ -63,7 +64,7 @@ export function GlassModal({
             onClick={onClose}
             className="w-8 h-8 flex items-center justify-center rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition-colors"
           >
-            ✕
+            <HiOutlineXMark style={{ strokeWidth: 2.2 }} />
           </button>
         </div>
 
