@@ -29,6 +29,7 @@ import {
   MemoPanel,
   MessageBox,
   NpcLifeBar,
+  PartnerPortraits,
   SelectionMultipleUI,
   SelectionUI,
   StatePanel,
@@ -67,6 +68,7 @@ export const ModernGameUIWrapper: React.FC<ModernGameUIWrapperProps> = ({
     magicData,
     buyData,
     hoveredNpc,
+    partnersData,
     npcUpdateKey,
     dragData,
     setDragData,
@@ -170,6 +172,18 @@ export const ModernGameUIWrapper: React.FC<ModernGameUIWrapperProps> = ({
 
         {/* NPC 血条 */}
         <NpcLifeBar key={npcUpdateKey} npc={hoveredNpc} screenWidth={width} />
+
+        {/* 伙伴头像 */}
+        {partnersData.length > 0 && (
+          <PartnerPortraits
+            partners={partnersData}
+            onPartnerClick={(_index, partner) => {
+              if (partner.canEquip) {
+                logger.debug(`[ModernGameUI] Partner clicked: ${partner.name}`);
+              }
+            }}
+          />
+        )}
 
         {/* 底部快捷栏 */}
         <BottomBar

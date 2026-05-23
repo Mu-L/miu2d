@@ -31,6 +31,8 @@ export { MessageBox, MessageQueue } from "./MessageBox";
 // 主UI组件
 export { ModernGameUI } from "./ModernGameUI";
 export { NpcLifeBar } from "./NpcLifeBar";
+export { PartnerPanel, type PartnerDisplayData } from "./PartnerPanel";
+export { PartnerPortraits } from "./PartnerPortraits";
 export { SelectionMultipleUI } from "./SelectionMultipleUI";
 export { SelectionUI } from "./SelectionUI";
 export { StatePanel } from "./StatePanel";
