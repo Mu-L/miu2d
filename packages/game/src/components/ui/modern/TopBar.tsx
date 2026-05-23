@@ -13,6 +13,7 @@ import {
   HiOutlineShieldCheck,
   HiOutlineShoppingBag,
   HiOutlineSparkles,
+  HiOutlineUserGroup,
 } from "react-icons/hi2";
 import { useGameUIContext } from "../../../contexts";
 import { borderRadius, glassEffect, iconStyle, modernColors, spacing, transitions } from "./theme";
@@ -86,6 +87,13 @@ export const TopBar: React.FC = () => {
         onClick: () => togglePanel("equip"),
       },
       {
+        id: "partner",
+        label: "伙伴",
+        icon: <HiOutlineUserGroup />,
+        shortcut: "F4",
+        onClick: () => togglePanel("npcEquip"),
+      },
+      {
         id: "xiulian",
         label: "修炼",
         icon: <HiOutlineAcademicCap />,
@@ -118,7 +126,7 @@ export const TopBar: React.FC = () => {
     [togglePanel]
   );
 
-  const panelWidth = 300;
+  const panelWidth = 330;
 
   const panelStyle: React.CSSProperties = useMemo(
     () => ({

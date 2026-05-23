@@ -43,7 +43,7 @@ import { TopBar } from "./TopBar";
 import { XiuLianPanel } from "./XiuLianPanel";
 
 // UI面板类型
-type PanelType = "state" | "equip" | "goods" | "magic" | "xiulian" | "memo" | "system" | null;
+type PanelType = "state" | "equip" | "goods" | "magic" | "xiulian" | "memo" | "system" | "npcEquip" | null;
 
 interface ModernGameUIProps {
   screenWidth: number;

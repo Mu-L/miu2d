@@ -264,6 +264,35 @@ export class GoodsListManager {
   }
 
   /**
+   * Delete good at specific bag index (decrements count or removes)
+   */
+  deleteGoodByIndex(index: number): void {
+    if (!this.isInStoreRange(index)) return;
+    const info = this.goodsList[index];
+    if (!info) return;
+
+    const good = info.good;
+    if (info.count <= 1) {
+      this.goodsList[index] = null;
+    } else {
+      info.count -= 1;
+    }
+
+    if (good.kind === GoodKind.Equipment && good.noNeedToEquip > 0) {
+      this.onUnEquiping?.(good);
+    }
+
+    this.onUpdateView?.();
+  }
+
+  /**
+   * Show bag full message (exposed for cross-character operations)
+   */
+  showBagFullMessage(): void {
+    this.onShowMessage?.("物品栏已满");
+  }
+
+  /**
    * Delete good by name and count
    * Supports both display name (e.g., "羊皮") and fileName (e.g., "Good-e22-羊皮.ini")
    */

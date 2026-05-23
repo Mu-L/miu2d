@@ -62,6 +62,9 @@ export class InteractionManager {
   private _hoveredObj: Obj | null = null;
   private _edgeColor: string = EdgeColors.NPC;
 
+  // UI hover lock - persists across frames (not cleared by clearHoverState)
+  private _hoverLock: Npc | null = null;
+
   // Interaction state for objects
   private _objInteractionState: Map<string, ObjInteractionState> = new Map();
 
@@ -122,9 +125,27 @@ export class InteractionManager {
   }
 
   /**
+   * Set/clear hover lock (from UI portrait hover, persists across frames)
+   */
+  setHoverLock(npc: Npc | null): void {
+    this._hoverLock = npc;
+  }
+
+  /**
    * Get current hover target
    */
   getHoverTarget(): InteractionTarget {
+    // UI hover lock takes priority (portrait hover)
+    if (this._hoverLock) {
+      this.setHoveredNpc(this._hoverLock);
+      return {
+        type: "npc",
+        npc: this._hoverLock,
+        obj: null,
+        edgeColor: this._edgeColor,
+      };
+    }
+
     if (this._hoveredNpc) {
       return {
         type: "npc",

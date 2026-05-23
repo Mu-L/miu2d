@@ -25,6 +25,8 @@ interface LittleHeadGuiProps {
   partners: PartnerInfo[];
   /** 点击队友头像回调 */
   onPartnerClick?: (index: number, partner: PartnerInfo) => void;
+  /** hover 队友头像回调 (null = 离开) */
+  onPartnerHover?: (partner: PartnerInfo | null) => void;
 }
 
 /**
@@ -34,9 +36,10 @@ interface LittleHeadGuiProps {
 interface PartnerHeadItemProps {
   partner: PartnerInfo;
   onClick?: () => void;
+  onHover?: (hovered: boolean) => void;
 }
 
-const PartnerHeadItem: React.FC<PartnerHeadItemProps> = ({ partner, onClick }) => {
+const PartnerHeadItem: React.FC<PartnerHeadItemProps> = ({ partner, onClick, onHover }) => {
   // 加载队友头像 ASF : Utils.GetAsf(@"asf\ui\littlehead\", name + ".asf")
   const portraitPath = `asf/ui/littlehead/${partner.name}.asf`;
   const portrait = useAsfImage(portraitPath, 0);
@@ -63,6 +66,8 @@ const PartnerHeadItem: React.FC<PartnerHeadItemProps> = ({ partner, onClick }) =
         userSelect: "none",
       }}
       onClick={handleClick}
+      onMouseEnter={() => onHover?.(true)}
+      onMouseLeave={() => onHover?.(false)}
       title={partner.canEquip ? `${partner.name} - 点击打开装备` : partner.name}
     >
       {/* 头像图片 */}
@@ -104,7 +109,7 @@ const PartnerHeadItem: React.FC<PartnerHeadItemProps> = ({ partner, onClick }) =
  * 显示在屏幕左上角
  * const int x = 5; var y = 5;
  */
-export const LittleHeadGui: React.FC<LittleHeadGuiProps> = ({ partners, onPartnerClick }) => {
+export const LittleHeadGui: React.FC<LittleHeadGuiProps> = ({ partners, onPartnerClick, onPartnerHover }) => {
   if (partners.length === 0) {
     return null;
   }
@@ -129,6 +134,7 @@ export const LittleHeadGui: React.FC<LittleHeadGuiProps> = ({ partners, onPartne
           key={partner.name}
           partner={partner}
           onClick={() => onPartnerClick?.(index, partner)}
+          onHover={(hovered) => onPartnerHover?.(hovered ? partner : null)}
         />
       ))}
     </div>

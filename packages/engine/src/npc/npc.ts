@@ -9,7 +9,12 @@ import { logger } from "../core/logger";
 import type { CharacterConfig, Vector2 } from "../core/types";
 import { CharacterKind, CharacterState } from "../core/types";
 import type { MagicData } from "../magic/types";
-import { GoodsListManager } from "../player/goods/goods-list-manager";
+import { EquipPosition, Good, GoodKind } from "../player/goods/good";
+import {
+  equipPositionToSlotIndex,
+  GoodsListManager,
+  type GoodsItemInfo,
+} from "../player/goods/goods-list-manager";
 import { PlayerMagicInventory } from "../player/magic/player-magic-inventory";
 import type { AsfData } from "../resource/format/asf";
 import { generateId, tileToPixel } from "../utils";
@@ -84,6 +89,217 @@ export class Npc extends Character {
     }
     // 伙伴共享 NpcManager 持有的等级配置管理器
     this.levelManager = this.npcManager.getLevelManager();
+    // 设置装备回调，使装备属性生效
+    this._goodsManager.setCallbacks({
+      onEquiping: (good, currentEquip, justEffectType) => {
+        this.equiping(good, currentEquip, justEffectType);
+      },
+      onUnEquiping: (good, justEffectType) => {
+        this.unEquiping(good, justEffectType);
+      },
+    });
+  }
+
+  // === Partner Equipment Stat Application ===
+
+  /**
+   * 装备属性生效（处理基本属性加成和移动速度）
+   */
+  equiping(equip: Good | null, currentEquip: Good | null, justEffectType: boolean = false): void {
+    if (!equip) return;
+    // 先卸下被替换的装备
+    this.unEquiping(currentEquip, justEffectType);
+
+    if (!justEffectType) {
+      this.attack += equip.attack;
+      this.attack2 += equip.attack2;
+      this.attack3 += equip.attack3;
+      this.defend += equip.defend;
+      this.defend2 += equip.defend2;
+      this.defend3 += equip.defend3;
+      this.evade += equip.evade;
+      this.lifeMax += equip.lifeMax;
+      this.thewMax += equip.thewMax;
+      this.manaMax += equip.manaMax;
+    }
+
+    this.addMoveSpeedPercent += equip.changeMoveSpeedPercent;
+
+    // 确保当前值不超过新上限
+    this.life = Math.min(this.life, this.lifeMax);
+    this.thew = Math.min(this.thew, this.thewMax);
+    this.mana = Math.min(this.mana, this.manaMax);
+  }
+
+  /**
+   * 卸下装备属性
+   */
+  unEquiping(equip: Good | null, justEffectType: boolean = false): void {
+    if (!equip) return;
+
+    if (!justEffectType) {
+      this.attack -= equip.attack;
+      this.attack2 -= equip.attack2;
+      this.attack3 -= equip.attack3;
+      this.defend -= equip.defend;
+      this.defend2 -= equip.defend2;
+      this.defend3 -= equip.defend3;
+      this.evade -= equip.evade;
+      this.lifeMax -= equip.lifeMax;
+      this.thewMax -= equip.thewMax;
+      this.manaMax -= equip.manaMax;
+    }
+
+    this.addMoveSpeedPercent -= equip.changeMoveSpeedPercent;
+
+    if (this.life > this.lifeMax) this.life = this.lifeMax;
+    if (this.thew > this.thewMax) this.thew = this.thewMax;
+    if (this.mana > this.manaMax) this.mana = this.manaMax;
+  }
+
+  // === Cross-Character Equipment Methods ===
+
+  /**
+   * 从主角背包取装备穿到伙伴身上
+   * 如果伙伴该槽位已有装备，旧装备放回主角背包
+   */
+  equipFromPlayerBag(
+    playerGoodsManager: GoodsListManager,
+    playerBagIndex: number,
+    equipPosition: EquipPosition
+  ): boolean {
+    if (!this._goodsManager) return false;
+
+    const slotIdx = equipPositionToSlotIndex(equipPosition);
+    if (slotIdx < 0) return false;
+
+    // 获取主角背包中的物品
+    const playerItem = playerGoodsManager.getItemInfo(playerBagIndex);
+    if (!playerItem || playerItem.good.kind !== GoodKind.Equipment) return false;
+    if (playerItem.good.part !== equipPosition) return false;
+
+    // 获取伙伴当前装备
+    const partnerEquip = this._goodsManager.getEquipAtPosition(equipPosition);
+
+    // 如果伙伴有旧装备，放回主角背包
+    if (partnerEquip) {
+      const addResult = playerGoodsManager.addGoodToList(partnerEquip.good.fileName);
+      if (!addResult.success) {
+        playerGoodsManager.showBagFullMessage();
+        return false;
+      }
+      // 恢复旧装备的堆叠数
+      if (partnerEquip.count > 1) {
+        const addedInfo = playerGoodsManager.getItemInfo(addResult.index);
+        if (addedInfo) addedInfo.count = partnerEquip.count;
+      }
+    }
+
+    // 从主角背包移除物品（减1个）
+    if (playerItem.count > 1) {
+      playerItem.count -= 1;
+    } else {
+      // 使用 deleteGood 来正确处理 noNeedToEquip 效果
+      playerGoodsManager.deleteGoodByIndex(playerBagIndex);
+    }
+
+    // 穿到伙伴身上
+    this._goodsManager.setEquipAtPosition(equipPosition, {
+      good: playerItem.good,
+      count: 1,
+      remainColdMilliseconds: 0,
+    });
+
+    return true;
+  }
+
+  /**
+   * 卸下伙伴装备，放回主角背包
+   */
+  unequipToPlayerBag(
+    playerGoodsManager: GoodsListManager,
+    equipPosition: EquipPosition
+  ): boolean {
+    if (!this._goodsManager) return false;
+
+    const partnerEquip = this._goodsManager.getEquipAtPosition(equipPosition);
+    if (!partnerEquip) return false;
+
+    // 放到主角背包
+    const addResult = playerGoodsManager.addGoodToList(partnerEquip.good.fileName);
+    if (!addResult.success) {
+      playerGoodsManager.showBagFullMessage();
+      return false;
+    }
+
+    // 从伙伴装备槽移除（触发 unEquiping 回调）
+    this._goodsManager.setEquipAtPosition(equipPosition, null);
+
+    return true;
+  }
+
+  /**
+   * 从主角背包移动药品到伙伴快捷栏
+   */
+  movePlayerBagToPartnerBottom(
+    playerGoodsManager: GoodsListManager,
+    playerBagIndex: number,
+    bottomSlot: number
+  ): boolean {
+    if (!this._goodsManager) return false;
+    if (bottomSlot < 0 || bottomSlot >= 3) return false;
+
+    const playerItem = playerGoodsManager.getItemInfo(playerBagIndex);
+    if (!playerItem || playerItem.good.kind !== GoodKind.Drug) return false;
+
+    // 如果伙伴快捷栏有旧物品，放回主角背包
+    const existing = this._goodsManager.getBottomItemAtSlot(bottomSlot);
+    if (existing) {
+      const addResult = playerGoodsManager.addGoodToList(existing.good.fileName);
+      if (!addResult.success) {
+        playerGoodsManager.showBagFullMessage();
+        return false;
+      }
+    }
+
+    // 从主角背包移除
+    if (playerItem.count > 1) {
+      playerItem.count -= 1;
+    } else {
+      playerGoodsManager.deleteGoodByIndex(playerBagIndex);
+    }
+
+    // 设置到伙伴快捷栏
+    this._goodsManager.setBottomItemAtSlot(bottomSlot, {
+      good: playerItem.good,
+      count: 1,
+      remainColdMilliseconds: 0,
+    });
+
+    return true;
+  }
+
+  /**
+   * 从伙伴快捷栏移除物品，放回主角背包
+   */
+  movePartnerBottomToPlayerBag(
+    playerGoodsManager: GoodsListManager,
+    bottomSlot: number
+  ): boolean {
+    if (!this._goodsManager) return false;
+    if (bottomSlot < 0 || bottomSlot >= 3) return false;
+
+    const item = this._goodsManager.getBottomItemAtSlot(bottomSlot);
+    if (!item) return false;
+
+    const addResult = playerGoodsManager.addGoodToList(item.good.fileName);
+    if (!addResult.success) {
+      playerGoodsManager.showBagFullMessage();
+      return false;
+    }
+
+    this._goodsManager.setBottomItemAtSlot(bottomSlot, null);
+    return true;
   }
 
   // === Manager 访问（通过 EngineContext）===

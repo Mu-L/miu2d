@@ -73,6 +73,7 @@ export const ClassicGameUI: React.FC<ClassicGameUIProps> = ({ logic, width, heig
     buyData,
     partnersData,
     hoveredNpc,
+    setHoveredNpc,
     npcUpdateKey,
     dragData,
     setDragData,
@@ -141,6 +142,17 @@ export const ClassicGameUI: React.FC<ClassicGameUIProps> = ({ logic, width, heig
               // TODO: 打开 NPC 装备界面
               logger.debug(`[ClassicGameUI] Partner clicked: ${partner.name}`);
             }
+          }}
+          onPartnerHover={(partner) => {
+            if (!engine || !partner) {
+              setHoveredNpc(null);
+              engine.interactionManager.setHoverLock(null);
+              return;
+            }
+            const all = engine.npcManager.getAllPartner();
+            const npc = all.find((n) => n.name === partner.name) ?? null;
+            setHoveredNpc(npc);
+            engine.interactionManager.setHoverLock(npc);
           }}
         />
       )}
