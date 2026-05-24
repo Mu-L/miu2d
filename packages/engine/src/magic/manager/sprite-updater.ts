@@ -14,6 +14,7 @@ import { TILE_WIDTH, type Vector2 } from "../../core/types";
 import type { GuiManager } from "../../gui/gui-manager";
 import type { Player } from "../../player/player";
 import type { ScreenEffects } from "../../renderer/screen-effects";
+import type { MagicRenderer } from "../magic-renderer";
 import { collectSweepTiles, pixelToTile, tileToPixel } from "../../utils";
 import { vectorLength } from "../../utils/math";
 import {
@@ -77,6 +78,7 @@ export class SpriteUpdater {
   private collision: CollisionHandler;
   private callbacks: SpriteUpdaterCallbacks;
   private state: MagicSpriteManagerState;
+  private magicRenderer: MagicRenderer;
 
   constructor(
     deps: MagicSpriteManagerDeps,
@@ -89,6 +91,7 @@ export class SpriteUpdater {
     this.guiManager = deps.guiManager;
     this.screenEffects = deps.screenEffects;
     this.audioManager = deps.audio;
+    this.magicRenderer = deps.magicRenderer;
     this.charHelper = charHelper;
     this.collision = collision;
     this.callbacks = callbacks;
@@ -101,11 +104,11 @@ export class SpriteUpdater {
   update(deltaMs: number): void {
     // SuperMode 优先处理
     if (this.state.isInSuperMagicMode && this.state.superModeMagicSprite) {
-      this.updateSprite(this.state.superModeMagicSprite, deltaMs);
-      if (this.state.superModeMagicSprite.isDestroyed) {
-        logger.log(`[SpriteUpdater] SuperMode ended`);
-        this.handleSpriteEnd(this.state.superModeMagicSprite);
-        this.callbacks.emitSpriteDestroyed(this.state.superModeMagicSprite);
+      const sm = this.state.superModeMagicSprite;
+      this.updateSprite(sm, deltaMs);
+      if (sm.isDestroyed) {
+        this.handleSpriteEnd(sm);
+        this.callbacks.emitSpriteDestroyed(sm);
         this.state.isInSuperMagicMode = false;
         this.state.superModeMagicSprite = null;
       }
@@ -398,7 +401,9 @@ export class SpriteUpdater {
    * 开始销毁动画
    */
   startDestroyAnimation(sprite: MagicSprite): void {
-    if (sprite.isInDestroy) return;
+    if (sprite.isInDestroy) {
+      return;
+    }
     sprite.isInDestroy = true;
 
     // SuperMode 全屏攻击
@@ -455,6 +460,13 @@ export class SpriteUpdater {
           const effectSprite = sprite.createEffectSprite(targetPos);
           effectSprite.vanishAsfPath = sprite.magic.vanishImage;
           effectSprite.flyingAsfPath = sprite.magic.vanishImage;
+          // 从缓存 ASF 初始化帧数，避免依赖 renderer（renderer 有屏幕裁剪，屏幕外的精灵不会被修正）
+          const cached = this.magicRenderer.getCachedAsf(sprite.magic.vanishImage);
+          if (cached) {
+            effectSprite.vanishFramesPerDirection = cached.framesPerDirection;
+            effectSprite.frameInterval = cached.interval;
+            effectSprite.leftFrameToPlay = cached.framesPerDirection;
+          }
           sprite.superModeDestroySprites.push(effectSprite);
         }
 
