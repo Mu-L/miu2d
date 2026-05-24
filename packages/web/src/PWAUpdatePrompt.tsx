@@ -12,12 +12,13 @@ import { useTranslation } from "react-i18next";
 export function PWAUpdatePrompt() {
   const { t } = useTranslation();
   const [isUpdating, setIsUpdating] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const {
     needRefresh: [needRefresh],
     updateServiceWorker,
   } = useRegisterSW();
 
-  if (!needRefresh) {
+  if (!needRefresh || dismissed) {
     return null;
   }
 
@@ -80,6 +81,21 @@ export function PWAUpdatePrompt() {
           }}
         >
           {isUpdating ? "..." : t("pwa.updateButton")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          style={{
+            background: "transparent",
+            border: "1px solid #4a4a8a",
+            borderRadius: "6px",
+            color: "#8888bb",
+            cursor: "pointer",
+            padding: "8px 20px",
+            fontSize: "13px",
+          }}
+        >
+          {t("pwa.dismissButton")}
         </button>
       </div>
     </div>
