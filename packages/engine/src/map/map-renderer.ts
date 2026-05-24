@@ -487,23 +487,42 @@ export function renderMapInterleaved(
     renderLayerBatched(renderer, mapRenderer, "layer1", startX, startY, endX, endY);
   }
 
-  // 2. layer2 与角色交错渲染
-  for (let row = startY; row < endY; row++) {
-    if (layer2) {
-      for (let col = startX; col < endX; col++) {
-        drawTileLayer(renderer, mapRenderer, "layer2", col, row);
+  // 2. layer2 与角色交错渲染（每行内按 atlas 分组，减少纹理切换）
+  if (layer2 || drawCharactersAtRow) {
+    const { mapData: md } = mapRenderer;
+    const cols = md!.mapColumnCounts;
+    const layerData = md!.layer2;
+
+    for (let row = startY; row < endY; row++) {
+      if (layer2) {
+        // 收集当前行的 layer2 瓦片，按 atlas 分组
+        for (let i = 0; i < _batchBuckets.length; i++) {
+          if (_batchBuckets[i]) _batchBuckets[i].length = 0;
+        }
+        for (let col = startX; col < endX; col++) {
+          const byteOffset = (col + row * cols) * 2;
+          if (byteOffset < 0 || byteOffset + 1 >= layerData.length) continue;
+          const msfIdx = layerData[byteOffset];
+          if (msfIdx === 0) continue;
+          const atlasIdx = msfIdx - 1;
+          if (!_batchBuckets[atlasIdx]) _batchBuckets[atlasIdx] = [];
+          _batchBuckets[atlasIdx].push(col, row);
+        }
+        for (let atlasIdx = 0; atlasIdx < _batchBuckets.length; atlasIdx++) {
+          const bucket = _batchBuckets[atlasIdx];
+          if (!bucket || bucket.length === 0) continue;
+          for (let i = 0; i < bucket.length; i += 2) {
+            drawTileLayer(renderer, mapRenderer, "layer2", bucket[i], bucket[i + 1]);
+          }
+        }
       }
+      drawCharactersAtRow?.(row, startX, endX);
     }
-    drawCharactersAtRow?.(row, startX, endX);
   }
 
-  // 3. 绘制 layer3 (顶层物体)
+  // 3. 绘制 layer3 (顶层物体) - 按 atlas 分组批次渲染
   if (layer3) {
-    for (let row = startY; row < endY; row++) {
-      for (let col = startX; col < endX; col++) {
-        drawTileLayer(renderer, mapRenderer, "layer3", col, row);
-      }
-    }
+    renderLayerBatched(renderer, mapRenderer, "layer3", startX, startY, endX, endY);
   }
 }
 

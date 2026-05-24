@@ -10,6 +10,7 @@
  */
 
 import type { RGBAColor } from "./color-utils";
+import type { GLStateCache } from "./gl-state-cache";
 import type { RectProgram } from "./shaders";
 
 /** 每矩形顶点数 */
@@ -24,6 +25,7 @@ const MAX_RECTS_PER_BATCH = 4096;
 export class RectBatcher {
   private gl: WebGLRenderingContext;
   private program: RectProgram;
+  private state: GLStateCache;
 
   // GPU buffers（预分配）
   private vbo: WebGLBuffer;
@@ -37,9 +39,10 @@ export class RectBatcher {
   private _drawCalls = 0;
   private _rectCount = 0;
 
-  constructor(gl: WebGLRenderingContext, program: RectProgram) {
+  constructor(gl: WebGLRenderingContext, program: RectProgram, state: GLStateCache) {
     this.gl = gl;
     this.program = program;
+    this.state = state;
 
     this.vbo = gl.createBuffer()!;
     this.vertexData = new Float32Array(MAX_RECTS_PER_BATCH * FLOATS_PER_RECT);
@@ -64,6 +67,9 @@ export class RectBatcher {
 
       gl2.bindVertexArray(null);
     }
+
+    // 构造过程中直接修改了 GL 全局绑定，失效共享缓存
+    state.invalidateAll();
   }
 
   resetStats(): void {
@@ -164,29 +170,26 @@ export class RectBatcher {
 
     const gl = this.gl;
     const prog = this.program;
+    const state = this.state;
+    const gl2 = gl as WebGL2RenderingContext;
 
-    gl.useProgram(prog.program);
+    state.useProgram(gl, prog.program);
+
+    if (this.vao) {
+      state.bindVAO(gl2, this.vao);
+    }
 
     // 上传顶点数据
-    gl.bindBuffer(gl.ARRAY_BUFFER, this.vbo);
+    state.bindArrayBuffer(gl, this.vbo);
     gl.bufferSubData(
       gl.ARRAY_BUFFER,
       0,
       this.vertexData.subarray(0, this.rectCount * FLOATS_PER_RECT)
     );
 
-    // 绑定 VAO
-    const gl2 = gl as WebGL2RenderingContext;
-    if (this.vao) {
-      gl2.bindVertexArray(this.vao);
-    }
-
-    // 绘制
     gl.drawArrays(gl.TRIANGLES, 0, this.rectCount * VERTICES_PER_RECT);
 
-    if (this.vao) {
-      gl2.bindVertexArray(null);
-    }
+    // 注意：不再 bindVertexArray(null) —— 跨 flush 复用 VAO 状态
 
     this._drawCalls++;
     this.rectCount = 0;

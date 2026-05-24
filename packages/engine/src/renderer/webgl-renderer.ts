@@ -16,6 +16,7 @@
 
 import { logger } from "../core/logger";
 import { parseColor, type RGBAColor } from "./color-utils";
+import { GLStateCache } from "./gl-state-cache";
 import { RectBatcher } from "./rect-batcher";
 import type { Renderer } from "./renderer";
 import {
@@ -60,6 +61,9 @@ export class WebGLRenderer implements Renderer {
   // 批量渲染器
   private batcher: SpriteBatcher | null = null;
   private rectBatcher: RectBatcher | null = null;
+
+  /** GL 状态缓存（跨 batcher 共享，消除冗余 useProgram/bindBuffer/bindVAO） */
+  private glState = new GLStateCache();
 
   // 纹理管理
   private nextTextureId: TextureId = 1;
@@ -134,7 +138,8 @@ export class WebGLRenderer implements Renderer {
       alpha: false, // 不需要 canvas 透明背景
       antialias: false, // 像素风格不需要抗锯齿
       premultipliedAlpha: true,
-      preserveDrawingBuffer: true, // 截图需要
+      preserveDrawingBuffer: false,
+      powerPreference: "high-performance",
     }) as WebGLRenderingContext | null;
 
     if (!gl) {
@@ -161,8 +166,8 @@ export class WebGLRenderer implements Renderer {
     }
 
     // 创建批量渲染器
-    this.batcher = new SpriteBatcher(gl, this.spriteProgram);
-    this.rectBatcher = new RectBatcher(gl, this.rectProgram);
+    this.batcher = new SpriteBatcher(gl, this.spriteProgram, this.glState);
+    this.rectBatcher = new RectBatcher(gl, this.rectProgram, this.glState);
 
     // 设置 WebGL 状态
     gl.viewport(0, 0, this._width, this._height);
@@ -181,6 +186,9 @@ export class WebGLRenderer implements Renderer {
 
     gl.useProgram(this.rectProgram.program);
     gl.uniform2f(this.rectProgram.u_resolution, this._width, this._height);
+
+    // 直接修改了 program 绑定，失效缓存
+    this.glState.invalidateProgram();
 
     logger.info(
       `[WebGLRenderer] Initialized: ${this._width}x${this._height}, ` +
@@ -242,6 +250,7 @@ export class WebGLRenderer implements Renderer {
       gl.useProgram(this.rectProgram.program);
       gl.uniform2f(this.rectProgram.u_resolution, width, height);
     }
+    this.glState.invalidateProgram();
   }
 
   // ============= 帧控制 =============
@@ -347,8 +356,22 @@ export class WebGLRenderer implements Renderer {
     const entry = this.textures.get(texture.id);
     if (!entry) return;
 
+    const srcW = source.width;
+    const srcH = source.height;
+
     gl.bindTexture(gl.TEXTURE_2D, entry.glTexture);
+
+    // 尺寸未变 → texSubImage2D 增量上传（避免 GPU 重新分配纹理内存，
+    // 这是 lum-mask 全屏缓冲每帧 14MB+ 上传的关键优化）
+    if (srcW === entry.width && srcH === entry.height) {
+      this.subUploadTexture(gl, source);
+      return;
+    }
+
+    // 尺寸变了 → texImage2D 重新分配
     this.uploadTexture(gl, source);
+    (entry as { width: number }).width = srcW;
+    (entry as { height: number }).height = srcH;
   }
 
   deleteTexture(texture: TextureInfo): void {
@@ -392,6 +415,25 @@ export class WebGLRenderer implements Renderer {
 
   prewarmSourceTexture(source: TextureSource): void {
     this.getOrCreateSourceTexture(source);
+  }
+
+  setSourceTextureFilter(source: TextureSource, filter: "linear" | "nearest"): void {
+    const gl = this.gl;
+    if (!gl) return;
+    const tex =
+      source instanceof ImageData
+        ? this.imageDataTextureCache.get(source)
+        : this.sourceTextureCache.get(source);
+    if (!tex) return;
+    const entry = this.textures.get(tex.id);
+    if (!entry) return;
+    // flush 待处理 batches，避免对正在使用的纹理修改 GL 参数
+    this.batcher?.flush();
+    this.rectBatcher?.flush();
+    const mode = filter === "linear" ? gl.LINEAR : gl.NEAREST;
+    gl.bindTexture(gl.TEXTURE_2D, entry.glTexture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mode);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, mode);
   }
 
   getTexture(id: TextureId): TextureInfo | null {
@@ -584,6 +626,43 @@ export class WebGLRenderer implements Renderer {
     }
   }
 
+  /**
+   * 增量上传纹理数据（texSubImage2D，假设纹理已分配且尺寸匹配）。
+   * 避免 GPU 重新分配纹理内存——对于 lum-mask 等每帧更新的大纹理，
+   * 这能将上传开销大幅降低，因为底层 Metal/GL 驱动只需 memcpy 到现有显存。
+   */
+  private subUploadTexture(gl: WebGLRenderingContext, source: TextureSource): void {
+    if (source instanceof ImageData) {
+      gl.texSubImage2D(
+        gl.TEXTURE_2D,
+        0,
+        0,
+        0,
+        source.width,
+        source.height,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        source.data
+      );
+    } else if (
+      source instanceof HTMLCanvasElement ||
+      source instanceof HTMLImageElement ||
+      source instanceof ImageBitmap
+    ) {
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, source);
+    } else if (source instanceof OffscreenCanvas) {
+      gl.texSubImage2D(
+        gl.TEXTURE_2D,
+        0,
+        0,
+        0,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        source as unknown as TexImageSource
+      );
+    }
+  }
+
   /** 应用当前混合模式到 WebGL 状态（带脏标记，仅在实际变化时调用 gl.blendFunc） */
   private applyBlendMode(): void {
     const mode = this.currentState.blendMode;
@@ -682,6 +761,7 @@ export class WebGLRenderer implements Renderer {
       gl.useProgram(this.rectProgram.program);
       gl.uniform2f(this.rectProgram.u_resolution, worldWidth, worldHeight);
     }
+    this.glState.invalidateProgram();
   }
 
   resetWorldScale(): void {
@@ -697,6 +777,7 @@ export class WebGLRenderer implements Renderer {
       gl.useProgram(this.rectProgram.program);
       gl.uniform2f(this.rectProgram.u_resolution, this._width, this._height);
     }
+    this.glState.invalidateProgram();
   }
 }
 
