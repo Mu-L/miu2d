@@ -129,19 +129,6 @@ export interface Renderer {
   prewarmSourceTexture(source: TextureSource): void;
 
   /**
-   * 设置 source 纹理的采样模式（linear / nearest）。
-   *
-   * 默认所有纹理用 nearest（像素风格保真）；
-   * 但某些缩放显示的源（如低分辨率光照缓冲、平滑径向渐变）
-   * 需要 linear 上采样以避免马赛克。
-   *
-   * 必须在该 source 至少被 drawSource 一次以创建纹理后调用，
-   * 或调用方先调用 prewarmSourceTexture 确保纹理已存在。
-   * Canvas2D 后端为空操作。
-   */
-  setSourceTextureFilter(source: TextureSource, filter: "linear" | "nearest"): void;
-
-  /**
    * 根据 ID 获取纹理
    */
   getTexture(id: TextureId): TextureInfo | null;

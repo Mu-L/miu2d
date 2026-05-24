@@ -417,25 +417,6 @@ export class WebGLRenderer implements Renderer {
     this.getOrCreateSourceTexture(source);
   }
 
-  setSourceTextureFilter(source: TextureSource, filter: "linear" | "nearest"): void {
-    const gl = this.gl;
-    if (!gl) return;
-    const tex =
-      source instanceof ImageData
-        ? this.imageDataTextureCache.get(source)
-        : this.sourceTextureCache.get(source);
-    if (!tex) return;
-    const entry = this.textures.get(tex.id);
-    if (!entry) return;
-    // flush 待处理 batches，避免对正在使用的纹理修改 GL 参数
-    this.batcher?.flush();
-    this.rectBatcher?.flush();
-    const mode = filter === "linear" ? gl.LINEAR : gl.NEAREST;
-    gl.bindTexture(gl.TEXTURE_2D, entry.glTexture);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, mode);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, mode);
-  }
-
   getTexture(id: TextureId): TextureInfo | null {
     return this.textures.get(id) ?? null;
   }
