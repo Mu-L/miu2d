@@ -138,7 +138,7 @@ export class WebGLRenderer implements Renderer {
       alpha: false, // 不需要 canvas 透明背景
       antialias: false, // 像素风格不需要抗锯齿
       premultipliedAlpha: true,
-      preserveDrawingBuffer: false,
+      preserveDrawingBuffer: true, // 截图需要
       powerPreference: "high-performance",
     }) as WebGLRenderingContext | null;
 
