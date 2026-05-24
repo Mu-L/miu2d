@@ -501,12 +501,19 @@ export class PlayerMagicInventory {
   }
 
   /**
-   * 根据文件名获取武功信息
+   * 根据文件名获取武功信息（搜索面板 + 快捷栏）
    */
   getMagicByFileName(fileName: string): MagicItemInfo | null {
     const index = this.getIndexByFileName(fileName);
     if (index !== -1) {
       return this.getActiveMagicList()[index];
+    }
+    // 快捷栏不在面板中，需要单独搜索
+    const lowerName = fileName.toLowerCase();
+    for (const info of this.bottomSlots) {
+      if (info?.magic && info.magic.fileName.toLowerCase() === lowerName) {
+        return info;
+      }
     }
     return null;
   }
