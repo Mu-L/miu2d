@@ -189,7 +189,10 @@ export class RectBatcher {
 
     gl.drawArrays(gl.TRIANGLES, 0, this.rectCount * VERTICES_PER_RECT);
 
-    // 注意：不再 bindVertexArray(null) —— 跨 flush 复用 VAO 状态
+    // 解绑 VAO，避免污染外部 GL 状态（保守模式）
+    if (this.vao) {
+      state.bindVAO(gl2, null);
+    }
 
     this._drawCalls++;
     this.rectCount = 0;
