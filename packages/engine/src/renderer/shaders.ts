@@ -17,12 +17,14 @@ export const SPRITE_VERTEX_SHADER = `
   attribute vec2 a_texcoord;
   attribute float a_alpha;
   attribute float a_filterType;
+  attribute float a_texIndex;
 
   uniform vec2 u_resolution;
 
   varying vec2 v_texcoord;
   varying float v_alpha;
   varying float v_filterType;
+  varying float v_texIndex;
 
   void main() {
     // 像素坐标 → clip space (-1 ~ 1)
@@ -33,24 +35,42 @@ export const SPRITE_VERTEX_SHADER = `
     v_texcoord = a_texcoord;
     v_alpha = a_alpha;
     v_filterType = a_filterType;
+    v_texIndex = a_texIndex;
   }
 `;
+
+/** 多纹理批处理：单次 draw call 内同时绑定多个纹理槽位（典型 8 槽） */
+export const MAX_TEXTURE_SLOTS = 8;
 
 /** 精灵片段着色器 - 采样纹理 + 应用颜色滤镜 + alpha */
 export const SPRITE_FRAGMENT_SHADER = `
   precision mediump float;
 
-  uniform sampler2D u_texture;
+  uniform sampler2D u_textures[8];
 
   varying vec2 v_texcoord;
   varying float v_alpha;
   varying float v_filterType;
+  varying float v_texIndex;
 
   // 灰度转换系数（Rec. 709）
   const vec3 GRAYSCALE_WEIGHTS = vec3(0.2126, 0.7152, 0.0722);
 
+  // WebGL1 GLSL 不允许 sampler 数组的动态索引，必须用常量索引；
+  // 这里用 if/else 链按 v_texIndex 分发到 8 个槽位。
+  vec4 sampleSlot(vec2 uv, float idx) {
+    if (idx < 0.5) return texture2D(u_textures[0], uv);
+    else if (idx < 1.5) return texture2D(u_textures[1], uv);
+    else if (idx < 2.5) return texture2D(u_textures[2], uv);
+    else if (idx < 3.5) return texture2D(u_textures[3], uv);
+    else if (idx < 4.5) return texture2D(u_textures[4], uv);
+    else if (idx < 5.5) return texture2D(u_textures[5], uv);
+    else if (idx < 6.5) return texture2D(u_textures[6], uv);
+    else return texture2D(u_textures[7], uv);
+  }
+
   void main() {
-    vec4 color = texture2D(u_texture, v_texcoord);
+    vec4 color = sampleSlot(v_texcoord, v_texIndex);
 
     // filterType: 0=none, 1=grayscale, 2=frozen, 3=poison
     if (v_filterType > 0.5) {
@@ -208,9 +228,11 @@ export interface SpriteProgram {
   a_texcoord: number;
   a_alpha: number;
   a_filterType: number;
+  a_texIndex: number;
   // Uniforms
   u_resolution: WebGLUniformLocation;
-  u_texture: WebGLUniformLocation;
+  /** sampler 数组（长度 = MAX_TEXTURE_SLOTS） */
+  u_textures: WebGLUniformLocation[];
 }
 
 /** 矩形着色器程序（per-vertex color） */
@@ -228,14 +250,25 @@ export function createSpriteProgram(gl: WebGLRenderingContext): SpriteProgram | 
   const program = createProgram(gl, SPRITE_VERTEX_SHADER, SPRITE_FRAGMENT_SHADER);
   if (!program) return null;
 
+  const u_textures: WebGLUniformLocation[] = [];
+  for (let i = 0; i < MAX_TEXTURE_SLOTS; i++) {
+    const loc = gl.getUniformLocation(program, `u_textures[${i}]`);
+    if (!loc) {
+      logger.error(`[WebGL] Failed to get u_textures[${i}] uniform location`);
+      return null;
+    }
+    u_textures.push(loc);
+  }
+
   return {
     program,
     a_position: gl.getAttribLocation(program, "a_position"),
     a_texcoord: gl.getAttribLocation(program, "a_texcoord"),
     a_alpha: gl.getAttribLocation(program, "a_alpha"),
     a_filterType: gl.getAttribLocation(program, "a_filterType"),
+    a_texIndex: gl.getAttribLocation(program, "a_texIndex"),
     u_resolution: gl.getUniformLocation(program, "u_resolution")!,
-    u_texture: gl.getUniformLocation(program, "u_texture")!,
+    u_textures,
   };
 }
 

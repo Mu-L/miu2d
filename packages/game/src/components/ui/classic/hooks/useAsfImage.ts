@@ -190,68 +190,21 @@ export function getAsfFrameDataUrl(asf: AsfData | null, frameIndex: number): str
 
 /**
  * Hook to create a ColumnView-style clipped image (transparent from top based on percent)
+ *
+ * 性能优化：只在 ASF 加载时调用一次 toDataURL 缓存结果，
+ * 裁剪通过 CSS clip 实现，避免每帧重新编码 PNG。
  */
 export function useColumnView(
   path: string | null,
   percent: number // 0 to 1, how much to show from bottom
-): { dataUrl: string | null; width: number; height: number; isLoading: boolean } {
-  const { asf, isLoading } = useAsfImage(path, 0);
-  const [dataUrl, setDataUrl] = useState<string | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  useEffect(() => {
-    if (!asf || asf.frames.length === 0) {
-      setDataUrl(null);
-      return;
-    }
-
-    const srcCanvas = getCompositeFrameCanvas(asf, 0);
-    const cw = asf.width;
-    const ch = asf.height;
-
-    // Create a new canvas for the clipped result
-    if (!canvasRef.current) {
-      canvasRef.current = document.createElement("canvas");
-    }
-    const canvas = canvasRef.current;
-    canvas.width = cw;
-    canvas.height = ch;
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Calculate visible height from bottom
-    const visibleHeight = Math.floor(ch * Math.max(0, Math.min(1, percent)));
-    const startY = ch - visibleHeight;
-
-    // Draw nothing for the depleted (top) area — fully transparent
-    // The background (column1.msf) shows through
-
-    if (visibleHeight > 0) {
-      // Draw only the bottom portion
-      ctx.drawImage(
-        srcCanvas,
-        0,
-        startY,
-        cw,
-        visibleHeight, // source
-        0,
-        startY,
-        cw,
-        visibleHeight // destination
-      );
-    }
-
-    setDataUrl(canvas.toDataURL());
-  }, [asf, percent]);
+): { dataUrl: string | null; width: number; height: number; clipPercent: number; isLoading: boolean } {
+  const { asf, dataUrl: cachedUrl, isLoading } = useAsfImage(path, 0);
 
   return {
-    dataUrl,
+    dataUrl: cachedUrl,
     width: asf?.width ?? 0,
     height: asf?.height ?? 0,
+    clipPercent: Math.max(0, Math.min(1, percent)),
     isLoading,
   };
 }

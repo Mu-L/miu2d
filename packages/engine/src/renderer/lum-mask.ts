@@ -30,6 +30,19 @@ import type { Renderer } from "./renderer";
 const LUM_MASK_WIDTH = 800;
 const LUM_MASK_HEIGHT = 400;
 
+/**
+ * 光照缓冲的最大尺寸。光照内容（暗色基底 + 平滑径向渐变）
+ * 没有任何高频细节，缓冲缩到此尺寸内 + LINEAR 上采样
+ * 视觉零损失。直接复刻 C++ 原版的低分辨率光照思路。
+ *
+ * 在 2560×1400 屏幕上，把缓冲缩到 1280×700 可让
+ * - Canvas2D fillRect 从 14M px → 3.5M px (4x)
+ * - drawImage 光晕 → 数量不变但单 glow 体积不变
+ * - texSubImage2D 上传从 14MB → 3.5MB (4x)
+ * 这是高分辨率卡顿的主要原罪。
+ */
+const MAX_LIGHTING_BUFFER_DIM = 1280;
+
 /** 发光元素的屏幕位置信息 */
 interface LumSource {
   screenX: number;
@@ -118,6 +131,17 @@ function getLightGlow(glow: { r: number; g: number; b: number }): OffscreenCanva
 let lightingBufferCanvas: OffscreenCanvas | null = null;
 let lightingBufferW = 0;
 let lightingBufferH = 0;
+
+/**
+ * 计算光照缓冲的最佳缩放因子。
+ * 目标：缓冲最大边 ≤ MAX_LIGHTING_BUFFER_DIM，
+ * 若屏幕本来就比阈值小则 1:1（避免反向放大）。
+ */
+function computeBufferScale(screenWidth: number, screenHeight: number): number {
+  const maxDim = Math.max(screenWidth, screenHeight);
+  if (maxDim <= MAX_LIGHTING_BUFFER_DIM) return 1;
+  return MAX_LIGHTING_BUFFER_DIM / maxDim;
+}
 
 function getLightingBuffer(width: number, height: number): OffscreenCanvas {
   if (!lightingBufferCanvas || lightingBufferW !== width || lightingBufferH !== height) {
@@ -266,8 +290,15 @@ export function drawLightingPass(
     b: gp(Math.max(0, t.b - combinedDark.b)),
   };
 
-  // --- 准备光照缓冲 ---
-  const buffer = getLightingBuffer(screenWidth, screenHeight);
+  // --- 准备光照缓冲（缩放至 ≤ MAX_LIGHTING_BUFFER_DIM）---
+  // 光照内容是低频信号（暗色块 + 平滑径向渐变），
+  // 缩小缓冲 + LINEAR 上采样后视觉零损失。
+  const scale = computeBufferScale(screenWidth, screenHeight);
+  const bufferW = Math.max(1, Math.round(screenWidth * scale));
+  const bufferH = Math.max(1, Math.round(screenHeight * scale));
+  const bufferRecreated =
+    !lightingBufferCanvas || lightingBufferW !== bufferW || lightingBufferH !== bufferH;
+  const buffer = getLightingBuffer(bufferW, bufferH);
   const ctx = buffer.getContext("2d");
   if (!ctx) return;
 
@@ -275,7 +306,7 @@ export function drawLightingPass(
   ctx.globalCompositeOperation = "source-over";
   ctx.globalAlpha = 1;
   ctx.fillStyle = `rgb(${combinedDark.r}, ${combinedDark.g}, ${combinedDark.b})`;
-  ctx.fillRect(0, 0, screenWidth, screenHeight);
+  ctx.fillRect(0, 0, bufferW, bufferH);
 
   // 2. 对每个发光光源，additive 叠加椭圆渐变（峰值色 = glowPeak，使光源处 buffer → tint）
   const hasGlow = glowPeak.r > 0 || glowPeak.g > 0 || glowPeak.b > 0;
@@ -296,20 +327,38 @@ export function drawLightingPass(
   if (hasGlow && lumSources.length > 0) {
     const glow = getLightGlow(glowPeak);
     ctx.globalCompositeOperation = "lighter";
+    // 光晕原尺寸 LUM_MASK_WIDTH × LUM_MASK_HEIGHT，按 scale 缩放绘入缓冲
+    const glowW = LUM_MASK_WIDTH * scale;
+    const glowH = LUM_MASK_HEIGHT * scale;
     for (const src of lumSources) {
       // C++ ref: engine->drawImage(lumMask, pos.x - W/2, pos.y - H/2 - TILE_HEIGHT/2)
-      const drawX = src.screenX - LUM_MASK_WIDTH / 2;
-      const drawY = src.screenY - LUM_MASK_HEIGHT / 2 - 16;
-      ctx.drawImage(glow, drawX, drawY);
+      // 坐标全部 × scale 进入缓冲空间
+      const drawX = src.screenX * scale - glowW / 2;
+      const drawY = src.screenY * scale - glowH / 2 - 16 * scale;
+      ctx.drawImage(glow, drawX, drawY, glowW, glowH);
     }
   }
 
   // 3. 通知 WebGL 后端更新缓存的纹理数据（canvas 内容每帧都变）
   renderer.updateSourceTexture(buffer);
 
+  // 缓冲是低频内容，缩放显示需要 LINEAR 上采样防止马赛克。
+  // 仅在缓冲新建时设置一次（filter 是纹理粘性属性）。
+  if (bufferRecreated && scale < 1) {
+    renderer.setSourceTextureFilter(buffer, "linear");
+  }
+
   // 4. multiply 混合到主场景：out = scene × buffer
+  // 缓冲较小时通过 drawSourceEx 上采样到全屏。
   renderer.save();
   renderer.setBlendMode("multiply");
-  renderer.drawSource(buffer, 0, 0);
+  if (scale < 1) {
+    renderer.drawSourceEx(buffer, 0, 0, {
+      dstWidth: screenWidth,
+      dstHeight: screenHeight,
+    });
+  } else {
+    renderer.drawSource(buffer, 0, 0);
+  }
   renderer.restore();
 }

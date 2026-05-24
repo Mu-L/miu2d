@@ -206,6 +206,10 @@ export class Canvas2DRenderer implements Renderer {
     // Canvas2D 后端每帧直接读取 canvas 像素，无法提前上传，空操作
   }
 
+  setSourceTextureFilter(_source: TextureSource, _filter: "linear" | "nearest"): void {
+    // Canvas2D 后端无纹理概念，由 drawImage 自动采样，空操作
+  }
+
   getTexture(id: TextureId): TextureInfo | null {
     return this.textures.get(id) ?? null;
   }

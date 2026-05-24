@@ -25,11 +25,15 @@ interface ColumnViewProps {
 }
 
 const ColumnView: React.FC<ColumnViewProps> = ({ imagePath, percent, left, top }) => {
-  const { dataUrl, width, height, isLoading } = useColumnView(imagePath, percent);
+  const { dataUrl, width, height, clipPercent, isLoading } = useColumnView(imagePath, percent);
 
   if (isLoading || !dataUrl) {
     return null;
   }
+
+  // CSS clip: 从顶部裁剪，只显示底部 clipPercent 部分
+  // clip: rect(top, right, bottom, left) — top 控制从哪里开始显示
+  const clipTop = Math.round(height * (1 - clipPercent));
 
   return (
     <img
@@ -43,6 +47,7 @@ const ColumnView: React.FC<ColumnViewProps> = ({ imagePath, percent, left, top }
         height: height,
         pointerEvents: "none",
         imageRendering: "pixelated",
+        clip: clipPercent < 1 ? `rect(${clipTop}px, ${width}px, ${height}px, 0px)` : undefined,
       }}
     />
   );
