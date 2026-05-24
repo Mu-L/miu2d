@@ -143,12 +143,10 @@ export class MagicRenderer {
     // }
     // base.Draw(spriteBatch, color); <- 也调用了 base.Draw
     if (sprite.isSuperMode && sprite.isInDestroy) {
-      // SuperMode 销毁状态：渲染所有特效精灵
+      // SuperMode 销毁状态：只渲染各敌人身上的特效精灵，主精灵不渲染
       for (const effectSprite of sprite.superModeDestroySprites) {
         this.renderSingleSprite(renderer, effectSprite, cameraX, cameraY);
       }
-      // flyingAsfPath 和 vanishAsfPath 均已清除，主精灵不会绘制任何内容
-      this.renderSingleSprite(renderer, sprite, cameraX, cameraY);
       return;
     }
 
