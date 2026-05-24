@@ -407,11 +407,14 @@ export class MagicSpriteManager {
         break;
       case MagicMoveKind.SuperMode:
         {
+          if (this.state.isInSuperMagicMode) {
+            // overwrite existing SuperMode
+          }
           sprite = this.factory.addSuperModeMagicSprite(userId, magic, origin, true);
           if (sprite) {
             this.state.isInSuperMagicMode = true;
             this.state.superModeMagicSprite = sprite;
-            logger.log(`[MagicSpriteManager] SuperMode activated: ${magic.name}`);
+            logger.log(`[MagicSpriteManager] SuperMode activated: ${magic.name}, leftFrame=${sprite.leftFrameToPlay}, interval=${sprite.frameInterval}`);
           }
         }
         break;

@@ -731,6 +731,11 @@ export class GameManager {
       this.magicSpriteManager.update(deltaTime * 1000);
       // Update screen effects (for vibration, etc.)
       this.screenEffects.update(deltaTime);
+      if (this.magicSpriteManager.isInSuperMagicMode) {
+        // Still in SuperMode after update - normal, animation still playing
+      } else {
+        // SuperMode ended, game resumes next frame
+      }
       return;
     }
 
