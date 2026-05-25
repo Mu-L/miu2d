@@ -252,19 +252,29 @@ export class Good {
     return this;
   }
 
+  /** 效果条目（结构化），按显示顺序 */
+  getEffectEntries(): { key: string; label: string; value: number }[] {
+    const entries: { key: string; label: string; value: number }[] = [];
+    if (this.life !== 0) entries.push({ key: "life", label: "命", value: this.life });
+    if (this.thew !== 0) entries.push({ key: "thew", label: "体", value: this.thew });
+    if (this.mana !== 0) entries.push({ key: "mana", label: "气", value: this.mana });
+    if (this.attack !== 0) entries.push({ key: "attack", label: "攻", value: this.attack });
+    if (this.defend !== 0) entries.push({ key: "defend", label: "防", value: this.defend });
+    if (this.evade !== 0) entries.push({ key: "evade", label: "捷", value: this.evade });
+    if (this.lifeMax !== 0)
+      entries.push({ key: "lifeMax", label: "命上限", value: this.lifeMax });
+    if (this.thewMax !== 0)
+      entries.push({ key: "thewMax", label: "体上限", value: this.thewMax });
+    if (this.manaMax !== 0)
+      entries.push({ key: "manaMax", label: "气上限", value: this.manaMax });
+    return entries;
+  }
+
   /** 效果描述字符串 */
   getEffectString(): string {
-    const effects: string[] = [];
-    if (this.life !== 0) effects.push(`命 ${this.life}`);
-    if (this.thew !== 0) effects.push(`体 ${this.thew}`);
-    if (this.mana !== 0) effects.push(`气 ${this.mana}`);
-    if (this.attack !== 0) effects.push(`攻 ${this.attack}`);
-    if (this.defend !== 0) effects.push(`防 ${this.defend}`);
-    if (this.evade !== 0) effects.push(`捷 ${this.evade}`);
-    if (this.lifeMax !== 0) effects.push(`命上限 ${this.lifeMax}`);
-    if (this.thewMax !== 0) effects.push(`体上限 ${this.thewMax}`);
-    if (this.manaMax !== 0) effects.push(`气上限 ${this.manaMax}`);
-    return effects.join("  ");
+    return this.getEffectEntries()
+      .map((e) => `${e.label} ${e.value}`)
+      .join("  ");
   }
 
   /** 是否可装备到指定位置 */
