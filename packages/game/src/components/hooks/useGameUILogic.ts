@@ -69,6 +69,8 @@ export interface PartnerData {
   level: number;
   canLevelUp: boolean;
   canEquip: boolean;
+  /** 引擎中的 NPC 实例引用：读档后实例会被替换，UI 据此感知"伙伴数据已重置" */
+  npc: Npc;
 }
 
 // GoodsData 用于渲染物品相关 UI
@@ -428,13 +430,22 @@ export function useGameUILogic({ engine }: UseGameUILogicOptions) {
         level: npc.level,
         canLevelUp: npc.canLevelUp > 0,
         canEquip: npc.canEquip > 0,
+        npc,
       }));
 
-      // 只在数据变化时更新
+      // 数据变化（含 NPC 实例引用变化，覆盖读档场景）才更新引用
       setPartnersData((prev) => {
         if (prev.length !== newData.length) return newData;
         for (let i = 0; i < prev.length; i++) {
-          if (prev[i].name !== newData[i].name || prev[i].level !== newData[i].level) {
+          const p = prev[i];
+          const n = newData[i];
+          if (
+            p.npc !== n.npc ||
+            p.name !== n.name ||
+            p.level !== n.level ||
+            p.canLevelUp !== n.canLevelUp ||
+            p.canEquip !== n.canEquip
+          ) {
             return newData;
           }
         }

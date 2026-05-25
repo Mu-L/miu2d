@@ -10,7 +10,7 @@ import type { UIGoodData } from "@miu2d/engine/gui/ui-types";
 import type { Npc } from "@miu2d/engine/npc/npc";
 import { EquipPosition, GoodKind } from "@miu2d/engine/player/goods/good";
 import type React from "react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { GameUIContext } from "../contexts";
 import { EngineWatermark } from "./common/EngineWatermark";
 import type { BottomMagicDragData, GameUILogic, MagicDragData } from "./hooks";
@@ -165,12 +165,20 @@ export const ModernGameUIWrapper: React.FC<ModernGameUIWrapperProps> = ({
   const [selectedPartnerIndex, setSelectedPartnerIndex] = useState(0);
   const [partnerUpdateTrigger, setPartnerUpdateTrigger] = useState(0);
 
+  // 读档/伙伴列表收缩时若 selectedPartnerIndex 越界，回退到 0，避免 partnerPanelData 为空
+  useEffect(() => {
+    if (partnersData.length > 0 && selectedPartnerIndex >= partnersData.length) {
+      setSelectedPartnerIndex(0);
+    }
+  }, [partnersData.length, selectedPartnerIndex]);
+
   // 获取当前选中的伙伴 NPC 对象
+  // 直接从 partnersData 取 npc 引用，避免 engine.npcManager.getAllPartner() 与
+  // partnersData 之间的缓存错位（读档后 partner npc 实例会被替换，partnersData 已通过
+  // 引用比较触发更新，这里随之拿到新实例）
   const selectedNpc = useMemo((): Npc | null => {
-    if (!engine) return null;
-    const partners = engine.npcManager.getAllPartner();
-    return partners[selectedPartnerIndex] ?? null;
-  }, [engine, selectedPartnerIndex, partnersData, partnerUpdateTrigger]);
+    return partnersData[selectedPartnerIndex]?.npc ?? null;
+  }, [partnersData, selectedPartnerIndex]);
 
   // 伙伴面板显示数据
   const partnerPanelData = useMemo(() => {
