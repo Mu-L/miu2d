@@ -114,14 +114,12 @@ export async function handleMapChange(
       await initWasmPathfinder(mapData.mapColumnCounts, mapData.mapRowCounts);
       syncStaticObstacles(mapData.barriers, mapData.mapColumnCounts, mapData.mapRowCounts);
 
-      // 清空已触发的陷阱列表：各地图的 trap index 是独立编号的小整数（1/2/3…），
-      // 不同地图可能共享相同编号，必须在每次地图切换时重置，避免跨地图污染。
-      // 读档时 Phase 1 的 resetTrapState() 已清空，Phase 4 会从存档恢复当前地图的值，
-      // 因此读档路径下这里的 clear 是无害的 no-op。
-      map.clearIgnoredTraps();
-
-      // 从 MMF 内嵌的 trapTable 初始化陷阱配置（_trapsDelta 已在 Phase 1 清空并在 Phase 4 恢复）
-      map.initTrapsFromMapData(mapName);
+      // 进入地图时初始化陷阱状态：
+      // - 重建 _mapTrapTable[mapName]（MMF 基础数据）
+      // - _snapshotTrap = clone(_groupTrap[mapName])  ← group 是跨地图常驻
+      // 读档时 Phase 1 已 resetTrapState() 清空全部，Phase 2 进入这里时 _groupTrap 还是空的；
+      // Phase 4 的 loadTrapsFromSave 会再覆盖 _groupTrap 和 _snapshotTrap 为存档值。
+      map.initTrapsForMap(mapName);
 
       // 更新地图渲染器
       const mapRenderer = getMapRenderer();

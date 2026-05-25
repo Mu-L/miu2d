@@ -288,7 +288,10 @@ export class GameManager {
       this.scriptExecutor,
       () => this.variables,
       () => ({ mapName: this.currentMapName, mapPath: this.currentMapPath }),
-      () => this.map.getIgnoredTrapIndices(),
+      () => ({
+        snapshot: this.map.getSnapshotTrapEntries(),
+        group: this.map.getGroupTrapEntries(),
+      }),
       (name, value) => this.setVariable(name, value)
     );
 
@@ -528,8 +531,15 @@ export class GameManager {
       loadMap: (mapPath) => this.loadMap(mapPath),
       loadNpcFile: (fileName) => this.loadNpcFile(fileName),
       loadGameSave: (index) => this.loadGameSave(index),
-      setMapTrap: (trapIndex, trapFileName, mapName) =>
-        this.map.setMapTrap(trapIndex, trapFileName, mapName),
+      setMapTrap: (trapIndex, trapFileName, mapName) => {
+        // 有 mapName → SetTrap：直接写持久 group
+        // 无 mapName → SetMapTrap：写当前 snapshot
+        if (mapName) {
+          this.map.setTrap(mapName, trapIndex, trapFileName);
+        } else {
+          this.map.setMapTrap(trapIndex, trapFileName);
+        }
+      },
       checkTrap: (tile) => this.checkTrap(tile),
       cameraMoveTo: (direction, distance, speed) =>
         this.cameraController.moveTo(direction, distance, speed),
@@ -635,10 +645,11 @@ export class GameManager {
     // 只在新游戏/加载存档时才应该清除缓存（在 loader.ts 中处理）
     // this.scriptExecutor.clearCache();
 
-    // 注意：不清空 ignoredTrapIndices
-    // 中 _ignoredTrapsIndex 只在 LoadTrap（加载存档时）才会清空
-    // 因为 ignoredTrapIndices 是跨地图的全局状态
-    // this.trapManager.clearIgnoredTraps(); // 移除此调用
+    // 注意：陷阱状态切地图行为：
+    // - _snapshotTrap 在 initTrapsForMap 中被重置为 clone(_groupTrap[新图])
+    // - _mapTrapTable 仅缓存各地图 MMF 基础数据
+    // - _groupTrap 跨地图常驻
+    // 因此切地图时未持久（未 SaveMapTrap）的 SetMapTrap 改动会丢失，符合新语义。
 
     // Load map data via callback
     const mapData = await this.config.onMapChange(mapPath);
@@ -958,13 +969,9 @@ export class GameManager {
     return this.mapTime;
   }
 
-  /** Save map trap (Web version: data persists in memory, saved with collectSaveData) */
+  /** SaveMapTrap 脚本命令：把当前地图的 snapshot 整体提交到持久化 group */
   saveMapTrap(): void {
-    // TODO: 当前陷阱逻辑暂不使用，等后续完善
-    // const { ignoreList, mapTraps } = this.map.collectTrapDataForSave();
-    // logger.log(
-    //   `[GameManager] SaveMapTrap: ${ignoreList.length} indices, ${Object.keys(mapTraps).length} trap groups`
-    // );
+    this.map.commitSnapshotToGroup();
   }
 
   // ============= Camera =============

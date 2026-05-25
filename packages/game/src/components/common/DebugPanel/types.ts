@@ -62,7 +62,7 @@ export interface DebugPanelProps {
   gameVariables?: GameVariables;
   xiuLianMagic?: MagicItemInfo | null;
   partnersData?: PartnerInfo[];
-  triggeredTrapIds?: number[];
+  trapState?: { snapshot: Record<number, string>; group: Record<number, string> };
   currentScriptInfo?: ScriptInfo | null;
   scriptHistory?: ScriptHistoryItem[];
   onClose?: () => void;

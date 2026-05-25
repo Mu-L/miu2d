@@ -185,12 +185,13 @@ export function loadGoodsFromJSON(
 }
 
 /**
- * 从存档数据恢复陷阱快照和分组
- * 陷阱基础配置已从 MMF 地图数据内嵌加载
- * 这里恢复运行时修改（脚本动态设置的陷阱）和已触发列表
+ * 从存档数据恢复陷阱状态
+ * - groups.trap 重建 _groupTrap（跨地图持久覆盖表）
+ * - snapshot.trap 重建 _snapshotTrap（当前地图运行时表）
+ * 兼容旧存档：snapshot.trap 若为 number[]，按 {idx: ""} 恢复
  */
 export function loadTrapsFromSave(
-  snapshot: number[],
+  snapshot: Record<number, string> | number[] | undefined,
   groups: Record<string, TrapGroupValue> | undefined,
   map: MapBase
 ): void {
@@ -354,14 +355,14 @@ export function serializeGroups<T>(store: Map<string, T[]>): Record<string, T[]>
   return result;
 }
 
-/** 收集陷阱快照（已触发的陷阱索引列表） */
-export function collectTrapSnapshot(map: MapBase): number[] {
-  return map.collectTrapDataForSave().ignoreList;
+/** 收集陷阱快照（当前地图运行时表） */
+export function collectTrapSnapshot(map: MapBase): Record<number, string> {
+  return map.collectTrapDataForSave().snapshot;
 }
 
-/** 收集陷阱分组（按地图名存储的陷阱配置） */
+/** 收集陷阱分组（持久化覆盖表，按地图名存储） */
 export function collectTrapGroups(map: MapBase): Record<string, TrapGroupValue> {
-  return map.collectTrapDataForSave().mapTraps;
+  return map.collectTrapDataForSave().groups;
 }
 
 /**

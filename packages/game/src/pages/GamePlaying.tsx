@@ -409,7 +409,7 @@ export function GamePlaying({
               gameVariables={debugManager?.getGameVariables()}
               xiuLianMagic={debugManager?.getXiuLianMagic() ?? undefined}
               partnersData={debugManager?.getPartnersData() ?? undefined}
-              triggeredTrapIds={debugManager?.getTriggeredTrapIds()}
+              trapState={debugManager?.getTrapState()}
               currentScriptInfo={debugManager?.getCurrentScriptInfo() ?? undefined}
               scriptHistory={debugManager?.getScriptHistory()}
               onSetGameVariable={(name, value) => debugManager?.setGameVariable(name, value)}

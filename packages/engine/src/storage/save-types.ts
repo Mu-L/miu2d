@@ -283,10 +283,18 @@ export interface ParallelScriptItem {
 }
 
 /**
+ * 当前地图运行时陷阱表数据的值类型
+ * trapIndex -> scriptFile
+ * 由 SetMapTrap / 陷阱触发后写入，调用 SaveMapTrap 才会被同步到 groups.trap
+ * "" 表示该陷阱在当前地图内被屏蔽（通常是已触发后）
+ */
+export type SnapshotTrapValue = Record<number, string>;
+
+/**
  * 陷阱分组数据的值类型
  * 地图名 -> { trapIndex -> scriptFile }
- * 只包含脚本通过 SetTrap/SetMapTrap 修改过的陷阱增量（不含 MMF 基础数据）
- * 空字符串表示该陷阱被脚本删除
+ * 由 SetTrap 直接写入或 SaveMapTrap 提交当前 snapshot
+ * 空字符串表示该陷阱被屏蔽
  */
 export type TrapGroupValue = Record<number, string>;
 
@@ -486,8 +494,9 @@ export interface SaveSnapshot {
   partner: NpcSaveItem[];
   /** 当前地图上的物体 */
   obj: ObjSaveItem[];
-  /** 已触发（被忽略）的陷阱索引列表 */
-  trap: number[];
+  /** 当前地图的运行时陷阱表（trapIndex -> script，""=已触发屏蔽）
+   *  - 旧存档中是 number[]（已触发 idx 列表），读档时按 {idx: ""} 兼容恢复 */
+  trap: Record<number, string> | number[];
 }
 
 /** 分组 - 脚本按 key 缓存的中间数据 */
@@ -496,8 +505,8 @@ export interface SaveGroups {
   npc?: Record<string, NpcSaveItem[]>;
   /** SaveObj() 按文件名存储 (如 "map033_obj.obj" → Obj[]) */
   obj?: Record<string, ObjSaveItem[]>;
-  /** SetTrap()/SetMapTrap() 脚本增量，按地图名存储 (如 "m01" → { index → script })
-   * 不含 MMF 基础数据，读档时叠加在 MMF 之上 */
+  /** SetTrap()/SaveMapTrap() 写入的持久化覆盖表，按地图名存储 (如 "m01" → { index → script })
+   *  空字符串表示该 index 被屏蔽 */
   trap?: Record<string, TrapGroupValue>;
 }
 

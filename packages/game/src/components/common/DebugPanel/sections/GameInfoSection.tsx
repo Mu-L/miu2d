@@ -13,7 +13,7 @@ import type { LoadedResources } from "../types";
 
 interface GameInfoSectionProps {
   loadedResources?: LoadedResources;
-  triggeredTrapIds?: number[];
+  trapState?: { snapshot: Record<number, string>; group: Record<number, string> };
   gameVariables?: GameVariables;
   onSetGameVariable?: (name: string, value: number) => void;
 }
@@ -172,14 +172,65 @@ const JsonEditorModal: React.FC<{
   );
 };
 
+/** 陷阱条目列表：以 KV 形式展示 trapIndex → script
+ *  - script === "" 时高亮为已屏蔽/已触发态
+ *  - script 非空时正常展示脚本名 */
+const TrapEntryList: React.FC<{
+  title: string;
+  hint: string;
+  entries: [string, string][];
+  emptyHint: string;
+}> = ({ title, hint, entries, emptyHint }) => {
+  return (
+    <div className="mb-1">
+      <div className="text-[10px] text-[#7a7a7a] flex items-baseline gap-1 mb-0.5">
+        <span className="text-[#d4d4d4]">{title}</span>
+        <span>·</span>
+        <span>{hint}</span>
+        <span className="ml-auto text-[#969696]">{entries.length}</span>
+      </div>
+      <div className="bg-[#1e1e1e] border border-[#333] font-mono text-[10px] px-1 py-0.5">
+        {entries.length === 0 ? (
+          <div className="text-[#7a7a7a]">{emptyHint}</div>
+        ) : (
+          entries.map(([idx, script]) => (
+            <div key={idx} className="flex gap-2">
+              <span className="text-[#9cdcfe] w-8 text-right">{idx}</span>
+              <span className="text-[#7a7a7a]">→</span>
+              {script === "" ? (
+                <span className="text-[#fb923c]">""（屏蔽/已触发）</span>
+              ) : (
+                <span className="text-[#ce9178] break-all">{script}</span>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
 export const GameInfoSection: React.FC<GameInfoSectionProps> = ({
   loadedResources,
-  triggeredTrapIds,
+  trapState,
   gameVariables,
   onSetGameVariable,
 }) => {
   const variableCount = Object.keys(gameVariables || {}).length;
   const [showJsonEditor, setShowJsonEditor] = useState(false);
+
+  const snapshotEntries = useMemo(
+    () =>
+      trapState
+        ? Object.entries(trapState.snapshot).sort(([a], [b]) => Number(a) - Number(b))
+        : [],
+    [trapState]
+  );
+  const groupEntries = useMemo(
+    () =>
+      trapState ? Object.entries(trapState.group).sort(([a], [b]) => Number(a) - Number(b)) : [],
+    [trapState]
+  );
 
   return (
     <>
@@ -194,13 +245,25 @@ export const GameInfoSection: React.FC<GameInfoSectionProps> = ({
             <DataRow label="地图" value={loadedResources.mapName || "N/A"} />
             <DataRow label="NPC数" value={loadedResources.npcCount} />
             <DataRow label="物体数" value={loadedResources.objCount} />
-            {triggeredTrapIds && triggeredTrapIds.length > 0 && (
-              <DataRow
-                label="已触发陷阱"
-                value={triggeredTrapIds.join(", ")}
-                valueColor="text-[#fb923c]"
-              />
-            )}
+          </div>
+        )}
+
+        {/* 陷阱状态：snapshot（当前地图运行时） / group（跨地图持久化） */}
+        {trapState && (snapshotEntries.length > 0 || groupEntries.length > 0) && (
+          <div className="mb-2">
+            <div className="text-[10px] text-[#969696] mb-1">陷阱状态</div>
+            <TrapEntryList
+              title="snapshot"
+              hint="当前地图运行时·SaveMapTrap 后写入 group"
+              entries={snapshotEntries}
+              emptyHint="（空）"
+            />
+            <TrapEntryList
+              title="group"
+              hint="跨地图持久化覆盖表·优先级高于 snapshot"
+              entries={groupEntries}
+              emptyHint="（空）"
+            />
           </div>
         )}
 
