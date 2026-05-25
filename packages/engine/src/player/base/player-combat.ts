@@ -542,16 +542,6 @@ export abstract class PlayerCombat extends PlayerBase {
   // =============================================
 
   /**
-   * 设置武功的附加效果
-   */
-  protected setFlyIniAdditionalEffect(effect: MagicAddonEffect): void {
-    this._flyIniAdditionalEffect = effect;
-    // if (FlyIni != null) FlyIni.AdditionalEffect = effect;
-    // if (FlyIni2 != null) FlyIni2.AdditionalEffect = effect;
-    // 注意：TypeScript 中 FlyIni 的效果在 useMagicWhenAttack 时动态应用
-  }
-
-  /**
    * 异步加载并添加装备的被攻击触发武功
    * MagicToUseWhenAttackedList.AddLast
    */
@@ -662,117 +652,67 @@ export abstract class PlayerCombat extends PlayerBase {
   // === Equip/Unequip ===
   // =============================================
 
-  equiping(equip: Good | null, currentEquip: Good | null, justEffectType: boolean = false): void {
-    // Reference: 保存当前 Life/Thew/Mana 用于装备后恢复
-    const savedLife = this.life;
-    const savedThew = this.thew;
-    const savedMana = this.mana;
-
-    this.unEquiping(currentEquip, justEffectType);
-
-    if (equip) {
-      if (!justEffectType) {
-        this.attack += equip.attack;
-        this.attack2 += equip.attack2;
-        this.attack3 += equip.attack3;
-        this.defend += equip.defend;
-        this.defend2 += equip.defend2;
-        this.defend3 += equip.defend3;
-        this.evade += equip.evade;
-        this.lifeMax += equip.lifeMax;
-        this.thewMax += equip.thewMax;
-        this.manaMax += equip.manaMax;
-
-        if (equip.magicIniWhenUse) {
-          this.showMessage(`获得武功：${equip.magicIniWhenUse}`);
-        }
-      }
-
-      // 根据 TheEffectType 设置效果
-      const effectType = equip.theEffectType;
-      switch (effectType) {
-        case GoodEffectType.ThewNotLoseWhenRun:
-          this._isNotUseThewWhenRun = true;
-          break;
-        case GoodEffectType.ManaRestore:
-          this._isManaRestore = true;
-          break;
-        // for weapon effects
-        case GoodEffectType.EnemyFrozen:
-          this.setFlyIniAdditionalEffect(MagicAddonEffect.Frozen);
-          break;
-        case GoodEffectType.EnemyPoisoned:
-          this.setFlyIniAdditionalEffect(MagicAddonEffect.Poison);
-          break;
-        case GoodEffectType.EnemyPetrified:
-          this.setFlyIniAdditionalEffect(MagicAddonEffect.Petrified);
-          break;
-      }
-
-      if (equip.specialEffect === 1) {
-        this._addLifeRestorePercent += equip.specialEffectValue;
-      }
-
-      this.addMoveSpeedPercent += equip.changeMoveSpeedPercent;
-      this._addMagicEffectPercent += equip.addMagicEffectPercent;
-      this._addMagicEffectAmount += equip.addMagicEffectAmount;
-
-      // MagicToUseWhenBeAttacked 处理
-      if (equip.magicToUseWhenBeAttacked) {
-        this.loadAndAddEquipMagicToUseWhenBeAttacked(
-          equip.fileName,
-          equip.magicToUseWhenBeAttacked,
-          equip.magicDirectionWhenBeAttacked
-        );
-      }
-
-      // FlyIniReplace 处理
-      if (equip.flyIni) {
-        this.addFlyIniReplace(equip.flyIni);
-      }
-      if (equip.flyIni2) {
-        this.addFlyIni2Replace(equip.flyIni2);
-      }
-
-      // ReplaceMagic 处理
-      if (equip.replaceMagic && equip.useReplaceMagic) {
-        this.loadAndAddEquipReplaceMagic(equip.replaceMagic, equip.useReplaceMagic);
-      }
-
-      // MagicIniWhenUse 处理
-      // 装备带来的武功，显示隐藏的武功或添加新武功
-      if (!justEffectType && equip.magicIniWhenUse) {
-        this.handleEquipMagicIniWhenUse(equip.magicIniWhenUse, true);
-      }
-    }
-
-    // Reference: 恢复保存的 Life/Thew/Mana，但不超过新的 Max 值
-    this.life = Math.min(savedLife, this.lifeMax);
-    this.thew = Math.min(savedThew, this.thewMax);
-    this.mana = Math.min(savedMana, this.manaMax);
-  }
-
-  unEquiping(equip: Good | null, justEffectType: boolean = false): void {
+  override equiping(
+    equip: Good | null,
+    currentEquip: Good | null,
+    justEffectType: boolean = false
+  ): void {
+    super.equiping(equip, currentEquip, justEffectType);
     if (!equip) return;
 
-    if (!justEffectType) {
-      this.attack -= equip.attack;
-      this.attack2 -= equip.attack2;
-      this.attack3 -= equip.attack3;
-      this.defend -= equip.defend;
-      this.defend2 -= equip.defend2;
-      this.defend3 -= equip.defend3;
-      this.evade -= equip.evade;
-      this.lifeMax -= equip.lifeMax;
-      this.thewMax -= equip.thewMax;
-      this.manaMax -= equip.manaMax;
-
-      if (equip.magicIniWhenUse) {
-        this.showMessage(`武功已不可使用`);
-      }
+    if (!justEffectType && equip.magicIniWhenUse) {
+      this.showMessage(`获得武功：${equip.magicIniWhenUse}`);
     }
 
-    // 根据 TheEffectType 清除效果
+    const effectType = equip.theEffectType;
+    switch (effectType) {
+      case GoodEffectType.ThewNotLoseWhenRun:
+        this._isNotUseThewWhenRun = true;
+        break;
+      case GoodEffectType.ManaRestore:
+        this._isManaRestore = true;
+        break;
+    }
+
+    if (equip.specialEffect === 1) {
+      this._addLifeRestorePercent += equip.specialEffectValue;
+    }
+
+    this._addMagicEffectPercent += equip.addMagicEffectPercent;
+    this._addMagicEffectAmount += equip.addMagicEffectAmount;
+
+    if (equip.magicToUseWhenBeAttacked) {
+      this.loadAndAddEquipMagicToUseWhenBeAttacked(
+        equip.fileName,
+        equip.magicToUseWhenBeAttacked,
+        equip.magicDirectionWhenBeAttacked
+      );
+    }
+
+    if (equip.flyIni) {
+      this.addFlyIniReplace(equip.flyIni);
+    }
+    if (equip.flyIni2) {
+      this.addFlyIni2Replace(equip.flyIni2);
+    }
+
+    if (equip.replaceMagic && equip.useReplaceMagic) {
+      this.loadAndAddEquipReplaceMagic(equip.replaceMagic, equip.useReplaceMagic);
+    }
+
+    if (!justEffectType && equip.magicIniWhenUse) {
+      this.handleEquipMagicIniWhenUse(equip.magicIniWhenUse, true);
+    }
+  }
+
+  override unEquiping(equip: Good | null, justEffectType: boolean = false): void {
+    super.unEquiping(equip, justEffectType);
+    if (!equip) return;
+
+    if (!justEffectType && equip.magicIniWhenUse) {
+      this.showMessage(`武功已不可使用`);
+    }
+
     const effectType = equip.theEffectType;
     switch (effectType) {
       case GoodEffectType.ThewNotLoseWhenRun:
@@ -781,28 +721,19 @@ export abstract class PlayerCombat extends PlayerBase {
       case GoodEffectType.ManaRestore:
         this._isManaRestore = false;
         break;
-      // Reference: SetFlyIniAdditionalEffect(None) for weapon effects
-      case GoodEffectType.EnemyFrozen:
-      case GoodEffectType.EnemyPoisoned:
-      case GoodEffectType.EnemyPetrified:
-        this.setFlyIniAdditionalEffect(MagicAddonEffect.None);
-        break;
     }
 
     if (equip.specialEffect === 1) {
       this._addLifeRestorePercent -= equip.specialEffectValue;
     }
 
-    this.addMoveSpeedPercent -= equip.changeMoveSpeedPercent;
     this._addMagicEffectPercent -= equip.addMagicEffectPercent;
     this._addMagicEffectAmount -= equip.addMagicEffectAmount;
 
-    // MagicToUseWhenBeAttacked 处理
     if (equip.magicToUseWhenBeAttacked) {
       this.removeMagicToUseWhenAttackedList(equip.fileName);
     }
 
-    // FlyIniReplace 处理
     if (equip.flyIni) {
       this.removeFlyIniReplace(equip.flyIni);
     }
@@ -810,20 +741,13 @@ export abstract class PlayerCombat extends PlayerBase {
       this.removeFlyIni2Replace(equip.flyIni2);
     }
 
-    // ReplaceMagic 处理
     if (equip.replaceMagic) {
       this.removeReplacedMagic(equip.replaceMagic);
     }
 
-    // MagicIniWhenUse 处理
-    // 隐藏装备带来的武功
     if (!justEffectType && equip.magicIniWhenUse) {
       this.handleEquipMagicIniWhenUse(equip.magicIniWhenUse, false);
     }
-
-    if (this.life > this.lifeMax) this.life = this.lifeMax;
-    if (this.thew > this.thewMax) this.thew = this.thewMax;
-    if (this.mana > this.manaMax) this.mana = this.manaMax;
   }
 
   // =============================================

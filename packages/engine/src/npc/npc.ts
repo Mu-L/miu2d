@@ -9,12 +9,8 @@ import { logger } from "../core/logger";
 import type { CharacterConfig, Vector2 } from "../core/types";
 import { CharacterKind, CharacterState } from "../core/types";
 import { MagicAddonEffect, type MagicData } from "../magic/types";
-import { EquipPosition, Good, GoodEffectType, GoodKind } from "../player/goods/good";
-import {
-  equipPositionToSlotIndex,
-  GoodsListManager,
-  type GoodsItemInfo,
-} from "../player/goods/goods-list-manager";
+import { type EquipPosition, GoodKind } from "../player/goods/good";
+import { equipPositionToSlotIndex, GoodsListManager } from "../player/goods/goods-list-manager";
 import { PlayerMagicInventory } from "../player/magic/player-magic-inventory";
 import type { AsfData } from "../resource/format/asf";
 import { generateId, tileToPixel } from "../utils";
@@ -51,9 +47,6 @@ export class Npc extends Character {
   // Partner containers (伙伴武功/物品)
   private _magicInventory: PlayerMagicInventory | null = null;
   private _goodsManager: GoodsListManager | null = null;
-
-  // Weapon additional effect (武器附加效果: 中毒/冰冻/石化)
-  private _flyIniAdditionalEffect: MagicAddonEffect = MagicAddonEffect.None;
 
   /** API 注册角色 index（仅当 NPC 对应 API 玩家时设置） */
   playerIndex?: number;
@@ -92,7 +85,7 @@ export class Npc extends Character {
     }
     // 伙伴共享 NpcManager 持有的等级配置管理器
     this.levelManager = this.npcManager.getLevelManager();
-    // 设置装备回调，使装备属性生效
+    // 设置装备回调，使装备属性生效（equiping/unEquiping 由基类 CharacterCombat 提供）
     this._goodsManager.setCallbacks({
       onEquiping: (good, currentEquip, justEffectType) => {
         this.equiping(good, currentEquip, justEffectType);
@@ -101,97 +94,6 @@ export class Npc extends Character {
         this.unEquiping(good, justEffectType);
       },
     });
-  }
-
-  // === Partner Equipment Stat Application ===
-
-  /**
-   * 设置武功的附加效果（中毒/冰冻/石化）
-   */
-  private setFlyIniAdditionalEffect(effect: MagicAddonEffect): void {
-    this._flyIniAdditionalEffect = effect;
-  }
-
-  /**
-   * 装备属性生效（基本属性加成 + 武器效果 + 移动速度）
-   */
-  equiping(equip: Good | null, currentEquip: Good | null, justEffectType: boolean = false): void {
-    if (!equip) return;
-    const savedLife = this.life;
-    const savedThew = this.thew;
-    const savedMana = this.mana;
-    // 先卸下被替换的装备
-    this.unEquiping(currentEquip, justEffectType);
-
-    if (!justEffectType) {
-      this.attack += equip.attack;
-      this.attack2 += equip.attack2;
-      this.attack3 += equip.attack3;
-      this.defend += equip.defend;
-      this.defend2 += equip.defend2;
-      this.defend3 += equip.defend3;
-      this.evade += equip.evade;
-      this.lifeMax += equip.lifeMax;
-      this.thewMax += equip.thewMax;
-      this.manaMax += equip.manaMax;
-    }
-
-    // 武器附加效果
-    const effectType = equip.theEffectType;
-    switch (effectType) {
-      case GoodEffectType.EnemyFrozen:
-        this.setFlyIniAdditionalEffect(MagicAddonEffect.Frozen);
-        break;
-      case GoodEffectType.EnemyPoisoned:
-        this.setFlyIniAdditionalEffect(MagicAddonEffect.Poison);
-        break;
-      case GoodEffectType.EnemyPetrified:
-        this.setFlyIniAdditionalEffect(MagicAddonEffect.Petrified);
-        break;
-    }
-
-    this.addMoveSpeedPercent += equip.changeMoveSpeedPercent;
-
-    // 恢复保存的值，但不超过新上限
-    this.life = Math.min(savedLife, this.lifeMax);
-    this.thew = Math.min(savedThew, this.thewMax);
-    this.mana = Math.min(savedMana, this.manaMax);
-  }
-
-  /**
-   * 卸下装备属性
-   */
-  unEquiping(equip: Good | null, justEffectType: boolean = false): void {
-    if (!equip) return;
-
-    if (!justEffectType) {
-      this.attack -= equip.attack;
-      this.attack2 -= equip.attack2;
-      this.attack3 -= equip.attack3;
-      this.defend -= equip.defend;
-      this.defend2 -= equip.defend2;
-      this.defend3 -= equip.defend3;
-      this.evade -= equip.evade;
-      this.lifeMax -= equip.lifeMax;
-      this.thewMax -= equip.thewMax;
-      this.manaMax -= equip.manaMax;
-    }
-
-    // 清除武器附加效果
-    const effectType = equip.theEffectType;
-    switch (effectType) {
-      case GoodEffectType.EnemyFrozen:
-      case GoodEffectType.EnemyPoisoned:
-      case GoodEffectType.EnemyPetrified:
-        this.setFlyIniAdditionalEffect(MagicAddonEffect.None);
-        break;
-    }
-
-    this.addMoveSpeedPercent -= equip.changeMoveSpeedPercent;
-
-    if (this.life > this.lifeMax) this.life = this.lifeMax;
-    if (this.thew > this.thewMax) this.thew = this.thewMax;
-    if (this.mana > this.manaMax) this.mana = this.manaMax;
   }
 
   /**
@@ -334,10 +236,7 @@ export class Npc extends Character {
   /**
    * 卸下伙伴装备，放回主角背包
    */
-  unequipToPlayerBag(
-    playerGoodsManager: GoodsListManager,
-    equipPosition: EquipPosition
-  ): boolean {
+  unequipToPlayerBag(playerGoodsManager: GoodsListManager, equipPosition: EquipPosition): boolean {
     if (!this._goodsManager) return false;
 
     const partnerEquip = this._goodsManager.getEquipAtPosition(equipPosition);
@@ -400,10 +299,7 @@ export class Npc extends Character {
   /**
    * 从伙伴快捷栏移除物品，放回主角背包
    */
-  movePartnerBottomToPlayerBag(
-    playerGoodsManager: GoodsListManager,
-    bottomSlot: number
-  ): boolean {
+  movePartnerBottomToPlayerBag(playerGoodsManager: GoodsListManager, bottomSlot: number): boolean {
     if (!this._goodsManager) return false;
     if (bottomSlot < 0 || bottomSlot >= 3) return false;
 

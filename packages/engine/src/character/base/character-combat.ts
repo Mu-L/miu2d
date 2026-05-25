@@ -8,6 +8,8 @@
 import { getCharacterDeathExp } from "../../combat/effect-calc";
 import { logger } from "../../core/logger";
 import { CharacterState } from "../../core/types";
+import { MagicAddonEffect } from "../../magic/magic-enums";
+import { type Good, GoodEffectType } from "../../player/goods/good";
 import { type AsfData, getCachedAsf, loadAsf } from "../../resource/format/asf";
 import { ResourcePath } from "../../resource/resource-paths";
 import { distance, getViewTileDistance, tileToPixel } from "../../utils";
@@ -777,5 +779,98 @@ export abstract class CharacterCombat extends CharacterMovement {
       }
       character.followAndWalkToTarget(target);
     }
+  }
+
+  // =============================================
+  // === Equipment (shared between Player & Npc) ===
+  // =============================================
+
+  /** 武器的附加效果（中毒/冰冻/石化）。Player/Npc 共用 */
+  protected _flyIniAdditionalEffect: MagicAddonEffect = MagicAddonEffect.None;
+
+  protected setFlyIniAdditionalEffect(effect: MagicAddonEffect): void {
+    this._flyIniAdditionalEffect = effect;
+  }
+
+  /**
+   * 基础装备效果：基础属性 delta + 武器附加效果 + 移动速度。
+   * 子类（Player）可重写以追加额外副作用（如 specialEffect / magicToUseWhenBeAttacked / flyIniReplace 等）。
+   * 调用约定：内部已通过 unEquiping 卸下旧装备 delta，子类重写时**不要**再次卸下。
+   */
+  equiping(equip: Good | null, currentEquip: Good | null, justEffectType: boolean = false): void {
+    if (!equip) return;
+
+    const savedLife = this.life;
+    const savedThew = this.thew;
+    const savedMana = this.mana;
+
+    // 通过 this.unEquiping 走子类多态路径，保证子类卸下额外副作用
+    this.unEquiping(currentEquip, justEffectType);
+
+    if (!justEffectType) {
+      this.attack += equip.attack;
+      this.attack2 += equip.attack2;
+      this.attack3 += equip.attack3;
+      this.defend += equip.defend;
+      this.defend2 += equip.defend2;
+      this.defend3 += equip.defend3;
+      this.evade += equip.evade;
+      this.lifeMax += equip.lifeMax;
+      this.thewMax += equip.thewMax;
+      this.manaMax += equip.manaMax;
+    }
+
+    switch (equip.theEffectType) {
+      case GoodEffectType.EnemyFrozen:
+        this.setFlyIniAdditionalEffect(MagicAddonEffect.Frozen);
+        break;
+      case GoodEffectType.EnemyPoisoned:
+        this.setFlyIniAdditionalEffect(MagicAddonEffect.Poison);
+        break;
+      case GoodEffectType.EnemyPetrified:
+        this.setFlyIniAdditionalEffect(MagicAddonEffect.Petrified);
+        break;
+    }
+
+    this.addMoveSpeedPercent += equip.changeMoveSpeedPercent;
+
+    this.life = Math.min(savedLife, this.lifeMax);
+    this.thew = Math.min(savedThew, this.thewMax);
+    this.mana = Math.min(savedMana, this.manaMax);
+  }
+
+  /**
+   * 基础卸装备：还原基础属性 delta + 清武器附加效果 + 还原移动速度。
+   * 子类可重写以追加额外副作用还原。
+   */
+  unEquiping(equip: Good | null, justEffectType: boolean = false): void {
+    if (!equip) return;
+
+    if (!justEffectType) {
+      this.attack -= equip.attack;
+      this.attack2 -= equip.attack2;
+      this.attack3 -= equip.attack3;
+      this.defend -= equip.defend;
+      this.defend2 -= equip.defend2;
+      this.defend3 -= equip.defend3;
+      this.evade -= equip.evade;
+      this.lifeMax -= equip.lifeMax;
+      this.thewMax -= equip.thewMax;
+      this.manaMax -= equip.manaMax;
+    }
+
+    switch (equip.theEffectType) {
+      case GoodEffectType.EnemyFrozen:
+      case GoodEffectType.EnemyPoisoned:
+      case GoodEffectType.EnemyPetrified:
+        this.setFlyIniAdditionalEffect(MagicAddonEffect.None);
+        break;
+    }
+
+    this.addMoveSpeedPercent -= equip.changeMoveSpeedPercent;
+
+    if (this.life > this.lifeMax) this.life = this.lifeMax;
+    if (this.thew > this.thewMax) this.thew = this.thewMax;
+    if (this.mana > this.manaMax) this.mana = this.manaMax;
   }
 }
