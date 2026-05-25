@@ -74,12 +74,26 @@ export class MapBase {
   private _viewHeight: number = 600;
 
   // ============= 陷阱系统（实例字段） =============
-  /** 地图陷阱配置 mapName -> (trapIndex -> scriptFile)，MMF + 脚本增量的合并结果 */
-  private _traps: Map<string, Map<number, string>> = new Map();
-  /** 脚本通过 SetTrap/SetMapTrap 设置的增量（仅此部分落入存档，空字符串表示删除） */
-  private _trapsDelta: Map<string, Map<number, string>> = new Map();
-  /** 已忽略（已触发）的陷阱索引 */
-  private _ignoredTrapsIndex: Set<number> = new Set();
+  /**
+   * 地图陷阱基础表 mapName -> (trapIndex -> scriptFile)
+   * 来源：MMF 文件内嵌的 trapTable，每次进入地图时由 initTrapsForMap 重建。
+   * 仅作为"陷阱兜底全量数据"使用，不进存档（读档时由 MMF 重新解析）。
+   */
+  private _mapTrapTable: Map<string, Map<number, string>> = new Map();
+  /**
+   * 持久化陷阱覆盖表 mapName -> (trapIndex -> scriptFile)
+   * 跨地图常驻：脚本通过 SetTrap 直接写入；SaveMapTrap 把 snapshot 整体提交到这里。
+   * 进存档（groups.trap）。"" 表示该 index 被屏蔽。
+   */
+  private _groupTrap: Map<string, Map<number, string>> = new Map();
+  /**
+   * 当前地图的运行时陷阱表 trapIndex -> scriptFile
+   * 切地图时清空，再 clone(_groupTrap[新图]) 作为初始值。
+   * - SetMapTrap 写这里（不持久，直到 SaveMapTrap 才进 group）。
+   * - 陷阱触发成功后写入 "" 表示"本地图内不再触发"。
+   * 进存档（snapshot.trap）。
+   */
+  private _snapshotTrap: Map<number, string> = new Map();
   /** 是否正在执行陷阱脚本 */
   private _isInRunMapTrap: boolean = false;
   /** 当前正在执行的陷阱索引（-1 = 无） */
@@ -487,164 +501,117 @@ export class MapBase {
   }
 
   /**
-   * 从 MMF 地图数据初始化陷阱配置
+   * 进入地图时初始化陷阱状态
    *
-   * 取代原来的 loadTrap()（从外部 Traps.ini 加载）。
-   * 现在陷阱表直接内嵌在 MMF 文件中。
+   * 切地图（运行中）/ 新游戏 / 读档 Phase 2 都会走这里：
+   * 1. 重建 _mapTrapTable[mapName]：从 MMF 内嵌的 trapTable 读取全量基础数据
+   * 2. 重置 _snapshotTrap：clone(_groupTrap[mapName])
+   *    （group 是跨地图常驻的；读档 Phase 4 会再覆盖一次正确的 snapshot）
    *
    * @param mapName 当前地图名（不含扩展名）
    */
-  initTrapsFromMapData(mapName: string): void {
-    // 注意：不清空 _ignoredTrapsIndex —— 与 C# 一致，忽略列表跨地图持久保留，
-    // 只在 resetTrapState()（新游戏/读档）时才清空。
-
-    // MMF 基础数据
-    const trapMapping = new Map<number, string>();
+  initTrapsForMap(mapName: string): void {
+    // 1) MMF 基础全量
+    const baseTable = new Map<number, string>();
     if (this._mapData && this._mapData.trapTable.length > 0) {
       for (const entry of this._mapData.trapTable) {
-        trapMapping.set(entry.trapIndex, entry.scriptPath);
+        baseTable.set(entry.trapIndex, entry.scriptPath);
       }
     }
-
-    // 叠加脚本增量（存档恢复或运行时 SetTrap 修改，优先级高于 MMF）
-    const delta = this._trapsDelta.get(mapName);
-    if (delta) {
-      for (const [idx, script] of delta) {
-        if (!script) {
-          trapMapping.delete(idx);
-        } else {
-          trapMapping.set(idx, script);
-        }
-      }
-    }
-
-    if (trapMapping.size > 0) {
-      this._traps.set(mapName, trapMapping);
+    if (baseTable.size > 0) {
+      this._mapTrapTable.set(mapName, baseTable);
     } else {
-      this._traps.delete(mapName);
+      this._mapTrapTable.delete(mapName);
+    }
+
+    // 2) snapshot = clone(group[mapName])
+    this._snapshotTrap.clear();
+    const group = this._groupTrap.get(mapName);
+    if (group) {
+      for (const [k, v] of group) this._snapshotTrap.set(k, v);
     }
 
     logger.log(
-      `[MapBase] Initialized traps for "${mapName}": ${trapMapping.size} entries` +
-        (delta ? ` (${delta.size} delta)` : "")
+      `[MapBase] initTrapsForMap "${mapName}": base=${baseTable.size}, snapshot(=group)=${this._snapshotTrap.size}`
     );
   }
 
   /**
-   * 保存陷阱配置到文件（在 Web 环境中主要用于调试）
+   * 根据 group → snapshot → mapTable 顺序解析最终生效的脚本路径
    *
-   */
-  saveTrap(): string {
-    let output = "";
-    for (const [mapName, traps] of this._traps) {
-      output += `[${mapName}]\n`;
-      for (const [trapIndex, scriptFile] of traps) {
-        output += `${trapIndex}=${scriptFile}\n`;
-      }
-      output += "\n";
-    }
-    return output;
-  }
-
-  /**
-   * 加载已忽略的陷阱索引列表
+   * - group[map] 有 index 记录：以 group 的值为准（""=屏蔽，非空=覆盖 MMF）
+   * - 否则 snapshot 有 index 记录：以 snapshot 的值为准
+   * - 否则查 _mapTrapTable[map]（MMF 全量）
    *
+   * @returns 实际要执行的脚本文件名；null 表示不应触发
    */
-  loadTrapIndexIgnoreList(data: number[]): void {
-    this._ignoredTrapsIndex.clear();
-    for (const index of data) {
-      this._ignoredTrapsIndex.add(index);
+  private resolveTrapScript(mapName: string, index: number): string | null {
+    const group = this._groupTrap.get(mapName);
+    if (group?.has(index)) {
+      const s = group.get(index)!;
+      return s === "" ? null : s;
     }
-    logger.log(`[MapBase] Loaded ${data.length} ignored trap indices`);
-  }
-
-  /**
-   * 获取已忽略的陷阱索引列表（用于存档）
-   *
-   */
-  getIgnoredTrapIndices(): number[] {
-    return Array.from(this._ignoredTrapsIndex);
-  }
-
-  /**
-   * 清空已忽略的陷阱列表（加载新地图时调用）
-   * 中的 _ignoredTrapsIndex.Clear()
-   */
-  clearIgnoredTraps(): void {
-    this._ignoredTrapsIndex.clear();
-  }
-
-  /**
-   * 设置地图陷阱
-   *
-   */
-  setMapTrap(index: number, trapFileName: string, mapName?: string): void {
-    const targetMap = mapName || this._mapFileNameWithoutExtension;
-    if (!targetMap) return;
-
-    // 如果是当前地图，从忽略列表中移除以重新激活
-    if (!mapName || mapName === this._mapFileNameWithoutExtension) {
-      this._ignoredTrapsIndex.delete(index);
+    if (this._snapshotTrap.has(index)) {
+      const s = this._snapshotTrap.get(index)!;
+      return s === "" ? null : s;
     }
-
-    // 更新合并后的运行时陷阱映射
-    if (!this._traps.has(targetMap)) {
-      this._traps.set(targetMap, new Map());
-    }
-    const traps = this._traps.get(targetMap)!;
-    if (!trapFileName) {
-      traps.delete(index);
-    } else {
-      traps.set(index, trapFileName);
-    }
-
-    // 记录脚本增量（空字符串表示删除，也需要落入存档）
-    if (!this._trapsDelta.has(targetMap)) {
-      this._trapsDelta.set(targetMap, new Map());
-    }
-    this._trapsDelta.get(targetMap)!.set(index, trapFileName);
-  }
-
-  /**
-   * 获取地图陷阱脚本解析器
-   *
-   * @returns 脚本文件名，如果没有返回 null
-   */
-  getMapTrapFileName(index: number, mapName?: string): string | null {
-    const targetMap = mapName || this._mapFileNameWithoutExtension;
-    if (!targetMap) return null;
-
-    const traps = this._traps.get(targetMap);
-    if (traps?.has(index)) {
-      const scriptFile = traps.get(index)!;
-      // 空字符串表示陷阱被移除
-      return scriptFile || null;
+    const base = this._mapTrapTable.get(mapName);
+    if (base?.has(index)) {
+      const s = base.get(index)!;
+      return s === "" ? null : s;
     }
     return null;
   }
 
   /**
-   * 检查瓦片是否有陷阱脚本
-   *
+   * SetMapTrap 脚本命令：仅写当前地图的运行时 snapshot（不持久）
+   * 调用 SaveMapTrap() 才会把当前 snapshot 整体提交到 _groupTrap[currentMap]
+   */
+  setMapTrap(index: number, trapFileName: string): void {
+    this._snapshotTrap.set(index, trapFileName);
+  }
+
+  /**
+   * SetTrap 脚本命令：直接写指定地图的持久化覆盖表（跨地图常驻、立即进存档）
+   * 若 mapName === currentMap，写入对当前 snapshot 不立即可见——下次进入或再次查找时由
+   * resolveTrapScript 的 group 优先级生效。
+   */
+  setTrap(mapName: string, index: number, trapFileName: string): void {
+    if (!mapName) return;
+    let g = this._groupTrap.get(mapName);
+    if (!g) {
+      g = new Map();
+      this._groupTrap.set(mapName, g);
+    }
+    g.set(index, trapFileName);
+  }
+
+  /**
+   * SaveMapTrap 脚本命令：把当前 snapshot 整体提交到 _groupTrap[currentMap]
+   * 实现"脚本运行时把临时改动持久化"的语义。
+   */
+  commitSnapshotToGroup(): void {
+    const cur = this._mapFileNameWithoutExtension;
+    if (!cur) return;
+    const g = new Map<number, string>();
+    for (const [k, v] of this._snapshotTrap) g.set(k, v);
+    this._groupTrap.set(cur, g);
+    logger.log(`[MapBase] SaveMapTrap committed ${g.size} entries to group["${cur}"]`);
+  }
+
+  /**
+   * 检查瓦片是否有可触发的陷阱脚本
    */
   hasTrapScript(tilePosition: Vector2): boolean {
     const index = this.getTileTrapIndexVector(tilePosition);
     if (index === 0) return false;
-
-    const trapFileName = this.getMapTrapFileName(index);
-    if (!trapFileName) return false;
-
-    // 检查是否在忽略列表中
-    if (this._ignoredTrapsIndex.has(index)) {
-      return false;
-    }
-
-    return true;
+    const map = this._mapFileNameWithoutExtension;
+    if (!map) return false;
+    return this.resolveTrapScript(map, index) !== null;
   }
 
   /**
    * 运行瓦片陷阱脚本
-   *
    *
    * @param tilePosition 瓦片位置
    * @param runScript 执行脚本的回调函数
@@ -660,29 +627,26 @@ export class MapBase {
     const trapIndex = this.getTileTrapIndexVector(tilePosition);
     if (trapIndex === 0) return false;
 
-    // 检查是否在忽略列表中
-    if (this._ignoredTrapsIndex.has(trapIndex)) {
-      return false;
-    }
+    const mapName = this._mapFileNameWithoutExtension;
+    if (!mapName) return false;
 
-    const trapScriptName = this.getMapTrapFileName(trapIndex);
+    const trapScriptName = this.resolveTrapScript(mapName, trapIndex);
     if (!trapScriptName) return false;
 
     logger.log(
       `[MapBase] Triggering trap ${trapIndex} at tile (${tilePosition.x}, ${tilePosition.y})`
     );
 
-    // Globals.ThePlayer.StandingImmediately()
     onTrapTriggered?.();
 
-    // _isInRunMapTrap = true
     this._isInRunMapTrap = true;
     this._currentTrapIndex = trapIndex;
 
-    // 添加到忽略列表（不会再次触发）
-    this._ignoredTrapsIndex.add(trapIndex);
+    // 标记"本地图内已触发"：写入 snapshot[N] = ""
+    // 注：若 group[map][N] 是非空（玩家显式 SetTrap 强制激活），group 优先级更高
+    // 该陷阱仍会重复触发——这是有意为之，等价于"持久激活"。
+    this._snapshotTrap.set(trapIndex, "");
 
-    // 运行脚本
     const basePath = getScriptBasePath();
     const scriptPath = resolveScriptPath(basePath, trapScriptName);
     logger.log(`[MapBase] Running trap script: ${scriptPath}`);
@@ -717,8 +681,9 @@ export class MapBase {
    * 清空所有陷阱状态（新游戏时调用）
    */
   clearAll(): void {
-    this._ignoredTrapsIndex.clear();
-    this._traps.clear();
+    this._mapTrapTable.clear();
+    this._groupTrap.clear();
+    this._snapshotTrap.clear();
     this._currentTrapIndex = -1;
     this._isInRunMapTrap = false;
   }
@@ -733,29 +698,14 @@ export class MapBase {
     currentMapName: string
   ): boolean {
     if (!mapData) return false;
-
     const tileIndex = tile.x + tile.y * mapData.mapColumnCounts;
     const trapIndex = mapData.traps[tileIndex];
-
-    if (trapIndex > 0) {
-      // 检查是否在忽略列表中
-      if (this._ignoredTrapsIndex.has(trapIndex)) {
-        return false;
-      }
-
-      // 检查是否有配置的脚本
-      const traps = this._traps.get(currentMapName);
-      if (traps?.has(trapIndex)) {
-        const scriptFile = traps.get(trapIndex)!;
-        return scriptFile !== "";
-      }
-    }
-    return false;
+    if (trapIndex <= 0) return false;
+    return this.resolveTrapScript(currentMapName, trapIndex) !== null;
   }
 
   /**
    * 检查并触发陷阱
-   * 的完整流程
    *
    * @param tile 瓦片位置
    * @param mapData 地图数据
@@ -777,63 +727,39 @@ export class MapBase {
     runScript: (scriptPath: string) => void,
     onTrapTriggered?: () => void
   ): boolean {
-    if (!mapData) {
-      return false;
-    }
+    if (!mapData) return false;
 
     // Don't run trap if already in trap script execution
-    if (this._isInRunMapTrap) {
-      return false;
-    }
+    if (this._isInRunMapTrap) return false;
 
     // Don't run traps if waiting for input (dialog, selection, etc.)
-    if (isWaitingForInput()) {
-      return false;
-    }
+    if (isWaitingForInput()) return false;
 
     const tileIndex = tile.x + tile.y * mapData.mapColumnCounts;
     const trapIndex = mapData.traps[tileIndex];
+    if (trapIndex <= 0) return false;
 
-    if (trapIndex > 0) {
-      // 检查是否在忽略列表中
-      if (this._ignoredTrapsIndex.has(trapIndex)) {
-        return false;
-      }
+    const trapScriptName = this.resolveTrapScript(currentMapName, trapIndex);
+    if (!trapScriptName) return false;
 
-      // 获取陷阱脚本文件名
-      const traps = this._traps.get(currentMapName);
-      if (!traps?.has(trapIndex)) {
-        return false;
-      }
-      const trapScriptName = traps.get(trapIndex)!;
-      if (!trapScriptName) {
-        return false;
-      }
+    logger.log(
+      `[MapBase] Triggering trap ${trapIndex} at tile (${tile.x}, ${tile.y}) on map "${currentMapName}"`
+    );
 
-      logger.log(
-        `[MapBase] Triggering trap ${trapIndex} at tile (${tile.x}, ${tile.y}) on map "${currentMapName}"`
-      );
+    this._isInRunMapTrap = true;
+    this._currentTrapIndex = trapIndex;
 
-      // 添加到忽略列表
-      this._ignoredTrapsIndex.add(trapIndex);
+    // 标记"本地图内已触发"。group 非空可覆盖该屏蔽（持久激活语义）。
+    this._snapshotTrap.set(trapIndex, "");
 
-      // 设置陷阱执行标志
-      this._isInRunMapTrap = true;
-      this._currentTrapIndex = trapIndex;
+    onTrapTriggered?.();
 
-      // Globals.ThePlayer.StandingImmediately()
-      onTrapTriggered?.();
+    const basePath = getScriptBasePath();
+    const scriptPath = resolveScriptPath(basePath, trapScriptName);
+    logger.log(`[MapBase] Running trap script: ${scriptPath}`);
+    runScript(scriptPath);
 
-      // 运行脚本
-      const basePath = getScriptBasePath();
-      const scriptPath = resolveScriptPath(basePath, trapScriptName);
-      logger.log(`[MapBase] Running trap script: ${scriptPath}`);
-      runScript(scriptPath);
-
-      return true;
-    }
-
-    return false;
+    return true;
   }
 
   /**
@@ -841,26 +767,16 @@ export class MapBase {
    */
   debugLogTraps(mapData: MiuMapData | null, currentMapName: string): void {
     if (!mapData) return;
-
-    // 显示地图文件中的陷阱瓦片
-    const trapsInMap: { tile: string; trapIndex: number }[] = [];
     const totalTiles = mapData.mapColumnCounts * mapData.mapRowCounts;
+    let tileCount = 0;
     for (let i = 0; i < totalTiles; i++) {
-      const trapIndex = mapData.traps[i];
-      if (trapIndex > 0) {
-        const x = i % mapData.mapColumnCounts;
-        const y = Math.floor(i / mapData.mapColumnCounts);
-        trapsInMap.push({ tile: `(${x},${y})`, trapIndex });
-      }
+      if (mapData.traps[i] > 0) tileCount++;
     }
-
-    // 显示此地图配置的陷阱脚本
-    const mapTraps = this._traps.get(currentMapName);
-    if (mapTraps && mapTraps.size > 0) {
-      logger.debug(`[MapBase] Trap scripts for "${currentMapName}": ${mapTraps.size} configured`);
-    } else {
-      logger.debug(`[MapBase] No trap scripts configured for "${currentMapName}"`);
-    }
+    const baseSize = this._mapTrapTable.get(currentMapName)?.size ?? 0;
+    const groupSize = this._groupTrap.get(currentMapName)?.size ?? 0;
+    logger.debug(
+      `[MapBase] Traps "${currentMapName}": ${tileCount} tiles, base=${baseSize}, group=${groupSize}, snapshot=${this._snapshotTrap.size}`
+    );
   }
 
   // ============= 图层控制 =============
@@ -933,104 +849,106 @@ export class MapBase {
 
   // ============= 陷阱数据存档/读档 =============
 
-  /**
-   * 获取所有陷阱配置（用于存档）
-   */
-  getAllTraps(): Map<string, Map<number, string>> {
-    return this._traps;
+  /** 调试用：返回当前 snapshot 中已记录的 trap index 列表 */
+  getSnapshotTrapIndices(): number[] {
+    return Array.from(this._snapshotTrap.keys());
   }
 
-  /**
-   * 设置所有陷阱配置（从存档恢复）
-   */
-  setAllTraps(traps: Map<string, Map<number, string>>): void {
-    this._traps = traps;
+  /** 调试用：返回当前 _snapshotTrap 的完整 KV 拷贝 */
+  getSnapshotTrapEntries(): Record<number, string> {
+    const out: Record<number, string> = {};
+    for (const [k, v] of this._snapshotTrap) out[k] = v;
+    return out;
+  }
+
+  /** 调试用：返回指定地图（默认当前地图）的 _groupTrap KV 拷贝 */
+  getGroupTrapEntries(mapName?: string): Record<number, string> {
+    const name = mapName ?? this._mapFileNameWithoutExtension;
+    if (!name) return {};
+    const m = this._groupTrap.get(name);
+    if (!m) return {};
+    const out: Record<number, string> = {};
+    for (const [k, v] of m) out[k] = v;
+    return out;
   }
 
   /**
    * 从存档数据恢复陷阱状态
-   * @param groups 陷阱分组（地图名 → { trapIndex → scriptFile }）
-   * @param snapshot 陷阱快照（已触发的陷阱索引列表）
+   *
+   * 调用时机：读档 Phase 4（Phase 2 已经在 initTrapsForMap 中重建了 _mapTrapTable，
+   * 此时 _groupTrap 还是空的，_snapshotTrap 也基于空的 group 初始化为空）。
+   * 此方法用存档里的 group 和 snapshot 覆盖。
+   *
+   * @param groups 持久化覆盖表（mapName → { trapIndex → scriptFile }）
+   * @param snapshot 当前地图运行时表
+   *   - 新格式：Record<number, string>（""=屏蔽，非空=覆盖）
+   *   - 旧格式（兼容）：number[]，每个元素按 idx→"" 处理
    */
   loadTrapsFromSave(
-    delta: Record<string, Record<number, string>> | undefined,
-    snapshot: number[]
+    groups: Record<string, Record<number, string>> | undefined,
+    snapshot: Record<number, string> | number[] | undefined
   ): void {
-    // 从存档重建脚本增量
-    this._trapsDelta.clear();
-    if (delta) {
-      for (const mapName in delta) {
-        const trapObj = delta[mapName];
-        const deltaMap = new Map<number, string>();
-        for (const trapIndexStr in trapObj) {
-          // 保留空字符串（表示删除）
-          deltaMap.set(parseInt(trapIndexStr, 10), trapObj[trapIndexStr]);
+    // 重建 _groupTrap
+    this._groupTrap.clear();
+    if (groups) {
+      for (const mapName in groups) {
+        const obj = groups[mapName];
+        const m = new Map<number, string>();
+        for (const k in obj) {
+          m.set(parseInt(k, 10), obj[k]);
         }
-        if (deltaMap.size > 0) {
-          this._trapsDelta.set(mapName, deltaMap);
-        }
+        if (m.size > 0) this._groupTrap.set(mapName, m);
       }
-      logger.debug(`[MapBase] Restored trap delta for ${this._trapsDelta.size} maps`);
+      logger.debug(`[MapBase] Restored group trap for ${this._groupTrap.size} maps`);
     }
 
-    // 将当前地图的增量叠加到 _traps（Phase 2 loadMap 后 MMF 数据已就绪）
-    const currentMap = this._mapFileNameWithoutExtension;
-    if (currentMap) {
-      const currentDelta = this._trapsDelta.get(currentMap);
-      if (currentDelta) {
-        if (!this._traps.has(currentMap)) {
-          this._traps.set(currentMap, new Map());
-        }
-        const traps = this._traps.get(currentMap)!;
-        for (const [idx, script] of currentDelta) {
-          if (!script) {
-            traps.delete(idx);
-          } else {
-            traps.set(idx, script);
-          }
-        }
+    // 重建 _snapshotTrap
+    this._snapshotTrap.clear();
+    if (Array.isArray(snapshot)) {
+      // 旧存档格式：number[] 表示"已触发的 index 列表"，统一按 ""=屏蔽恢复
+      for (const idx of snapshot) {
+        this._snapshotTrap.set(idx, "");
       }
+      logger.debug(`[MapBase] Restored ${snapshot.length} snapshot trap entries (legacy)`);
+    } else if (snapshot) {
+      for (const k in snapshot) {
+        this._snapshotTrap.set(parseInt(k, 10), snapshot[k]);
+      }
+      logger.debug(`[MapBase] Restored ${Object.keys(snapshot).length} snapshot trap entries`);
     }
-
-    // 恢复已触发的陷阱索引
-    this._ignoredTrapsIndex.clear();
-    for (const index of snapshot) {
-      this._ignoredTrapsIndex.add(index);
-    }
-    logger.debug(`[MapBase] Restored ${snapshot.length} ignored trap indices`);
   }
 
   /**
    * 收集陷阱数据用于存档
-   * @returns snapshot: 已触发的陷阱索引, groups: 按地图名分组的陷阱配置
+   * @returns snapshot: 当前地图运行时表（Record<idx,script>），groups: 持久化覆盖表
    */
   collectTrapDataForSave(): {
-    ignoreList: number[];
-    mapTraps: Record<string, Record<number, string>>;
+    snapshot: Record<number, string>;
+    groups: Record<string, Record<number, string>>;
   } {
-    // 只落入脚本增量，不含 MMF 基础数据（读档时 MMF 由服务端重新加载提供）
-    const mapTraps: Record<string, Record<number, string>> = {};
-    for (const [mapName, delta] of this._trapsDelta) {
-      if (delta.size > 0) {
-        const trapObj: Record<number, string> = {};
-        for (const [trapIndex, scriptFile] of delta) {
-          trapObj[trapIndex] = scriptFile;
-        }
-        mapTraps[mapName] = trapObj;
+    const groups: Record<string, Record<number, string>> = {};
+    for (const [mapName, m] of this._groupTrap) {
+      if (m.size > 0) {
+        const obj: Record<number, string> = {};
+        for (const [idx, script] of m) obj[idx] = script;
+        groups[mapName] = obj;
       }
     }
 
-    const ignoreList = Array.from(this._ignoredTrapsIndex);
+    const snapshot: Record<number, string> = {};
+    for (const [idx, script] of this._snapshotTrap) snapshot[idx] = script;
 
-    return { mapTraps, ignoreList };
+    return { snapshot, groups };
   }
 
   /**
    * 重置所有陷阱状态（新游戏/读档时在 Phase 1 调用）
    */
   resetTrapState(): void {
-    this._traps.clear();
-    this._trapsDelta.clear();
-    this._ignoredTrapsIndex.clear();
+    this._mapTrapTable.clear();
+    this._groupTrap.clear();
+    this._snapshotTrap.clear();
+    this._currentTrapIndex = -1;
+    this._isInRunMapTrap = false;
   }
 }

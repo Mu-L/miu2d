@@ -30,7 +30,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
   gameVariables,
   xiuLianMagic,
   partnersData,
-  triggeredTrapIds,
+  trapState,
   currentScriptInfo,
   scriptHistory,
   onClose,
@@ -76,7 +76,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({
         {/* 游戏信息（地图信息 + 游戏变量） */}
         <GameInfoSection
           loadedResources={loadedResources}
-          triggeredTrapIds={triggeredTrapIds}
+          trapState={trapState}
           gameVariables={gameVariables}
           onSetGameVariable={onSetGameVariable}
         />

@@ -78,7 +78,9 @@ export class DebugManager {
   private getVariables: (() => GameVariables) | null = null;
   private setVariableCallback: ((name: string, value: number) => void) | null = null;
   private getMapInfo: (() => { mapName: string; mapPath: string }) | null = null;
-  private getTriggeredTraps: (() => number[]) | null = null;
+  private getTrapStateFn:
+    | (() => { snapshot: Record<number, string>; group: Record<number, string> })
+    | null = null;
   private config: DebugManagerConfig;
 
   private get player(): Player {
@@ -154,13 +156,13 @@ export class DebugManager {
     scriptExecutor: ScriptExecutor,
     getVariables: () => GameVariables,
     getMapInfo: () => { mapName: string; mapPath: string },
-    getTriggeredTraps?: () => number[],
+    getTrapState?: () => { snapshot: Record<number, string>; group: Record<number, string> },
     setVariable?: (name: string, value: number) => void
   ): void {
     this.scriptExecutor = scriptExecutor;
     this.getVariables = getVariables;
     this.getMapInfo = getMapInfo;
-    this.getTriggeredTraps = getTriggeredTraps ?? null;
+    this.getTrapStateFn = getTrapState ?? null;
     this.setVariableCallback = setVariable ?? null;
   }
 
@@ -306,10 +308,13 @@ export class DebugManager {
   }
 
   /**
-   * 获取已触发的陷阱 ID 列表（全局）
+   * 获取当前地图陷阱状态（snapshot + group KV）
+   * - snapshot：当前地图运行时表，进入地图时 = clone(group[mapName])，踩中后 idx 标 ""
+   * - group：当前地图持久化覆盖表，由 SetTrap / SaveMapTrap 写入
+   * 触发查找顺序：group → snapshot → MMF 基础表
    */
-  getTriggeredTrapIds(): number[] {
-    return this.getTriggeredTraps?.() ?? [];
+  getTrapState(): { snapshot: Record<number, string>; group: Record<number, string> } {
+    return this.getTrapStateFn?.() ?? { snapshot: {}, group: {} };
   }
 
   /**

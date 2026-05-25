@@ -629,10 +629,10 @@ export class Loader {
         );
       }
 
-      // Task E: 陷阱恢复（delta 叠加到 Phase 2 已加载的 MMF 基础数据上）
+      // Task E: 陷阱恢复（重建 _groupTrap 与 _snapshotTrap，覆盖 Phase 2 init 的初值）
       parallelTasks.push(
         (async () => {
-          loadTrapsFromSave(data.snapshot?.trap ?? [], data.groups?.trap, this.deps.map);
+          loadTrapsFromSave(data.snapshot?.trap, data.groups?.trap, this.deps.map);
         })()
       );
 
