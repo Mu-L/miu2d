@@ -180,12 +180,13 @@ export const ModernGameUIWrapper: React.FC<ModernGameUIWrapperProps> = ({
     return partnersData[selectedPartnerIndex]?.npc ?? null;
   }, [partnersData, selectedPartnerIndex]);
 
-  // 伙伴面板显示数据
-  const partnerPanelData = useMemo(() => {
+  // 伙伴面板显示数据：使用 RAF 在面板可见时持续刷新，避免 useMemo 缓存住"读档瞬间
+  // npc 实例新但内部数据(goodsManager/magicInventory)未填充"的中间态。
+  // panels.npcEquip 关闭后停止刷新，省 CPU。
+  const computePartnerPanelData = useCallback(() => {
     if (!selectedNpc) return null;
     const gm = selectedNpc.goodsManager;
     const mi = selectedNpc.magicInventory;
-
     const equips: Record<string, { good: UIGoodData; count: number } | null> = {};
     if (gm) {
       const slotNamesArr: string[] = ["head", "neck", "body", "back", "hand", "wrist", "foot"];
@@ -194,12 +195,41 @@ export const ModernGameUIWrapper: React.FC<ModernGameUIWrapperProps> = ({
         equips[slotNamesArr[i]] = info?.good ? { good: info.good, count: info.count } : null;
       }
     }
-
     const storeMagics = mi?.getStoreMagics() ?? [];
     const bottomMagicsArr = mi?.getBottomMagics() ?? [];
-
     return { equips, magicInfos: storeMagics, bottomMagics: bottomMagicsArr };
-  }, [selectedNpc, partnerUpdateTrigger]);
+  }, [selectedNpc]);
+
+  const [partnerPanelData, setPartnerPanelData] = useState(() => computePartnerPanelData());
+
+  useEffect(() => {
+    if (!panels?.npcEquip) {
+      setPartnerPanelData(null);
+      return;
+    }
+    let rafId: number;
+    let prevSig = "";
+    const tick = () => {
+      const next = computePartnerPanelData();
+      // 简单签名：装备 + 武功槽位的引用 hash；不一致就更新
+      const sig = next
+        ? `${Object.values(next.equips)
+            .map((e) => `${e?.good?.fileName ?? "_"}:${e?.count ?? 0}`)
+            .join("|")}#${next.magicInfos
+            .map((m) => `${m?.magic?.fileName ?? "_"}:${m?.level ?? 0}`)
+            .join("|")}#${next.bottomMagics
+            .map((m) => m?.magic?.fileName ?? "_")
+            .join("|")}`
+        : "_null_";
+      if (sig !== prevSig) {
+        prevSig = sig;
+        setPartnerPanelData(next);
+      }
+      rafId = requestAnimationFrame(tick);
+    };
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
+  }, [panels?.npcEquip, computePartnerPanelData]);
 
   // 伙伴装备列表 (PartnerDisplayData[])
   const partnerDisplayList = useMemo((): PartnerDisplayData[] => {

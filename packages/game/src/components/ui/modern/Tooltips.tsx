@@ -156,18 +156,18 @@ export const ItemTooltip: React.FC<ItemTooltipProps> = ({
 
       {/* 属性 */}
       <div style={{ marginTop: spacing.sm }}>
-        {good.life > 0 && (
-          <StatRow label="生命" value={`+${good.life}`} color={modernColors.stats.hp} />
-        )}
-        {good.mana > 0 && (
-          <StatRow label="内力" value={`+${good.mana}`} color={modernColors.stats.mp} />
-        )}
-        {good.thew > 0 && (
-          <StatRow label="体力" value={`+${good.thew}`} color={modernColors.stats.thew} />
-        )}
-        {good.attack > 0 && <StatRow label="攻击" value={`+${good.attack}`} />}
-        {good.defend > 0 && <StatRow label="防御" value={`+${good.defend}`} />}
-        {good.evade > 0 && <StatRow label="身法" value={`+${good.evade}`} />}
+        {good.getEffectEntries().map((e) => {
+          const color =
+            e.key === "life" || e.key === "lifeMax"
+              ? modernColors.stats.hp
+              : e.key === "mana" || e.key === "manaMax"
+                ? modernColors.stats.mp
+                : e.key === "thew" || e.key === "thewMax"
+                  ? modernColors.stats.thew
+                  : undefined;
+          const valueText = e.value > 0 ? `+${e.value}` : `${e.value}`;
+          return <StatRow key={e.key} label={e.label} value={valueText} color={color} />;
+        })}
       </div>
 
       {/* 描述 */}
