@@ -246,39 +246,13 @@ export async function createNpcFromData(
 
   // 从等级配置重算属性
   // - 敌对 NPC：仅在 lifeMax === 0 时恢复血量（兼容旧逻辑）
-  // - 伙伴 NPC：始终重算，与 Player.recalculateBaseStats() 对齐
-  //   参考 JxqyHD/Engine/Character.cs - SetPropToLevel()
+  // - 伙伴 NPC：调用 recalculateBaseStats，与 Player.recalculateBaseStats() 对齐
+  //   （基础值 = 等级难度表 + 武功加成 + 装备加成，避免存档中累积/重复的装备 delta）
   logger.debug(
     `[NpcManager] NPC ${npc.name} check: isEnemy=${npc.isEnemy} isPartner=${npc.isPartner} lifeMax=${npc.lifeMax} level=${npc.level}`
   );
   if (npc.isPartner) {
-    // 伙伴已通过 initPartnerContainers 共享主角的 LevelManager
-    const levelDetail = npc.levelManager.getLevelDetail(npc.level);
-    if (levelDetail) {
-      const savedLife = npc.life;
-
-      npc.lifeMax = levelDetail.lifeMax || levelDetail.life;
-      npc.thewMax = levelDetail.thewMax;
-      npc.manaMax = levelDetail.manaMax;
-      npc.attack = levelDetail.attack;
-      npc.attack2 = levelDetail.attack2;
-      npc.attack3 = levelDetail.attack3;
-      npc.defend = levelDetail.defend;
-      npc.defend2 = levelDetail.defend2;
-      npc.defend3 = levelDetail.defend3;
-      npc.evade = levelDetail.evade;
-      npc.levelUpExp = levelDetail.levelUpExp;
-
-      npc.life = Math.min(savedLife, npc.lifeMax);
-      npc.thew = Math.min(npc.thew, npc.thewMax);
-      npc.mana = Math.min(npc.mana, npc.manaMax);
-
-      logger.log(
-        `[NpcManager] Partner ${npc.name} stats recalculated from level ${npc.level}: attack=${npc.attack} defend=${npc.defend} lifeMax=${npc.lifeMax} evade=${npc.evade}`
-      );
-    } else {
-      logger.warn(`[NpcManager] Partner ${npc.name} at level ${npc.level}, no level data found`);
-    }
+    npc.recalculateBaseStats();
   } else if (npc.isEnemy && npc.lifeMax === 0) {
     let levelDetail = npc.levelManager.getLevelDetail(npc.level) ?? getNpcLevelDetail(npc.level);
     if (!levelDetail) {

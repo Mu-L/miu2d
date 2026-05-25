@@ -260,6 +260,10 @@ export class Loader {
     this.deps.player.loadMagicEffect();
     // 从等级配置重新计算基础属性，修正存档中因历史 bug 累积的错误值
     this.deps.player.recalculateBaseStats();
+    // 伙伴 NPC 与主角共用一套属性计算：等级难度表 + 武功 + 装备
+    this.deps.npcManager.forEachPartner((partner) => {
+      partner.recalculateBaseStats();
+    });
     const timingLabel = afterEffects !== undefined ? "Effects+Options" : "Effects";
     afterEffects?.();
     timings.push([timingLabel, performance.now() - effectsStart]);
