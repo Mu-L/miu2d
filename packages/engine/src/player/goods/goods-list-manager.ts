@@ -510,15 +510,20 @@ export class GoodsListManager {
   }
 
   /**
-   * Set equipped item at a specific EquipPosition (for save loading)
+   * Set equipped item at a specific EquipPosition.
+   * - 若槽位已有旧装备，会被作为 currentEquip 传给 onEquiping，确保旧 delta 正确卸下
+   * - 若新 item 为 null，则触发 onUnEquiping，卸下旧装备 delta
+   * - 对存档加载也安全：彼时槽位本就为 null，currentEquip 即 null
    */
   setEquipAtPosition(position: EquipPosition, item: GoodsItemInfo | null): void {
     const idx = equipPositionToSlotIndex(position);
-    if (idx >= 0) {
-      this.equipSlots[idx] = item;
-      if (item?.good) {
-        this.onEquiping?.(item.good, null, false);
-      }
+    if (idx < 0) return;
+    const prev = this.equipSlots[idx];
+    this.equipSlots[idx] = item;
+    if (item?.good) {
+      this.onEquiping?.(item.good, prev?.good ?? null, false);
+    } else if (prev?.good) {
+      this.onUnEquiping?.(prev.good, false);
     }
   }
 
