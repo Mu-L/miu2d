@@ -17,7 +17,6 @@ import {
 import type { GuiManager } from "../../gui/gui-manager";
 import { getMagic } from "../../magic/magic-config-loader";
 import type { MagicData, MagicItemInfo } from "../../magic/types";
-import { MagicAddonEffect } from "../../magic/types";
 import type { Npc, NpcManager } from "../../npc";
 import { type AsfData, getCachedAsf } from "../../resource/format/asf";
 import { ResourcePath } from "../../resource/resource-paths";
@@ -126,8 +125,6 @@ export abstract class PlayerBase extends Character {
   // Equipment effects
   protected _isNotUseThewWhenRun: boolean = false;
   protected _isManaRestore: boolean = false;
-  // 武器的附加效果（中毒/冰冻/石化）
-  protected _flyIniAdditionalEffect: MagicAddonEffect = MagicAddonEffect.None;
   protected _addLifeRestorePercent: number = 0;
   protected _addManaRestorePercent: number = 0;
   protected _addThewRestorePercent: number = 0;
