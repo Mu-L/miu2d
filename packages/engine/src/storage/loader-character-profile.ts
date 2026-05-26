@@ -264,6 +264,10 @@ export class CharacterProfileLoader {
           }));
           loadGoodsFromJSON(goodsItems, [], npc.goodsManager);
         }
+        if (apiPlayer.level) {
+          npc.level = apiPlayer.level;
+          npc.recalculateBaseStats();
+        }
         logger.log(`[ProfileLoader] loadProfileToNpc key=${key}: initialized from API`);
       } else {
         logger.log(`[ProfileLoader] loadProfileToNpc key=${key}: no profile and no API data`);
