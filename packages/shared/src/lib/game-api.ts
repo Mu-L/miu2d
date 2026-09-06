@@ -48,13 +48,15 @@ export function getResourceDomain(): string {
  * 例如: /s3/miu2d 或 https://cdn.example.com/miu2d
  *
  * @param key S3 对象 key，如 saves/userId/saveId.jpg
+ * @param version 对象更新版本，避免覆盖截图后继续命中旧缓存
  */
-export function getS3Url(key: string): string {
+export function getS3Url(key: string, version?: string): string {
   if (key.startsWith("http://") || key.startsWith("https://")) {
     return key;
   }
   const base = (import.meta.env.VITE_S3_BASE_URL as string | undefined) ?? "/s3/miu2d";
-  return `${base.replace(/\/+$/, "")}/${key}`;
+  const url = `${base.replace(/\/+$/, "")}/${key}`;
+  return version ? `${url}?v=${encodeURIComponent(version)}` : url;
 }
 
 // ==================== 数据类型 ====================

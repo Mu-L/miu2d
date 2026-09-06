@@ -250,7 +250,7 @@ export function PlayerSavesPage() {
                       src={
                         save.screenshot.startsWith("data:")
                           ? save.screenshot
-                          : getS3Url(save.screenshot)
+                          : getS3Url(save.screenshot, save.updatedAt)
                       }
                       alt={save.name}
                       className="w-full h-full object-cover"
@@ -441,7 +441,10 @@ export function PlayerSavesPage() {
                           src={
                             saveDetailQuery.data.screenshot.startsWith("data:")
                               ? saveDetailQuery.data.screenshot
-                              : getS3Url(saveDetailQuery.data.screenshot)
+                              : getS3Url(
+                                  saveDetailQuery.data.screenshot,
+                                  saveDetailQuery.data.updatedAt
+                                )
                           }
                           alt=""
                           className="w-16 h-10 rounded object-cover border border-widget-border shrink-0"

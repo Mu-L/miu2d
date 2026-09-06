@@ -10,8 +10,8 @@
 
 import { getS3Url, trpc, useAuth } from "@miu2d/shared";
 import type { SaveSlot } from "@miu2d/types";
-import { HiOutlineXMark } from "react-icons/hi2";
 import { useCallback, useEffect, useState } from "react";
+import { HiOutlineXMark } from "react-icons/hi2";
 
 export interface WebSaveLoadPanelProps {
   gameSlug: string;
@@ -479,7 +479,9 @@ function SaveSlotCard({
           {save.screenshot ? (
             <img
               src={
-                save.screenshot.startsWith("data:") ? save.screenshot : getS3Url(save.screenshot)
+                save.screenshot.startsWith("data:")
+                  ? save.screenshot
+                  : getS3Url(save.screenshot, save.updatedAt)
               }
               alt=""
               className="w-full h-full object-cover"
@@ -732,9 +734,7 @@ function InlineAuthForm() {
 
       {/* 遇到问题反馈 */}
       <div className="mt-4 pt-3 border-t border-white/5 text-center group">
-        <p className="text-white/30 text-xs mb-2">
-          遇到问题、剧情走不下去？微信扫码反馈
-        </p>
+        <p className="text-white/30 text-xs mb-2">遇到问题、剧情走不下去？微信扫码反馈</p>
         <img
           src="https://williamchan.me/assets/qrcode.jpg"
           alt="微信反馈二维码"
