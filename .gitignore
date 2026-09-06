@@ -43,3 +43,11 @@ vfx-demo
 /magic
 /maplogos-512/
 .codegraph/
+
+# Deployment operations are private and kept outside this repository.
+/ops/
+/docs/*deploy*
+/docs/*tunnel*
+/docs/*cloudflare*
+/docs/private/
+/.private/

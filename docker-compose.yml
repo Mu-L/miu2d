@@ -40,51 +40,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # 后端服务 (生产环境用)
-  server:
-    image: miu2d-server:latest
-    container_name: miu2d-server
-    build:
-      context: .
-      dockerfile: packages/server/Dockerfile
-    environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-miu2d_db}
-      NODE_ENV: production
-      PORT: 4000
-      MINIO_ENDPOINT: minio
-      MINIO_PORT: 9100
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minio}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minio123}
-      MINIO_BUCKET: ${MINIO_BUCKET:-miu2d}
-    ports:
-      - "4100:4000"
-    depends_on:
-      db:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    networks:
-      - app-network
-    restart: unless-stopped
-    profiles:
-      - production
-
-  # 前端服务 (生产环境用)
-  web:
-    image: miu2d-web:latest
-    container_name: miu2d-web
-    build:
-      context: .
-      dockerfile: packages/web/Dockerfile
-    ports:
-      - "8080:80"
-    depends_on:
-      - server
-    networks:
-      - app-network
-    restart: unless-stopped
-    profiles:
-      - production
 
 networks:
   app-network:
