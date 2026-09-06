@@ -214,9 +214,12 @@ export default function GameScreen() {
       document.querySelectorAll<HTMLLinkElement>("link[rel~='icon']").forEach((el) => el.remove());
       const link = document.createElement("link");
       link.rel = "icon";
-      link.href =
-        "data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎮</text></svg>";
+      link.type = "image/png";
+      link.sizes.add("32x32");
+      link.href = "/icons/wuxia-v1-32.png";
       document.head.appendChild(link);
+      const appleIcon = document.querySelector<HTMLLinkElement>("link[rel='apple-touch-icon']");
+      if (appleIcon) appleIcon.href = "/icons/wuxia-v1-180.png";
       // 恢复默认 manifest
       const manifestEl = document.querySelector<HTMLLinkElement>("link[rel='manifest']");
       if (manifestEl) {
