@@ -60,7 +60,7 @@ export function PWAUpdatePrompt() {
           textAlign: "center",
         }}
       >
-        <span style={{ fontSize: "40px" }}>🎮</span>
+        <img src="/icons/wuxia-v1-192.png" alt="" width={48} height={48} style={{ borderRadius: "12px" }} />
         <p style={{ margin: 0, fontSize: "15px", lineHeight: 1.6 }}>{t("pwa.updateMessage")}</p>
         <button
           type="button"

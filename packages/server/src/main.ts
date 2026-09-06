@@ -38,6 +38,12 @@ app.use(
 // Health check
 app.get("/health", (c) => c.json({ status: "ok" }));
 
+// 两个入口可能经不同反代到达后端，API 的禁缓存策略在源服务统一生效。
+app.use("/game/:gameSlug/api/*", async (c, next) => {
+  await next();
+  c.header("Cache-Control", "private, no-store");
+});
+
 // REST routes
 app.route("/game", fileRoutes);
 app.route("/game", gameConfigRoutes);
@@ -93,6 +99,8 @@ app.use("/trpc/*", async (c, next) => {
   });
 
   await next();
+
+  c.header("Cache-Control", "private, no-store");
 
   // 将 tRPC handler 中产生的 Set-Cookie 添加到响应中
   for (const cookie of pendingCookies) {

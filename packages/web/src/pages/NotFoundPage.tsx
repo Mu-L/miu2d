@@ -59,7 +59,7 @@ function NotFoundContent() {
             to="/"
             className="inline-flex items-center gap-2 text-orange-500 hover:text-orange-600 dark:text-orange-400 dark:hover:text-orange-300 font-medium transition-colors"
           >
-            <span className="text-2xl">⚡</span>
+            <img src="/icons/wuxia-v1-192.png" alt="" className="w-8 h-8 rounded-lg" />
             <span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent font-bold text-lg">
               Miu2D Engine
             </span>

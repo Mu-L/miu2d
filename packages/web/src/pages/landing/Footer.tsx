@@ -49,7 +49,7 @@ export function Footer() {
               viewport={{ once: true }}
               className="flex items-center gap-2 text-xl font-bold bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent"
             >
-              <span className="text-2xl">⚡</span>
+              <img src="/icons/wuxia-v1-192.png" alt="" className="w-8 h-8 rounded-lg" />
               Miu2D Engine
             </motion.div>
             <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">{t("footer.tagline")}</p>

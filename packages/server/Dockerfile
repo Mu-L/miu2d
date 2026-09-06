@@ -2,7 +2,7 @@
 FROM node:22-alpine AS builder
 
 # 启用 corepack 以使用 pnpm
-RUN corepack enable && corepack prepare pnpm@10.15.1 --activate
+RUN corepack enable && corepack prepare pnpm@10.16.1 --activate
 
 WORKDIR /app
 
@@ -26,6 +26,7 @@ COPY packages/server/package.json ./packages/server/
 COPY packages/server/tsconfig.json ./packages/server/
 COPY packages/server/tsconfig.build.json ./packages/server/
 COPY packages/server/rolldown.config.mjs ./packages/server/
+COPY packages/server/prisma.config.ts ./packages/server/
 
 # 安装所有依赖（包括 devDependencies，构建时需要）
 RUN pnpm install --frozen-lockfile
@@ -46,12 +47,13 @@ RUN pnpm build:locales
 # 构建应用（rolldown 打包，@miu2d/* 工作区包全部内联）
 WORKDIR /app/packages/server
 RUN pnpm build
+RUN pnpm tsc
 
 # 生产阶段
 FROM node:22-alpine AS runner
 
 # 启用 corepack
-RUN corepack enable && corepack prepare pnpm@10.15.1 --activate
+RUN corepack enable && corepack prepare pnpm@10.16.1 --activate
 
 WORKDIR /app
 

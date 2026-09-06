@@ -48,7 +48,7 @@ const bucket = env.s3Bucket;
  * 开发环境下使用 /s3 前缀，由 Vite 代理转发到 MinIO
  * 生产环境可设置为 CDN 或公网 MinIO 地址
  *
- * 注意：presigned URL 必须用此 endpoint 生成签名，否则 host 不匹配导致 403
+ * 绝对 URL 使用公开 endpoint 签名；相对路径模式由同源代理恢复内部 Host。
  */
 const s3PublicEndpoint = env.s3PublicEndpoint;
 
@@ -68,15 +68,14 @@ function getS3Client(): S3Client {
 /**
  * S3 客户端单例（用于生成 presigned URL，使用公开 endpoint）
  *
- * presigned URL 中的签名包含 host，必须与前端实际请求的 host 一致。
- * 若用内部 endpoint 生成再做字符串替换，MinIO 校验 host 时会失败 → 403。
+ * presigned URL 的签名包含 host，必须与 MinIO 最终收到的 Host 一致。
+ * 相对路径模式需要代理移除路径前缀，并恢复内部 endpoint 的 Host。
  */
 let s3PublicClient: S3Client | null = null;
 
 function getS3PublicClient(): S3Client {
   if (!s3PublicClient) {
-    // 开发模式下 s3PublicEndpoint 为 "/s3"（相对路径），不是合法 URL，
-    // 回退到内部 endpoint（Vite 代理会转发，host 校验不严格）
+    // 同源模式使用内部 endpoint 签名；代理必须保留签名中的 Host 和对象路径。
     const isAbsoluteUrl =
       s3PublicEndpoint.startsWith("http://") || s3PublicEndpoint.startsWith("https://");
     const endpoint = isAbsoluteUrl ? s3PublicEndpoint : s3Config.endpoint;
@@ -87,6 +86,15 @@ function getS3PublicClient(): S3Client {
     logger.log(`S3 public client initialized, endpoint: ${endpoint}`);
   }
   return s3PublicClient;
+}
+
+/** 同源代理移除 /s3 前缀，并将 Host 设置为内部 S3 endpoint 的 host。 */
+function toPublicSignedUrl(url: string): string {
+  if (s3PublicEndpoint.startsWith("/")) {
+    const signed = new URL(url);
+    return `${s3PublicEndpoint.replace(/\/+$/, "")}${signed.pathname}${signed.search}`;
+  }
+  return url;
 }
 
 /**
@@ -224,7 +232,7 @@ export async function getDownloadUrl(storageKey: string, expiresIn = 3600): Prom
     { expiresIn }
   );
 
-  return url;
+  return toPublicSignedUrl(url);
 }
 
 /**
@@ -247,7 +255,7 @@ export async function getUploadUrl(
     { expiresIn }
   );
 
-  return url;
+  return toPublicSignedUrl(url);
 }
 
 /**

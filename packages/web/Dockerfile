@@ -2,7 +2,7 @@
 FROM node:22-alpine AS builder
 
 # 启用 corepack 以使用 pnpm
-RUN corepack enable && corepack prepare pnpm@10.15.1 --activate
+RUN corepack enable && corepack prepare pnpm@10.16.1 --activate
 
 WORKDIR /app
 
@@ -93,6 +93,7 @@ RUN COMMIT_HASH=$COMMIT_HASH \
     VITE_S3_BASE_URL=$VITE_S3_BASE_URL \
     CACHE_BUST=$CACHE_BUST \
     pnpm build
+RUN COMMIT_HASH=$COMMIT_HASH node -e 'require("fs").writeFileSync("dist/version.json", JSON.stringify({commit: process.env.COMMIT_HASH}))'
 
 # 生产阶段 - 使用 nginx 静态服务
 FROM nginx:alpine AS runner

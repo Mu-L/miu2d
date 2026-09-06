@@ -74,7 +74,7 @@ export function LoginPage() {
       <div className="relative z-10 w-full max-w-md mx-4">
         {/* Logo */}
         <Link to="/" className="flex items-center justify-center gap-2 mb-8 group">
-          <span className="text-3xl group-hover:scale-110 transition-transform">⚡</span>
+          <img src="/icons/wuxia-v1-192.png" alt="" className="w-10 h-10 rounded-xl group-hover:scale-110 transition-transform" />
           <span className="text-2xl font-bold bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
             Miu2D
           </span>

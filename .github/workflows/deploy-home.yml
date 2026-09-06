@@ -1,0 +1,31 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository == 'luckyyyyy/miu2d' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, Linux, X64, production]
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Deploy
+        run: |
+          if "$MIU2D_DEPLOY_COMMAND"; then
+            echo 'Deployment completed.'
+          else
+            echo 'Deployment failed. Details are available to the server administrator.'
+            exit 1
+          fi

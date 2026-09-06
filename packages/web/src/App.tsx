@@ -3,6 +3,7 @@ import { LoadingIcon } from "@miu2d/ui";
 import { lazy, Suspense } from "react";
 import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import { PWAUpdatePrompt } from "./PWAUpdatePrompt";
+import { RegionalSiteNotice } from "./RegionalSiteNotice";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage";
 import { LoginPage } from "./pages/LoginPage";
 import { LandingPage } from "./pages/landing";
@@ -29,6 +30,7 @@ export default function App() {
         <ThemeProvider>
           <DeviceProvider>
             <Router>
+              <RegionalSiteNotice />
               <Suspense
                 fallback={
                   <div className="flex h-screen w-screen items-center justify-center">
